@@ -39,9 +39,9 @@ async function getAccessToken(): Promise<string> {
 async function gaqlSearch(
   customerId: string,
   query: string,
-  accessToken: string
+  accessToken: string,
+  mccId: string
 ): Promise<Record<string, unknown>[]> {
-  const mccId = (process.env.GOOGLE_ADS_MCC_ID ?? "").replace(/-/g, "");
   const res = await fetch(`${GADS_BASE}/customers/${customerId}/googleAds:search`, {
     method: "POST",
     headers: {
@@ -68,10 +68,15 @@ async function gaqlSearch(
 // ─── Principal ───────────────────────────────────────────────────────────────
 
 export async function consultarSaldoGoogle(
-  rawCustomerId: string
+  rawCustomerId: string,
+  rawMccId?: string | null   // null = usar MCC padrão da agência (env)
 ): Promise<GoogleAdsResult> {
   // Aceita "123-456-7890" ou "1234567890"
   const customerId = rawCustomerId.replace(/-/g, "");
+  // MCC específico do cliente ou padrão da agência
+  const mccId = rawMccId
+    ? rawMccId.replace(/-/g, "")
+    : (process.env.GOOGLE_ADS_MCC_ID ?? "").replace(/-/g, "");
 
   try {
     const accessToken = await getAccessToken();
@@ -86,7 +91,8 @@ export async function consultarSaldoGoogle(
          account_budget.status
        FROM account_budget
        WHERE account_budget.status = 'APPROVED'`,
-      accessToken
+      accessToken,
+      mccId
     );
 
     type BudgetRow = {
@@ -101,7 +107,6 @@ export async function consultarSaldoGoogle(
       const moeda =
         (budgetRows[0] as BudgetRow)?.customer?.currencyCode ?? "BRL";
 
-      // Soma todos os orçamentos aprovados (geralmente 1)
       let totalApproved = 0n;
       let totalServed = 0n;
       for (const row of budgetRows as BudgetRow[]) {
@@ -121,7 +126,8 @@ export async function consultarSaldoGoogle(
     const customerRows = await gaqlSearch(
       customerId,
       `SELECT customer.currency_code FROM customer LIMIT 1`,
-      accessToken
+      accessToken,
+      mccId
     );
 
     type CustomerRow = { customer?: { currencyCode?: string } };

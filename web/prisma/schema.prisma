@@ -14,7 +14,7 @@ model ClienteAtivo {
   id                   Int       @id @default(autoincrement())
   nome                 String
   empresa              String
-  metaAdAccountId      String    @unique @map("meta_ad_account_id")
+  metaAdAccountId      String?   @unique @map("meta_ad_account_id")
   whatsappAlerta       String?   @map("whatsapp_alerta")
   limiteMinimo         Decimal   @default(100.00) @map("limite_minimo") @db.Decimal(12, 2)
   moeda                String    @default("BRL")
@@ -25,6 +25,7 @@ model ClienteAtivo {
 
   // ── Google Ads ──────────────────────────────────────────────────────────────
   googleAdCustomerId      String?   @map("google_ad_customer_id")
+  googleAdsMccId          String?   @map("google_ads_mcc_id")  // null = usar MCC padrão da agência
   limiteMinimoGoogle      Decimal   @default(100.00) @map("limite_minimo_google") @db.Decimal(12, 2)
   receberAlertaGoogle     Boolean   @default(false) @map("receber_alerta_google")
 

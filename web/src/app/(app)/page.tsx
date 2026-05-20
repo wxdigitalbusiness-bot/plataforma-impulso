@@ -132,7 +132,7 @@ export default async function DashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
-              {clientes.map((c) => {
+              {clientes.filter((c) => c.metaAdAccountId).map((c) => {
                 const limite = Number(c.limiteMinimo);
                 const saldoNum = c.ultimoSaldo === null ? null : Number(c.ultimoSaldo);
                 const ehPrePaga = c.ultimoTipoConta === "pre_paga";
@@ -207,10 +207,10 @@ export default async function DashboardPage() {
                   </tr>
                 );
               })}
-              {clientes.length === 0 && (
+              {clientes.filter((c) => c.metaAdAccountId).length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-sm text-neutral-500">
-                    Nenhum cliente cadastrado ainda.
+                    Nenhum cliente com Meta Ads configurado.
                   </td>
                 </tr>
               )}

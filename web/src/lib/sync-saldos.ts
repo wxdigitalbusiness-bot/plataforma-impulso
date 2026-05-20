@@ -89,6 +89,7 @@ export async function sincronizarSaldosGoogle(): Promise<SyncResult> {
     select: {
       id: true,
       googleAdCustomerId: true,
+      googleAdsMccId: true,
       receberAlertaGoogle: true,
     },
   });
@@ -103,7 +104,7 @@ export async function sincronizarSaldosGoogle(): Promise<SyncResult> {
     const resultados = await Promise.all(
       batch.map(async (c) => ({
         cliente: c,
-        saldo: await consultarSaldoGoogle(c.googleAdCustomerId!),
+        saldo: await consultarSaldoGoogle(c.googleAdCustomerId!, c.googleAdsMccId),
       }))
     );
 
