@@ -1,0 +1,64 @@
+// Plataforma Impulso — Phase 2
+// Mapeia tabelas existentes do Postgres (criadas via n8n) + adiciona usuarios
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ClienteAtivo {
+  id                   Int       @id @default(autoincrement())
+  nome                 String
+  empresa              String
+  metaAdAccountId      String    @unique @map("meta_ad_account_id")
+  whatsappAlerta       String?   @map("whatsapp_alerta")
+  limiteMinimo         Decimal   @default(100.00) @map("limite_minimo") @db.Decimal(12, 2)
+  moeda                String    @default("BRL")
+  receberAlertaSaldo   Boolean   @default(true) @map("receber_alerta_saldo")
+  ativo                Boolean   @default(true)
+  criadoEm             DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm         DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz()
+
+  // Cache populado pelo workflow [SYNC] Atualizar Saldos Meta Ads (a cada 1h)
+  ultimoSaldo            Decimal?  @map("ultimo_saldo") @db.Decimal(12, 2)
+  ultimoTipoConta        String?   @map("ultimo_tipo_conta")
+  ultimoMetodoPagamento  String?   @map("ultimo_metodo_pagamento")
+  ultimoErro             String?   @map("ultimo_erro")
+  saldoAtualizadoEm      DateTime? @map("saldo_atualizado_em") @db.Timestamptz()
+
+  alertas              AlertaSaldoLog[]
+
+  @@map("clientes_ativos")
+}
+
+model AlertaSaldoLog {
+  id                Int          @id @default(autoincrement())
+  clienteId         Int          @map("cliente_id")
+  saldoNoMomento    Decimal      @map("saldo_no_momento") @db.Decimal(12, 2)
+  limiteNoMomento   Decimal      @map("limite_no_momento") @db.Decimal(12, 2)
+  whatsappDestino   String       @map("whatsapp_destino")
+  status            String
+  erro              String?
+  enviadoEm         DateTime     @default(now()) @map("enviado_em") @db.Timestamptz()
+
+  cliente           ClienteAtivo @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId, enviadoEm])
+  @@map("alertas_saldo_log")
+}
+
+model Usuario {
+  id           String   @id @default(cuid())
+  nome         String
+  email        String   @unique
+  senhaHash    String   @map("senha_hash")
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  @@map("usuarios")
+}
