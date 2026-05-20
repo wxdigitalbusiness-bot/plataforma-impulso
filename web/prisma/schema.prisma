@@ -23,7 +23,18 @@ model ClienteAtivo {
   criadoEm             DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
   atualizadoEm         DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz()
 
-  // Cache populado pelo workflow [SYNC] Atualizar Saldos Meta Ads (a cada 1h)
+  // ── Google Ads ──────────────────────────────────────────────────────────────
+  googleAdCustomerId      String?   @map("google_ad_customer_id")
+  limiteMinimoGoogle      Decimal   @default(100.00) @map("limite_minimo_google") @db.Decimal(12, 2)
+  receberAlertaGoogle     Boolean   @default(false) @map("receber_alerta_google")
+
+  // Cache populado pelo workflow [SYNC-GOOGLE] (a cada 1h)
+  ultimoSaldoGoogle       Decimal?  @map("ultimo_saldo_google") @db.Decimal(12, 2)
+  ultimoTipoContaGoogle   String?   @map("ultimo_tipo_conta_google")
+  ultimoErroGoogle        String?   @map("ultimo_erro_google")
+  saldoGoogleAtualizadoEm DateTime? @map("saldo_google_atualizado_em") @db.Timestamptz()
+
+  // ── Meta Ads cache (populado pelo workflow [SYNC]) ───────────────────────
   ultimoSaldo            Decimal?  @map("ultimo_saldo") @db.Decimal(12, 2)
   ultimoTipoConta        String?   @map("ultimo_tipo_conta")
   ultimoMetodoPagamento  String?   @map("ultimo_metodo_pagamento")

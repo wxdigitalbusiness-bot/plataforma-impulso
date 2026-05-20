@@ -21,6 +21,15 @@ const clienteSchema = z.object({
   limiteMinimo: z.coerce.number().min(0),
   moeda: z.string().min(1).default("BRL"),
   receberAlertaSaldo: z.coerce.boolean(),
+  // Google Ads
+  googleAdCustomerId: z
+    .string()
+    .regex(/^\d+$/, "Customer ID deve conter apenas números")
+    .or(z.literal("").transform(() => null))
+    .nullable()
+    .optional(),
+  limiteMinimoGoogle: z.coerce.number().min(0).default(100),
+  receberAlertaGoogle: z.coerce.boolean(),
   ativo: z.coerce.boolean(),
 });
 
@@ -33,6 +42,9 @@ function parseForm(formData: FormData) {
     limiteMinimo: formData.get("limiteMinimo"),
     moeda: formData.get("moeda") || "BRL",
     receberAlertaSaldo: formData.get("receberAlertaSaldo") === "on",
+    googleAdCustomerId: formData.get("googleAdCustomerId"),
+    limiteMinimoGoogle: formData.get("limiteMinimoGoogle"),
+    receberAlertaGoogle: formData.get("receberAlertaGoogle") === "on",
     ativo: formData.get("ativo") === "on",
   });
 }
@@ -43,6 +55,7 @@ export async function criarCliente(formData: FormData) {
     data: {
       ...data,
       whatsappAlerta: data.whatsappAlerta || null,
+      googleAdCustomerId: data.googleAdCustomerId || null,
     },
   });
   revalidatePath("/");
@@ -57,6 +70,7 @@ export async function atualizarCliente(id: number, formData: FormData) {
     data: {
       ...data,
       whatsappAlerta: data.whatsappAlerta || null,
+      googleAdCustomerId: data.googleAdCustomerId || null,
     },
   });
   revalidatePath("/");

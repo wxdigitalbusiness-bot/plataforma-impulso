@@ -8,51 +8,96 @@ type Props = {
 
 export function ClienteForm({ cliente, action, submitLabel }: Props) {
   return (
-    <form action={action} className="space-y-5">
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-        <Field label="Nome do cliente" name="nome" defaultValue={cliente?.nome} required />
-        <Field label="Empresa" name="empresa" defaultValue={cliente?.empresa} required />
-        <Field
-          label="Ad Account ID (formato act_xxxxx)"
-          name="metaAdAccountId"
-          defaultValue={cliente?.metaAdAccountId}
-          required
-          placeholder="act_1234567890"
-        />
-        <Field
-          label="WhatsApp (DDI+DDD+numero)"
-          name="whatsappAlerta"
-          defaultValue={cliente?.whatsappAlerta ?? ""}
-          placeholder="5511999999999"
-        />
-        <Field
-          label="Limite minimo (R$)"
-          name="limiteMinimo"
-          type="number"
-          step="0.01"
-          defaultValue={cliente ? Number(cliente.limiteMinimo).toString() : "50"}
-          required
-        />
-        <Field
-          label="Moeda"
-          name="moeda"
-          defaultValue={cliente?.moeda ?? "BRL"}
-          required
-        />
-      </div>
+    <form action={action} className="space-y-6">
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      {/* ── Dados gerais ─────────────────────────────────────────────── */}
+      <fieldset className="space-y-4">
+        <legend className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
+          Dados do cliente
+        </legend>
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <Field label="Nome do cliente" name="nome" defaultValue={cliente?.nome} required />
+          <Field label="Empresa" name="empresa" defaultValue={cliente?.empresa} required />
+          <Field
+            label="WhatsApp para alertas (DDI+DDD+número)"
+            name="whatsappAlerta"
+            defaultValue={cliente?.whatsappAlerta ?? ""}
+            placeholder="5511999999999"
+          />
+        </div>
+      </fieldset>
+
+      {/* ── Meta Ads ─────────────────────────────────────────────────── */}
+      <fieldset className="space-y-4 rounded-xl border border-neutral-200 p-4">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-blue-600">
+          Meta Ads
+        </legend>
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <Field
+            label="Ad Account ID (formato act_xxxxx)"
+            name="metaAdAccountId"
+            defaultValue={cliente?.metaAdAccountId}
+            required
+            placeholder="act_1234567890"
+          />
+          <Field
+            label="Limite mínimo de saldo (R$)"
+            name="limiteMinimo"
+            type="number"
+            step="0.01"
+            defaultValue={cliente ? Number(cliente.limiteMinimo).toString() : "100"}
+            required
+          />
+          <Field
+            label="Moeda"
+            name="moeda"
+            defaultValue={cliente?.moeda ?? "BRL"}
+            required
+          />
+        </div>
         <Toggle
           name="receberAlertaSaldo"
-          label="Receber alerta de saldo baixo"
+          label="Receber alerta de saldo baixo (Meta Ads)"
           defaultChecked={cliente?.receberAlertaSaldo ?? true}
         />
+      </fieldset>
+
+      {/* ── Google Ads ───────────────────────────────────────────────── */}
+      <fieldset className="space-y-4 rounded-xl border border-neutral-200 p-4">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-green-600">
+          Google Ads
+        </legend>
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <Field
+            label="Customer ID (somente números, ex: 1234567890)"
+            name="googleAdCustomerId"
+            defaultValue={cliente?.googleAdCustomerId ?? ""}
+            placeholder="1234567890"
+          />
+          <Field
+            label="Limite mínimo de saldo Google (R$)"
+            name="limiteMinimoGoogle"
+            type="number"
+            step="0.01"
+            defaultValue={
+              cliente ? Number(cliente.limiteMinimoGoogle).toString() : "100"
+            }
+            required
+          />
+        </div>
         <Toggle
-          name="ativo"
-          label="Cliente ativo na agência"
-          defaultChecked={cliente?.ativo ?? true}
+          name="receberAlertaGoogle"
+          label="Receber alerta de saldo baixo (Google Ads)"
+          defaultChecked={cliente?.receberAlertaGoogle ?? false}
         />
-      </div>
+      </fieldset>
+
+      {/* ── Status ───────────────────────────────────────────────────── */}
+      <Toggle
+        name="ativo"
+        label="Cliente ativo na agência"
+        defaultChecked={cliente?.ativo ?? true}
+      />
 
       <div className="flex items-center justify-end gap-3 pt-2">
         <a
@@ -78,7 +123,9 @@ function Field({
 }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-neutral-700">{label}</span>
+      <span className="mb-1 block text-sm font-medium text-neutral-700">
+        {label}
+      </span>
       <input
         {...props}
         className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
