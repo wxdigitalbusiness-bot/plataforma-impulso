@@ -1,10 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import type { ClienteAtivo } from "@prisma/client";
+
+// Tipo serializado (sem Decimal/Date do Prisma) — seguro para Client Components
+export type ClienteFormData = {
+  id: number;
+  nome: string;
+  empresa: string;
+  metaAdAccountId: string | null;
+  whatsappAlerta: string | null;
+  limiteMinimo: number;
+  moeda: string;
+  receberAlertaSaldo: boolean;
+  ativo: boolean;
+  googleAdCustomerId: string | null;
+  googleAdsMccId: string | null;
+  limiteMinimoGoogle: number;
+  receberAlertaGoogle: boolean;
+};
 
 type Props = {
-  cliente?: ClienteAtivo;
+  cliente?: ClienteFormData;
   action: (formData: FormData) => void | Promise<void>;
   submitLabel: string;
 };
@@ -84,7 +100,7 @@ export function ClienteForm({ cliente, action, submitLabel }: Props) {
               name="limiteMinimo"
               type="number"
               step="0.01"
-              defaultValue={cliente ? Number(cliente.limiteMinimo).toString() : "100"}
+              defaultValue={cliente ? String(cliente.limiteMinimo) : "100"}
               required={usaMeta}
             />
             <Field
@@ -120,7 +136,7 @@ export function ClienteForm({ cliente, action, submitLabel }: Props) {
               name="limiteMinimoGoogle"
               type="number"
               step="0.01"
-              defaultValue={cliente ? Number(cliente.limiteMinimoGoogle).toString() : "100"}
+              defaultValue={cliente ? String(cliente.limiteMinimoGoogle) : "100"}
               required={usaGoogle}
             />
             <div>
