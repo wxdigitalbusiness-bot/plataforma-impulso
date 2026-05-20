@@ -11,38 +11,40 @@ const clienteSchema = z
     empresa: z.string().min(1, "Empresa obrigatória"),
 
     // Meta Ads (opcional — vazio = cliente sem Meta Ads)
-    metaAdAccountId: z
-      .string()
-      .regex(/^act_\d+$/, "Use o formato act_<id_numerico>")
-      .or(z.literal("").transform(() => null))
-      .nullable()
-      .optional(),
+    metaAdAccountId: z.preprocess(
+      (v) => (!v || String(v).trim() === "" ? null : String(v).trim()),
+      z
+        .string()
+        .regex(/^act_\d+$/, "Use o formato act_<id_numerico>")
+        .nullable()
+    ),
     limiteMinimo: z.coerce.number().min(0).default(100),
     moeda: z.string().min(1).default("BRL"),
     receberAlertaSaldo: z.coerce.boolean(),
 
     // Google Ads (opcional — vazio = cliente sem Google Ads)
-    googleAdCustomerId: z
-      .string()
-      .regex(/^\d+$/, "Customer ID deve conter apenas números")
-      .or(z.literal("").transform(() => null))
-      .nullable()
-      .optional(),
-    googleAdsMccId: z
-      .string()
-      .regex(/^\d+$/, "MCC ID deve conter apenas números")
-      .or(z.literal("").transform(() => null))
-      .nullable()
-      .optional(),
+    googleAdCustomerId: z.preprocess(
+      // remove traços (ex: "247-323-3407" → "2473233407") e converte vazio em null
+      (v) => (!v || String(v).trim() === "" ? null : String(v).replace(/-/g, "").trim()),
+      z
+        .string()
+        .regex(/^\d+$/, "Customer ID deve conter apenas números")
+        .nullable()
+    ),
+    googleAdsMccId: z.preprocess(
+      (v) => (!v || String(v).trim() === "" ? null : String(v).replace(/-/g, "").trim()),
+      z
+        .string()
+        .regex(/^\d+$/, "MCC ID deve conter apenas números")
+        .nullable()
+    ),
     limiteMinimoGoogle: z.coerce.number().min(0).default(100),
     receberAlertaGoogle: z.coerce.boolean(),
 
-    whatsappAlerta: z
-      .string()
-      .regex(/^\d{12,13}$/, "WhatsApp com DDI 55 sem espaços")
-      .or(z.literal("").transform(() => null))
-      .nullable()
-      .optional(),
+    whatsappAlerta: z.preprocess(
+      (v) => (!v || String(v).trim() === "" ? null : String(v).trim()),
+      z.string().regex(/^\d{12,13}$/, "WhatsApp com DDI 55 sem espaços").nullable()
+    ),
     ativo: z.coerce.boolean(),
   })
   .refine(
