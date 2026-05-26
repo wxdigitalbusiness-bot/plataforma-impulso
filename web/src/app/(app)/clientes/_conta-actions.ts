@@ -5,12 +5,12 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 
-const clienteSchema = z
+const contaSchema = z
   .object({
-    nome: z.string().min(1, "Nome obrigatório"),
-    empresa: z.string().min(1, "Empresa obrigatória"),
+    clienteId: z.coerce.number().int().positive("Cliente obrigatório"),
+    nome: z.string().trim().min(1, "Nome obrigatório"),
 
-    // Meta Ads (opcional — vazio = cliente sem Meta Ads)
+    // Meta Ads (opcional — vazio = conta sem Meta Ads)
     metaAdAccountId: z.preprocess(
       (v) => (!v || String(v).trim() === "" ? null : String(v).trim()),
       z
@@ -22,9 +22,8 @@ const clienteSchema = z
     moeda: z.string().min(1).default("BRL"),
     receberAlertaSaldo: z.coerce.boolean(),
 
-    // Google Ads (opcional — vazio = cliente sem Google Ads)
+    // Google Ads (opcional — vazio = conta sem Google Ads)
     googleAdCustomerId: z.preprocess(
-      // remove traços (ex: "247-323-3407" → "2473233407") e converte vazio em null
       (v) => (!v || String(v).trim() === "" ? null : String(v).replace(/-/g, "").trim()),
       z
         .string()
@@ -41,21 +40,17 @@ const clienteSchema = z
     limiteMinimoGoogle: z.coerce.number().min(0).default(100),
     receberAlertaGoogle: z.coerce.boolean(),
 
-    whatsappAlerta: z.preprocess(
-      (v) => (!v || String(v).trim() === "" ? null : String(v).trim()),
-      z.string().regex(/^\d{12,13}$/, "WhatsApp com DDI 55 sem espaços").nullable()
-    ),
     ativo: z.coerce.boolean(),
   })
   .refine(
     (data) => !!data.metaAdAccountId || !!data.googleAdCustomerId,
-    { message: "O cliente precisa ter ao menos Meta Ads ou Google Ads configurado." }
+    { message: "A conta precisa ter ao menos Meta Ads ou Google Ads configurado." }
   );
 
 function parseForm(formData: FormData) {
-  return clienteSchema.parse({
+  return contaSchema.parse({
+    clienteId: formData.get("clienteId"),
     nome: formData.get("nome"),
-    empresa: formData.get("empresa"),
     metaAdAccountId: formData.get("metaAdAccountId"),
     limiteMinimo: formData.get("limiteMinimo"),
     moeda: formData.get("moeda") || "BRL",
@@ -64,17 +59,33 @@ function parseForm(formData: FormData) {
     googleAdsMccId: formData.get("googleAdsMccId"),
     limiteMinimoGoogle: formData.get("limiteMinimoGoogle"),
     receberAlertaGoogle: formData.get("receberAlertaGoogle") === "on",
-    whatsappAlerta: formData.get("whatsappAlerta"),
     ativo: formData.get("ativo") === "on",
   });
 }
 
-export async function criarCliente(formData: FormData) {
+// Lê empresa+whatsapp do cliente parent para denormalizar em clientes_ativos.
+// Compat com workflows legados que leem esses campos direto da tabela de conta.
+async function dadosDoCliente(clienteId: number) {
+  const c = await db.cliente.findUnique({
+    where: { id: clienteId },
+    select: { empresa: true, whatsappAlerta: true },
+  });
+  return {
+    empresa: c?.empresa ?? "",
+    whatsappAlerta: c?.whatsappAlerta ?? null,
+  };
+}
+
+export async function criarConta(formData: FormData) {
   const data = parseForm(formData);
+  const parent = await dadosDoCliente(data.clienteId);
+
   await db.clienteAtivo.create({
     data: {
+      clienteId: data.clienteId,
       nome: data.nome,
-      empresa: data.empresa,
+      empresa: parent.empresa,
+      whatsappAlerta: parent.whatsappAlerta,
       metaAdAccountId: data.metaAdAccountId ?? null,
       limiteMinimo: data.limiteMinimo,
       moeda: data.moeda,
@@ -83,22 +94,26 @@ export async function criarCliente(formData: FormData) {
       googleAdsMccId: data.googleAdsMccId ?? null,
       limiteMinimoGoogle: data.limiteMinimoGoogle,
       receberAlertaGoogle: data.receberAlertaGoogle,
-      whatsappAlerta: data.whatsappAlerta ?? null,
       ativo: data.ativo,
     },
   });
   revalidatePath("/");
   revalidatePath("/clientes");
-  redirect("/clientes");
+  revalidatePath(`/clientes/${data.clienteId}`);
+  redirect(`/clientes/${data.clienteId}`);
 }
 
-export async function atualizarCliente(id: number, formData: FormData) {
+export async function atualizarConta(contaId: number, formData: FormData) {
   const data = parseForm(formData);
+  const parent = await dadosDoCliente(data.clienteId);
+
   await db.clienteAtivo.update({
-    where: { id },
+    where: { id: contaId },
     data: {
+      clienteId: data.clienteId,
       nome: data.nome,
-      empresa: data.empresa,
+      empresa: parent.empresa,
+      whatsappAlerta: parent.whatsappAlerta,
       metaAdAccountId: data.metaAdAccountId ?? null,
       limiteMinimo: data.limiteMinimo,
       moeda: data.moeda,
@@ -107,18 +122,19 @@ export async function atualizarCliente(id: number, formData: FormData) {
       googleAdsMccId: data.googleAdsMccId ?? null,
       limiteMinimoGoogle: data.limiteMinimoGoogle,
       receberAlertaGoogle: data.receberAlertaGoogle,
-      whatsappAlerta: data.whatsappAlerta ?? null,
       ativo: data.ativo,
     },
   });
   revalidatePath("/");
   revalidatePath("/clientes");
-  redirect("/clientes");
+  revalidatePath(`/clientes/${data.clienteId}`);
+  redirect(`/clientes/${data.clienteId}`);
 }
 
-export async function excluirCliente(id: number) {
-  await db.clienteAtivo.delete({ where: { id } });
+export async function excluirConta(clienteId: number, contaId: number) {
+  await db.clienteAtivo.delete({ where: { id: contaId } });
   revalidatePath("/");
   revalidatePath("/clientes");
-  redirect("/clientes");
+  revalidatePath(`/clientes/${clienteId}`);
+  redirect(`/clientes/${clienteId}`);
 }

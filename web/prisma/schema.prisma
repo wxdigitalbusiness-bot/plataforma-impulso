@@ -10,10 +10,32 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Cliente {
+  id              Int       @id @default(autoincrement())
+  nome            String
+  // Razão social ou marca-mãe (compartilhada por todas as contas vinculadas)
+  empresa         String?
+  // WhatsApp único pra alertas de qualquer conta deste cliente
+  whatsappAlerta  String?   @map("whatsapp_alerta")
+  // Tipo de serviço prestado pela agência. Valores: panfletagem_digital | gestao_trafego | impulso_360
+  tipoServico     String?   @map("tipo_servico")
+  ativo           Boolean   @default(true)
+  criadoEm        DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm    DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz()
+
+  contas          ClienteAtivo[]
+
+  @@map("clientes")
+}
+
 model ClienteAtivo {
   id                   Int       @id @default(autoincrement())
   nome                 String
   empresa              String
+  // FK opcional: contas legadas podem ainda não estar vinculadas a um Cliente parent
+  clienteId            Int?      @map("cliente_id")
+  cliente              Cliente?  @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+
   metaAdAccountId      String?   @unique @map("meta_ad_account_id")
   whatsappAlerta       String?   @map("whatsapp_alerta")
   limiteMinimo         Decimal   @default(100.00) @map("limite_minimo") @db.Decimal(12, 2)
@@ -57,7 +79,10 @@ model AlertaSaldoLog {
   erro              String?
   enviadoEm         DateTime     @default(now()) @map("enviado_em") @db.Timestamptz()
 
-  cliente           ClienteAtivo @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  // Aponta para a conta (ClienteAtivo) que disparou o alerta.
+  // A coluna no DB ainda se chama `cliente_id` por compatibilidade histórica;
+  // a relação foi renomeada para `conta` evitar confusão com o novo entity Cliente (parent).
+  conta             ClienteAtivo @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
   @@index([clienteId, enviadoEm])
   @@map("alertas_saldo_log")

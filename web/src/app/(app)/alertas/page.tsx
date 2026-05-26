@@ -1,10 +1,15 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export default async function AlertasPage() {
   const alertas = await db.alertaSaldoLog.findMany({
-    include: { cliente: true },
+    include: {
+      conta: {
+        include: { cliente: true },
+      },
+    },
     orderBy: { enviadoEm: "desc" },
     take: 100,
   });
@@ -23,7 +28,7 @@ export default async function AlertasPage() {
           <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
             <tr>
               <th className="px-4 py-3">Quando</th>
-              <th className="px-4 py-3">Cliente</th>
+              <th className="px-4 py-3">Cliente / Conta</th>
               <th className="px-4 py-3 text-right">Saldo</th>
               <th className="px-4 py-3 text-right">Limite</th>
               <th className="px-4 py-3">Destino</th>
@@ -31,38 +36,57 @@ export default async function AlertasPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
-            {alertas.map((a) => (
-              <tr key={a.id} className="hover:bg-neutral-50">
-                <td className="px-4 py-3 text-neutral-600">
-                  {a.enviadoEm.toLocaleString("pt-BR")}
-                </td>
-                <td className="px-4 py-3">
-                  <p className="font-medium">{a.cliente.nome}</p>
-                  <p className="text-xs text-neutral-500">{a.cliente.empresa}</p>
-                </td>
-                <td className="px-4 py-3 text-right font-medium text-red-600">
-                  R$ {Number(a.saldoNoMomento).toFixed(2)}
-                </td>
-                <td className="px-4 py-3 text-right text-neutral-600">
-                  R$ {Number(a.limiteNoMomento).toFixed(2)}
-                </td>
-                <td className="px-4 py-3 text-xs text-neutral-500">{a.whatsappDestino}</td>
-                <td className="px-4 py-3">
-                  {a.status === "enviado" ? (
-                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                      enviado
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
-                      falhou
-                    </span>
-                  )}
-                  {a.erro && (
-                    <p className="mt-1 text-xs text-red-600">{a.erro}</p>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {alertas.map((a) => {
+              const parent = a.conta.cliente;
+              return (
+                <tr key={a.id} className="hover:bg-neutral-50">
+                  <td className="px-4 py-3 text-neutral-600">
+                    {a.enviadoEm.toLocaleString("pt-BR")}
+                  </td>
+                  <td className="px-4 py-3">
+                    {parent ? (
+                      <Link
+                        href={`/clientes/${parent.id}`}
+                        className="font-medium text-neutral-900 hover:underline"
+                      >
+                        {parent.nome}
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-neutral-400">
+                        sem cliente vinculado
+                      </span>
+                    )}
+                    <p className="text-xs text-neutral-500">
+                      {a.conta.nome}
+                      <span className="text-neutral-400"> · {a.conta.empresa}</span>
+                    </p>
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium text-red-600">
+                    R$ {Number(a.saldoNoMomento).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-neutral-600">
+                    R$ {Number(a.limiteNoMomento).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-neutral-500">
+                    {a.whatsappDestino}
+                  </td>
+                  <td className="px-4 py-3">
+                    {a.status.startsWith("enviado") ? (
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                        enviado
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                        falhou
+                      </span>
+                    )}
+                    {a.erro && (
+                      <p className="mt-1 text-xs text-red-600">{a.erro}</p>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
             {alertas.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-12 text-center text-sm text-neutral-500">

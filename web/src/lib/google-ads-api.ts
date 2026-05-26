@@ -1,8 +1,9 @@
-// Consulta saldo de contas Google Ads via API REST v17
+// Consulta saldo de contas Google Ads via API REST v20
 // MCC (Manager Account) → sub-conta de cada cliente
-// Saldo real vem de AccountBudget: approved_spending_limit - amount_served
+// Saldo real vem de AccountBudget: adjusted_spending_limit - amount_served × 1.10
+// (adjusted = approved + créditos promocionais; ×1.10 = tributos BR: ISS 5% + PIS/COFINS ~4%)
 
-const GADS_VERSION = "v17";
+const GADS_VERSION = "v20";
 const GADS_BASE = `https://googleads.googleapis.com/${GADS_VERSION}`;
 
 export type GoogleAdsResult = {
@@ -69,17 +70,24 @@ async function gaqlSearch(
 
 export async function consultarSaldoGoogle(
   rawCustomerId: string,
-  rawMccId?: string | null   // null = usar MCC padrão da agência (env)
+  rawMccId?: string | null   // null = acessar a conta diretamente (sem MCC)
 ): Promise<GoogleAdsResult> {
   // Aceita "123-456-7890" ou "1234567890"
   const customerId = rawCustomerId.replace(/-/g, "");
-  // MCC específico do cliente ou padrão da agência
-  const mccId = rawMccId
+  // Se o cliente tem MCC específico → usa o MCC; senão → loga como a própria conta
+  // (igual ao workflow n8n: nunca assume o MCC padrão para contas sem MCC configurado)
+  const loginCustomerId = rawMccId
     ? rawMccId.replace(/-/g, "")
-    : (process.env.GOOGLE_ADS_MCC_ID ?? "").replace(/-/g, "");
+    : customerId;
 
   try {
     const accessToken = await getAccessToken();
+
+    // Taxa de tributos do Google Ads no Brasil: ISS (5%) + PIS/COFINS (~4%) ≈ 10%
+    // amountServedMicros = custo líquido SEM impostos.
+    // adjustedSpendingLimitMicros = approved + créditos promocionais.
+    // Fórmula: saldo = adjusted - served × 1.10
+    const TAX_RATE = 0.10;
 
     // 1. Busca AccountBudgets aprovados (conta pré-paga tem orçamentos)
     const budgetRows = await gaqlSearch(
@@ -87,18 +95,19 @@ export async function consultarSaldoGoogle(
       `SELECT
          customer.currency_code,
          account_budget.approved_spending_limit_micros,
-         account_budget.amount_served_micros,
-         account_budget.status
+         account_budget.adjusted_spending_limit_micros,
+         account_budget.amount_served_micros
        FROM account_budget
        WHERE account_budget.status = 'APPROVED'`,
       accessToken,
-      mccId
+      loginCustomerId
     );
 
     type BudgetRow = {
       customer?: { currencyCode?: string };
       accountBudget?: {
         approvedSpendingLimitMicros?: string | number;
+        adjustedSpendingLimitMicros?: string | number;
         amountServedMicros?: string | number;
       };
     };
@@ -107,17 +116,28 @@ export async function consultarSaldoGoogle(
       const moeda =
         (budgetRows[0] as BudgetRow)?.customer?.currencyCode ?? "BRL";
 
-      let totalApproved = 0n;
-      let totalServed = 0n;
-      for (const row of budgetRows as BudgetRow[]) {
-        totalApproved += BigInt(
-          row.accountBudget?.approvedSpendingLimitMicros ?? 0
-        );
-        totalServed += BigInt(row.accountBudget?.amountServedMicros ?? 0);
+      // Verifica se algum budget tem limite pré-pago (approved > 0)
+      const temLimitePrepago = (budgetRows as BudgetRow[]).some(
+        (row) => Number(row.accountBudget?.approvedSpendingLimitMicros ?? 0) > 0
+      );
+
+      if (!temLimitePrepago) {
+        return { saldoRestante: null, tipoConta: "pos_paga", moeda, erro: null };
       }
 
-      const balanceMicros = totalApproved - totalServed;
-      const saldoRestante = Math.max(0, Number(balanceMicros) / 1_000_000);
+      let totalAdjusted = 0;
+      let totalServed = 0;
+      for (const row of budgetRows as BudgetRow[]) {
+        const b = row.accountBudget;
+        // Usa adjustedSpendingLimitMicros se disponível, senão approvedSpendingLimitMicros
+        const limit = Number(b?.adjustedSpendingLimitMicros ?? b?.approvedSpendingLimitMicros ?? 0);
+        totalAdjusted += limit;
+        totalServed += Number(b?.amountServedMicros ?? 0);
+      }
+
+      // Desconta tributos e garante mínimo 0
+      const raw = (totalAdjusted - totalServed * (1 + TAX_RATE)) / 1_000_000;
+      const saldoRestante = Math.max(0, Math.round(raw * 100) / 100);
 
       return { saldoRestante, tipoConta: "pre_paga", moeda, erro: null };
     }
@@ -127,7 +147,7 @@ export async function consultarSaldoGoogle(
       customerId,
       `SELECT customer.currency_code FROM customer LIMIT 1`,
       accessToken,
-      mccId
+      loginCustomerId
     );
 
     type CustomerRow = { customer?: { currencyCode?: string } };

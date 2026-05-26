@@ -1,21 +1,30 @@
 // [SYNC-GOOGLE] Atualizar Saldos Google Ads
-// Workflow n8n — source de referência
-// Roda a cada 1h (08-19h seg-sex): cron 0 0 8-19 * * 1-5
-// Consulta AccountBudget via Google Ads API v17 (GAQL) e grava cache no Postgres
+// Workflow n8n — source de referência (alinhado com o que está rodando em produção)
+//
+// Roda a cada 1h, 08:00–17:00 horário de Brasília, seg-sex.
+// Cron expression em UTC: 0 0 11-20 * * 1-5  (Brasil é UTC-3, sem horário de verão)
+//
+// Autenticação OAuth: gerenciada pela n8n Credential "Google Ads OAuth2" (ID BrEUCO5EzTn5Gbb3).
+// n8n cuida do refresh do access_token automaticamente — não há node "Obter OAuth Token".
+//
+// Postgres: credential "Postgres EasyPanel" (ID uhiDzKcnDvzDL7OQ).
+//
+// Fórmula de saldo: (adjustedSpendingLimit - amountServed × 1.10) / 1_000_000
+//   × 1.10 = tributos BR (ISS 5% + PIS/COFINS ~4% + outras ≈ 10%)
 
-import { workflow, node, trigger } from '@n8n/workflow-sdk';
+import { workflow, node, trigger, expr } from '@n8n/workflow-sdk';
 
-const scheduleTrigger = trigger({
+const cronTrigger = trigger({
   type: 'n8n-nodes-base.scheduleTrigger',
   version: 1.3,
   config: {
-    name: 'Cron 1h (08-19h seg-sex)',
+    name: 'Cron 1h (08-17h BRT seg-sex)',
     parameters: {
       rule: {
-        interval: [{ field: 'cronExpression', expression: '0 0 8-19 * * 1-5' }]
+        interval: [{ field: 'cronExpression', expression: '0 0 11-20 * * 1-5' }]
       }
     },
-    position: [240, 300]
+    position: [0, 0]
   },
   output: [{}]
 });
@@ -25,145 +34,201 @@ const buscarClientes = node({
   version: 2.5,
   config: {
     name: 'Buscar clientes Google Ads',
-    credentials: { postgres: { id: '', name: 'Postgres EasyPanel' } },
     parameters: {
       operation: 'executeQuery',
-      query: `SELECT id, google_ad_customer_id, receber_alerta_google FROM clientes_ativos WHERE ativo = true AND google_ad_customer_id IS NOT NULL AND google_ad_customer_id != ''`
+      query: "SELECT id, google_ad_customer_id, google_ads_mcc_id FROM clientes_ativos WHERE ativo = true AND google_ad_customer_id IS NOT NULL AND google_ad_customer_id != ''",
+      options: {}
     },
-    position: [540, 300]
+    credentials: { postgres: { id: 'uhiDzKcnDvzDL7OQ', name: 'Postgres EasyPanel' } },
+    position: [224, 0]
   },
-  output: [{ id: 1, google_ad_customer_id: '1234567890', receber_alerta_google: true }]
+  output: [{ id: 1, google_ad_customer_id: '1234567890', google_ads_mcc_id: null }]
 });
 
-const consultarSaldo = node({
+const prepararDados = node({
   type: 'n8n-nodes-base.code',
   version: 2,
   config: {
-    name: 'Consultar saldo Google Ads',
+    name: 'Preparar dados cliente',
     parameters: {
-      // Credenciais injetadas via variáveis de ambiente do n8n ou hardcoded no Code node
-      // MCC_ID: 8259939796
+      mode: 'runOnceForEachItem',
       jsCode: `
-const clienteId = $input.item.json.id;
-const customerId = String($input.item.json.google_ad_customer_id).replace(/-/g, '');
-const mccId = '8259939796';
-const devToken = 'pvJLEsosljyVML21tc9vDg';
-const clientIdOAuth = '663591477567-vun0dhbvfq7ioktt6d77k8bn8hl1c96i.apps.googleusercontent.com';
-const clientSecret = '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';
-const refreshToken = '1//04j5C_jbJim6ACgYIARAAGAQSNwF-L9IrUO6RKbXcUbcq39LA0GbwN6EwBtzsCpfBTjvLjNVKqhcj-sJO4DS_cD_Ek2V8Q-ryoSE';
-
-let accessToken;
-try {
-  const tokenRes = await $helpers.httpRequest({
-    method: 'POST',
-    url: 'https://oauth2.googleapis.com/token',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: \`client_id=\${encodeURIComponent(clientIdOAuth)}&client_secret=\${encodeURIComponent(clientSecret)}&refresh_token=\${encodeURIComponent(refreshToken)}&grant_type=refresh_token\`
-  });
-  accessToken = tokenRes.access_token;
-} catch(e) {
-  return [{ json: { clienteId, erro: 'Falha no OAuth2: ' + e.message, saldo: null, tipoConta: 'indefinido' } }];
-}
-
-const gaqlQuery = "SELECT customer.currency_code, account_budget.approved_spending_limit_micros, account_budget.amount_served_micros FROM account_budget WHERE account_budget.status = 'APPROVED'";
-
-let saldo = null;
-let tipoConta = 'indefinido';
-let moeda = 'BRL';
-let erro = null;
-
-try {
-  const res = await $helpers.httpRequest({
-    method: 'POST',
-    url: \`https://googleads.googleapis.com/v17/customers/\${customerId}/googleAds:search\`,
-    headers: {
-      'Authorization': \`Bearer \${accessToken}\`,
-      'developer-token': devToken,
-      'login-customer-id': mccId,
-      'Content-Type': 'application/json'
+const cliente = $input.item.json;
+const MCC_PADRAO = '8259939796';
+const customerId = String(cliente.google_ad_customer_id).replace(/-/g, '');
+const loginCustomerId = (cliente.google_ads_mcc_id && String(cliente.google_ads_mcc_id).trim() !== '')
+  ? String(cliente.google_ads_mcc_id).replace(/-/g, '')
+  : MCC_PADRAO;
+return { json: { clienteId: cliente.id, customerId, loginCustomerId } };
+`.trim()
     },
-    body: JSON.stringify({ query: gaqlQuery })
-  });
-
-  const results = res.results || [];
-  moeda = results[0]?.customer?.currencyCode || 'BRL';
-
-  if (results.length > 0) {
-    let totalApproved = 0;
-    let totalServed = 0;
-    for (const row of results) {
-      totalApproved += Number(row.accountBudget?.approvedSpendingLimitMicros || 0);
-      totalServed += Number(row.accountBudget?.amountServedMicros || 0);
-    }
-    saldo = Math.max(0, (totalApproved - totalServed) / 1000000);
-    tipoConta = 'pre_paga';
-  } else {
-    tipoConta = 'pos_paga';
-  }
-} catch(e) {
-  erro = e.message || String(e);
-}
-
-return [{ json: { clienteId, saldo, tipoConta, moeda, erro } }];
-`
-    },
-    position: [840, 300]
+    position: [448, 0]
   },
-  output: [{ json: { clienteId: 1, saldo: 150.5, tipoConta: 'pre_paga', moeda: 'BRL', erro: null } }]
+  output: [{ clienteId: 1, customerId: '1234567890', loginCustomerId: '8259939796' }]
 });
 
-const gravarSaldo = node({
+const consultarAds = node({
+  type: 'n8n-nodes-base.httpRequest',
+  version: 4.3,
+  config: {
+    name: 'Consultar Google Ads API',
+    parameters: {
+      method: 'POST',
+      url: expr('https://googleads.googleapis.com/v20/customers/{{ $json.customerId }}/googleAds:search'),
+      authentication: 'genericCredentialType',
+      genericAuthType: 'oAuth2Api',
+      sendHeaders: true,
+      headerParameters: {
+        parameters: [
+          // Substituir pelo developer-token real ao reimportar (preservado no n8n em produção)
+          { name: 'developer-token',   value: '<<GOOGLE_ADS_DEVELOPER_TOKEN>>' },
+          { name: 'login-customer-id', value: expr('{{ $json.loginCustomerId }}') },
+          { name: 'Content-Type',      value: 'application/json' }
+        ]
+      },
+      sendBody: true,
+      specifyBody: 'json',
+      jsonBody: `{ "query": "SELECT customer.currency_code, account_budget.approved_spending_limit_micros, account_budget.adjusted_spending_limit_micros, account_budget.amount_served_micros FROM account_budget WHERE account_budget.status = 'APPROVED'" }`,
+      options: {
+        response: { response: { neverError: true } }
+      }
+    },
+    credentials: { oAuth2Api: { id: 'BrEUCO5EzTn5Gbb3', name: 'Google Ads OAuth2' } },
+    position: [672, 0]
+  },
+  output: [{ results: [] }]
+});
+
+const processarResultado = node({
+  type: 'n8n-nodes-base.code',
+  version: 2,
+  config: {
+    name: 'Processar resultado',
+    parameters: {
+      mode: 'runOnceForEachItem',
+      jsCode: `
+const resposta = $input.item.json;
+const clienteId = $('Preparar dados cliente').item.json.clienteId;
+
+// Taxa de tributos do Google Ads no Brasil:
+// ISS (5%) + PIS/COFINS (~4%) + outras ≈ 10%
+// amountServedMicros = custo líquido SEM impostos
+var TAX_RATE = 0.10;
+
+var saldo = null;
+var tipoConta = 'indefinido';
+var moeda = 'BRL';
+var erro = null;
+
+if (resposta.error) {
+  erro = JSON.stringify(resposta.error);
+} else {
+  var results = resposta.results || [];
+  moeda = (results[0] && results[0].customer && results[0].customer.currencyCode)
+    ? results[0].customer.currencyCode : 'BRL';
+
+  if (results.length === 0) {
+    tipoConta = 'pos_paga';
+  } else {
+    var temLimitePrepago = false;
+    for (var i = 0; i < results.length; i++) {
+      var row = results[i];
+      if (row.accountBudget &&
+          row.accountBudget.approvedSpendingLimitMicros &&
+          Number(row.accountBudget.approvedSpendingLimitMicros) > 0) {
+        temLimitePrepago = true;
+        break;
+      }
+    }
+
+    if (!temLimitePrepago) {
+      tipoConta = 'pos_paga';
+    } else {
+      var totalAdjusted = 0;
+      var totalServed   = 0;
+      for (var j = 0; j < results.length; j++) {
+        var b = results[j].accountBudget;
+        if (!b) continue;
+        var limit = b.adjustedSpendingLimitMicros
+          ? Number(b.adjustedSpendingLimitMicros)
+          : Number(b.approvedSpendingLimitMicros || 0);
+        totalAdjusted += limit;
+        totalServed   += Number(b.amountServedMicros || 0);
+      }
+      var raw = (totalAdjusted - totalServed * (1 + TAX_RATE)) / 1000000;
+      saldo = Math.max(0, Math.round(raw * 100) / 100);
+      tipoConta = 'pre_paga';
+    }
+  }
+}
+
+return { json: { clienteId, saldo, tipoConta, moeda, erro } };
+`.trim()
+    },
+    position: [896, 0]
+  },
+  output: [{ clienteId: 1, saldo: 150.5, tipoConta: 'pre_paga', moeda: 'BRL', erro: null }]
+});
+
+const montarSql = node({
   type: 'n8n-nodes-base.code',
   version: 2,
   config: {
     name: 'Montar SQL de update',
     parameters: {
+      mode: 'runOnceForEachItem',
       jsCode: `
 const item = $input.item.json;
+
 function sqlStr(v) {
   if (v === null || v === undefined) return 'NULL';
   return "'" + String(v).replace(/'/g, "''") + "'";
 }
 function sqlNum(v) {
   if (v === null || v === undefined) return 'NULL';
-  const n = parseFloat(v);
-  return isNaN(n) ? 'NULL' : String(n);
+  var n = parseFloat(v);
+  return isNaN(n) ? 'NULL' : n.toFixed(2);
 }
-const ehPosPaga = item.tipoConta === 'pos_paga';
-const desligarAlerta = ehPosPaga ? ', receber_alerta_google = false' : '';
-const sql = \`UPDATE clientes_ativos SET
-  ultimo_saldo_google = \${sqlNum(item.saldo)},
-  ultimo_tipo_conta_google = \${sqlStr(item.tipoConta)},
-  ultimo_erro_google = \${sqlStr(item.erro)},
-  saldo_google_atualizado_em = NOW()
-  \${desligarAlerta}
-WHERE id = \${Number(item.clienteId)}\`;
-return [{ json: { sql } }];
-`
+
+const desligarAlerta = (item.tipoConta === 'pos_paga') ? ', receber_alerta_google = false' : '';
+
+const sql = 'UPDATE clientes_ativos SET'
+  + ' ultimo_saldo_google = '        + sqlNum(item.saldo)     + ','
+  + ' ultimo_tipo_conta_google = '   + sqlStr(item.tipoConta) + ','
+  + ' ultimo_erro_google = '         + sqlStr(item.erro)      + ','
+  + ' saldo_google_atualizado_em = NOW()'
+  + desligarAlerta
+  + ' WHERE id = ' + Number(item.clienteId);
+
+return { json: { sql } };
+`.trim()
     },
-    position: [1140, 300]
+    position: [1120, 0]
   },
-  output: [{ json: { sql: 'UPDATE clientes_ativos SET ...' } }]
+  output: [{ sql: 'UPDATE clientes_ativos SET ...' }]
 });
 
-const executarUpdate = node({
+const gravarSaldo = node({
   type: 'n8n-nodes-base.postgres',
   version: 2.5,
   config: {
     name: 'Gravar saldo no Postgres',
-    credentials: { postgres: { id: '', name: 'Postgres EasyPanel' } },
     parameters: {
       operation: 'executeQuery',
-      query: '={{ $json.sql }}'
+      query: expr('{{ $json.sql }}'),
+      options: {}
     },
-    position: [1440, 300]
+    credentials: { postgres: { id: 'uhiDzKcnDvzDL7OQ', name: 'Postgres EasyPanel' } },
+    position: [1344, 0]
   },
   output: [{ success: true }]
 });
 
-export default workflow('sync-google-ads', '[SYNC-GOOGLE] Atualizar Saldos Google Ads')
-  .add(scheduleTrigger)
+export default workflow('NHp6jnXas9xE1LQf', '[SYNC-GOOGLE] Atualizar Saldos Google Ads')
+  .add(cronTrigger)
   .to(buscarClientes)
-  .to(consultarSaldo)
-  .to(gravarSaldo)
-  .to(executarUpdate);
+  .to(prepararDados)
+  .to(consultarAds)
+  .to(processarResultado)
+  .to(montarSql)
+  .to(gravarSaldo);
