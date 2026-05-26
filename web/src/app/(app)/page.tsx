@@ -183,7 +183,7 @@ export default async function DashboardPage() {
                   Cliente
                 </th>
                 <th
-                  colSpan={3}
+                  colSpan={4}
                   className="border-r border-blue-100 bg-blue-50/60 px-4 py-2 text-center text-xs font-semibold text-blue-700"
                 >
                   Meta Ads
@@ -197,6 +197,7 @@ export default async function DashboardPage() {
               </tr>
               {/* Linha 2: sub-colunas */}
               <tr className="border-b border-neutral-200 text-xs uppercase text-neutral-500">
+                <th className="bg-blue-50/30 px-4 py-2 text-right">Gasto</th>
                 <th className="bg-blue-50/30 px-4 py-2 text-right">Resultado</th>
                 <th className="bg-blue-50/30 px-4 py-2 text-right">Custo/Res.</th>
                 <th className="border-r border-blue-100 bg-blue-50/30 px-4 py-2 text-right">
@@ -251,9 +252,13 @@ export default async function DashboardPage() {
                       </div>
                     </td>
 
-                    {/* Meta: Resultado / Custo/Resultado / Frequência */}
+                    {/* Meta: Gasto / Resultado / Custo/Resultado / Frequência */}
                     {c.contasMeta > 0 ? (
                       <>
+                        {/* Gasto */}
+                        <td className="px-4 py-3 text-right font-medium text-neutral-900">
+                          {formatBRL(c.meta.spend)}
+                        </td>
                         {/* Resultado: número + label abaixo */}
                         <td className="px-4 py-3 text-right">
                           <p className="font-medium text-neutral-900">
@@ -288,7 +293,7 @@ export default async function DashboardPage() {
                       </>
                     ) : (
                       <td
-                        colSpan={3}
+                        colSpan={4}
                         className="border-r border-blue-100 px-4 py-3 text-center text-xs text-neutral-300"
                       >
                         —
@@ -331,7 +336,7 @@ export default async function DashboardPage() {
               ).length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-4 py-12 text-center text-sm text-neutral-500"
                   >
                     Nenhum cliente com conta de anúncio configurada.
