@@ -91,14 +91,16 @@ export type GoogleInsightsResultado = {
 export async function getInsightsGoogle(
   rawCustomerId: string,
   rawMccId: string | null,
-  diasAtras: 7 | 30 = 7,
+  diasAtras: 3 | 7 | 30 = 7,
 ): Promise<GoogleInsightsResultado> {
   const customerId = rawCustomerId.replace(/-/g, "");
   const loginCustomerId = rawMccId
     ? rawMccId.replace(/-/g, "")
     : customerId;
 
-  const periodo = diasAtras === 7 ? "LAST_7_DAYS" : "LAST_30_DAYS";
+  const periodo =
+    diasAtras === 3 ? "LAST_3_DAYS" :
+    diasAtras === 7 ? "LAST_7_DAYS" : "LAST_30_DAYS";
 
   try {
     const accessToken = await getAccessToken();

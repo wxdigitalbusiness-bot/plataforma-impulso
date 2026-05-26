@@ -216,7 +216,7 @@ export type MetaInsightsResultado = {
 
 export async function getInsightsMeta(
   adAccountId: string,
-  datePreset: "last_7d" | "last_30d" | "this_month" = "last_7d",
+  datePreset: "last_3d" | "last_7d" | "last_30d" | "this_month" = "last_7d",
 ): Promise<MetaInsightsResultado> {
   const token = process.env.META_ACCESS_TOKEN;
   if (!token) {
@@ -311,7 +311,7 @@ export type CampanhaMetrics = {
 
 export async function getInsightsCampanhasMeta(
   adAccountId: string,
-  datePreset: "last_7d" | "last_30d" = "last_7d",
+  datePreset: "last_3d" | "last_7d" | "last_30d" = "last_7d",
 ): Promise<CampanhaMetrics[]> {
   const token = process.env.META_ACCESS_TOKEN;
   if (!token) return [];

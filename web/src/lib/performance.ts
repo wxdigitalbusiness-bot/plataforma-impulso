@@ -36,7 +36,7 @@ export type ClientePerformance = {
 };
 
 export type PerformanceAgregada = {
-  diasAtras: 7 | 30;
+  diasAtras: 3 | 7 | 30;
   geradoEm: Date;
   totalSpend: number;
   totalCliques: number;
@@ -52,14 +52,14 @@ type CacheEntry = { data: PerformanceAgregada; expiresAt: number };
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
-function cacheKey(diasAtras: 7 | 30) {
+function cacheKey(diasAtras: 3 | 7 | 30) {
   return `performance:${diasAtras}`;
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export async function obterPerformance(opts?: {
-  diasAtras?: 7 | 30;
+  diasAtras?: 3 | 7 | 30;
   forcarRefresh?: boolean;
 }): Promise<PerformanceAgregada> {
   const diasAtras = opts?.diasAtras ?? 7;
@@ -81,7 +81,7 @@ export function limparCachePerformance() {
 
 // ─── Implementação ───────────────────────────────────────────────────────────
 
-async function calcular(diasAtras: 7 | 30): Promise<PerformanceAgregada> {
+async function calcular(diasAtras: 3 | 7 | 30): Promise<PerformanceAgregada> {
   // Pega clientes ativos com suas contas
   const clientes = await db.cliente.findMany({
     where: { ativo: true },
@@ -124,7 +124,7 @@ async function calcular(diasAtras: 7 | 30): Promise<PerformanceAgregada> {
   const CONCURRENCY = 8;
   const resultados = await runComConcorrencia(tasks, CONCURRENCY, async (t) => {
     if (t.type === "meta") {
-      const r = await getInsightsMeta(t.adAccountId, diasAtras === 7 ? "last_7d" : "last_30d");
+      const r = await getInsightsMeta(t.adAccountId, diasAtras === 3 ? "last_3d" : diasAtras === 7 ? "last_7d" : "last_30d");
       return { type: "meta" as const, clienteId: t.clienteId, dado: r };
     } else {
       const r = await getInsightsGoogle(t.customerId, t.mccId, diasAtras);

@@ -85,7 +85,7 @@ export default async function PerformancePage({ params }: Props) {
   const [campanhasMetaBruta, googleResultsBrutos] = await Promise.all([
     Promise.all(
       contasMeta.map((c) =>
-        getInsightsCampanhasMeta(c.metaAdAccountId!, "last_7d").then(
+        getInsightsCampanhasMeta(c.metaAdAccountId!, "last_3d").then(
           (campanhas) =>
             campanhas.map((camp) => ({
               ...camp,
@@ -98,7 +98,7 @@ export default async function PerformancePage({ params }: Props) {
 
     Promise.all(
       contasGoogle.map(async (c): Promise<GoogleContaResult> => {
-        const r = await getInsightsGoogle(c.googleAdCustomerId!, c.googleAdsMccId, 7);
+        const r = await getInsightsGoogle(c.googleAdCustomerId!, c.googleAdsMccId, 3);
         return {
           contaId: c.id,
           contaNome: c.nome,
@@ -181,7 +181,7 @@ export default async function PerformancePage({ params }: Props) {
               <p className="text-sm text-neutral-500">{cliente.empresa}</p>
             )}
             <p className="mt-0.5 text-xs text-neutral-400">
-              Performance — últimos 7 dias
+              Performance — últimos 3 dias
             </p>
           </div>
           <Link

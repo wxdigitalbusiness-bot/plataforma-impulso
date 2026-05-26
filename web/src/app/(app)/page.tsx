@@ -92,7 +92,7 @@ export default async function DashboardPage() {
   }, null);
 
   // Performance dos últimos 7 dias (cache 10min) — chamada paralela com Meta+Google
-  const perf = await obterPerformance({ diasAtras: 7 });
+  const perf = await obterPerformance({ diasAtras: 3 });
 
   return (
     <div className="space-y-8">
@@ -145,12 +145,12 @@ export default async function DashboardPage() {
         />
       </section>
 
-      {/* Performance — últimos 7 dias */}
+      {/* Performance — últimos 3 dias */}
       <section>
         <div className="mb-3 flex items-end justify-between">
           <div>
             <h2 className="text-sm font-semibold text-neutral-700">
-              Performance — últimos 7 dias
+              Performance — últimos 3 dias
             </h2>
             <p className="text-xs text-neutral-500">
               Meta + Google agregado por cliente. Atualizado a cada 10 min.
