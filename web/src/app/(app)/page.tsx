@@ -170,19 +170,45 @@ export default async function DashboardPage() {
           />
         </div>
 
-        {/* Tabela por cliente */}
-        <div className="mt-4 overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        {/* Tabela por cliente — colunas Meta | Google */}
+        <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200 bg-white">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
-              <tr>
-                <th className="px-4 py-3">Cliente</th>
-                <th className="px-4 py-3">Plataformas</th>
-                <th className="px-4 py-3 text-right">Spend</th>
-                <th className="px-4 py-3 text-right">Impressões</th>
-                <th className="px-4 py-3 text-right">Cliques</th>
-                <th className="px-4 py-3 text-right">CTR</th>
-                <th className="px-4 py-3 text-right">CPC</th>
-                <th className="px-4 py-3 text-right">Conv.</th>
+            <thead>
+              {/* Linha 1: grupos de plataforma */}
+              <tr className="border-b border-neutral-200">
+                <th
+                  rowSpan={2}
+                  className="border-r border-neutral-200 px-4 py-3 text-left text-xs font-semibold uppercase text-neutral-500 align-bottom"
+                >
+                  Cliente
+                </th>
+                <th
+                  colSpan={4}
+                  className="border-r border-blue-100 bg-blue-50/60 px-4 py-2 text-center text-xs font-semibold text-blue-700"
+                >
+                  Meta Ads
+                </th>
+                <th
+                  colSpan={4}
+                  className="bg-green-50/60 px-4 py-2 text-center text-xs font-semibold text-green-700"
+                >
+                  Google Ads
+                </th>
+              </tr>
+              {/* Linha 2: sub-colunas */}
+              <tr className="border-b border-neutral-200 text-xs uppercase text-neutral-500">
+                <th className="bg-blue-50/30 px-4 py-2 text-right">Spend</th>
+                <th className="bg-blue-50/30 px-4 py-2 text-right">Cliques</th>
+                <th className="bg-blue-50/30 px-4 py-2 text-right">CTR</th>
+                <th className="border-r border-blue-100 bg-blue-50/30 px-4 py-2 text-right">
+                  Conv.
+                </th>
+                <th className="bg-green-50/30 px-4 py-2 text-right">Spend</th>
+                <th className="bg-green-50/30 px-4 py-2 text-right">Cliques</th>
+                <th className="bg-green-50/30 px-4 py-2 text-right">CTR</th>
+                <th className="bg-green-50/30 px-4 py-2 text-right">
+                  Taxa Conv.
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
@@ -190,9 +216,10 @@ export default async function DashboardPage() {
                 .filter((c) => c.contasMeta + c.contasGoogle > 0)
                 .map((c) => (
                   <tr key={c.clienteId} className="hover:bg-neutral-50">
-                    <td className="px-4 py-3">
+                    {/* Cliente */}
+                    <td className="border-r border-neutral-100 px-4 py-3">
                       <Link
-                        href={`/clientes/${c.clienteId}`}
+                        href={`/clientes/${c.clienteId}/performance`}
                         className="font-medium text-neutral-900 hover:underline"
                       >
                         {c.nome}
@@ -200,59 +227,85 @@ export default async function DashboardPage() {
                       {c.empresa && (
                         <p className="text-xs text-neutral-500">{c.empresa}</p>
                       )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
+                      <div className="mt-1 flex items-center gap-1">
                         {c.contasMeta > 0 && (
-                          <span
-                            title={`${c.contasMeta} conta${c.contasMeta > 1 ? "s" : ""} Meta`}
-                            className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
-                          >
-                            M {c.contasMeta > 1 ? `×${c.contasMeta}` : ""}
+                          <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-600">
+                            M{c.contasMeta > 1 ? `×${c.contasMeta}` : ""}
                           </span>
                         )}
                         {c.contasGoogle > 0 && (
+                          <span className="rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-600">
+                            G{c.contasGoogle > 1 ? `×${c.contasGoogle}` : ""}
+                          </span>
+                        )}
+                        {c.total.erros.length > 0 && (
                           <span
-                            title={`${c.contasGoogle} conta${c.contasGoogle > 1 ? "s" : ""} Google`}
-                            className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700"
+                            className="text-[10px] text-red-500"
+                            title={c.total.erros.join("\n")}
                           >
-                            G {c.contasGoogle > 1 ? `×${c.contasGoogle}` : ""}
+                            ⚠ {c.total.erros.length} erro(s)
                           </span>
                         )}
                       </div>
-                      {c.total.erros.length > 0 && (
-                        <p
-                          className="mt-1 text-[10px] text-red-600"
-                          title={c.total.erros.join("\n")}
-                        >
-                          ⚠ {c.total.erros.length} erro(s)
-                        </p>
-                      )}
                     </td>
-                    <td className="px-4 py-3 text-right font-medium text-neutral-900">
-                      {formatBRL(c.total.spend)}
-                    </td>
-                    <td className="px-4 py-3 text-right text-neutral-600">
-                      {formatInt(c.total.impressoes)}
-                    </td>
-                    <td className="px-4 py-3 text-right text-neutral-600">
-                      {formatInt(c.total.cliques)}
-                    </td>
-                    <td className="px-4 py-3 text-right text-neutral-600">
-                      {formatPct(c.total.ctr)}
-                    </td>
-                    <td className="px-4 py-3 text-right text-neutral-600">
-                      {c.total.cliques > 0 ? formatBRL(c.total.cpc) : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-neutral-900">
-                      {formatInt(c.total.conversoes)}
-                    </td>
+
+                    {/* Meta: Spend / Cliques / CTR / Conv. */}
+                    {c.contasMeta > 0 ? (
+                      <>
+                        <td className="px-4 py-3 text-right font-medium text-neutral-900">
+                          {formatBRL(c.meta.spend)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-neutral-600">
+                          {formatInt(c.meta.cliques)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-neutral-600">
+                          {formatPct(c.meta.ctr)}
+                        </td>
+                        <td className="border-r border-blue-100 px-4 py-3 text-right font-medium text-neutral-900">
+                          {formatInt(c.meta.conversoes)}
+                        </td>
+                      </>
+                    ) : (
+                      <td
+                        colSpan={4}
+                        className="border-r border-blue-100 px-4 py-3 text-center text-xs text-neutral-300"
+                      >
+                        —
+                      </td>
+                    )}
+
+                    {/* Google: Spend / Cliques / CTR / Taxa Conv. */}
+                    {c.contasGoogle > 0 ? (
+                      <>
+                        <td className="px-4 py-3 text-right font-medium text-neutral-900">
+                          {formatBRL(c.google.spend)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-neutral-600">
+                          {formatInt(c.google.cliques)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-neutral-600">
+                          {formatPct(c.google.ctr)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-neutral-900">
+                          {formatPct(c.google.taxaConversao)}
+                        </td>
+                      </>
+                    ) : (
+                      <td
+                        colSpan={4}
+                        className="px-4 py-3 text-center text-xs text-neutral-300"
+                      >
+                        —
+                      </td>
+                    )}
                   </tr>
                 ))}
-              {perf.porCliente.filter((c) => c.contasMeta + c.contasGoogle > 0).length === 0 && (
+              {perf.porCliente.filter(
+                (c) => c.contasMeta + c.contasGoogle > 0,
+              ).length === 0 && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-4 py-12 text-center text-sm text-neutral-500"
                   >
                     Nenhum cliente com conta de anúncio configurada.

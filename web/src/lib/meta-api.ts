@@ -93,6 +93,49 @@ export async function consultarSaldoMeta(adAccountId: string): Promise<MetaAdAcc
   };
 }
 
+// ─── Labels em português ─────────────────────────────────────────────────────
+
+export const OBJETIVO_PT: Record<string, string> = {
+  // Objetivos novos (Outcome-based)
+  OUTCOME_SALES: "Vendas",
+  OUTCOME_LEADS: "Geração de leads",
+  OUTCOME_TRAFFIC: "Tráfego",
+  OUTCOME_AWARENESS: "Reconhecimento",
+  OUTCOME_ENGAGEMENT: "Engajamento",
+  OUTCOME_APP_PROMOTION: "Promoção de app",
+  // Objetivos legados
+  CONVERSIONS: "Conversões",
+  LEAD_GENERATION: "Geração de leads",
+  LINK_CLICKS: "Tráfego",
+  BRAND_AWARENESS: "Reconhecimento",
+  REACH: "Alcance",
+  VIDEO_VIEWS: "Visualizações de vídeo",
+  POST_ENGAGEMENT: "Engajamento",
+  PAGE_LIKES: "Curtidas na página",
+  MESSAGES: "Mensagens",
+  APP_INSTALLS: "Instalações de app",
+  EVENT_RESPONSES: "Respostas a eventos",
+  PRODUCT_CATALOG_SALES: "Vendas do catálogo",
+  STORE_VISITS: "Visitas à loja",
+};
+
+export const DESTINO_PT: Record<string, string> = {
+  WEBSITE: "Site",
+  APP: "Aplicativo",
+  MESSENGER: "Messenger",
+  WHATSAPP: "WhatsApp",
+  INSTAGRAM_PROFILE: "Instagram",
+  FACEBOOK_PAGE: "Página do Facebook",
+  PHONE_CALL: "Ligação",
+  ON_AD: "No anúncio",
+  ON_POST: "No post",
+  INSTAGRAM_DIRECT: "Instagram Direct",
+  MESSAGING_INSTAGRAM_DIRECT_MESSENGER: "DM (Insta/Messenger)",
+  MESSAGING_INSTAGRAM_DIRECT_MESSENGER_WHATSAPP: "DM + WhatsApp",
+  MESSAGING_INSTAGRAM_DIRECT_WHATSAPP: "Instagram + WhatsApp",
+  MESSAGING_MESSENGER_WHATSAPP: "Messenger + WhatsApp",
+};
+
 // ─── Insights (Performance) ──────────────────────────────────────────────────
 //
 // Endpoint: /{ad_account_id}/insights?fields=spend,clicks,impressions,ctr,cpc,actions&date_preset=last_7d
@@ -190,6 +233,125 @@ export async function getInsightsMeta(
     moeda: (row.account_currency as string) ?? null,
     erro: null,
   };
+}
+
+// ─── Insights por Campanha (detalhe) ─────────────────────────────────────────
+//
+// Busca campanhas ativas/pausadas com objetivo, destino de conversão e
+// métricas do período. Uma chamada só (campaigns edge com insights subfield).
+
+export type CampanhaMetrics = {
+  campanhaId: string;
+  nome: string;
+  objetivo: string;         // label em PT-BR
+  objetivoRaw: string;
+  destinoConversao: string | null;  // label em PT-BR
+  destinoRaw: string | null;
+  status: string;
+  spend: number;
+  impressoes: number;
+  cliques: number;
+  ctr: number;
+  cpc: number;
+  conversoes: number;
+  taxaConversao: number;
+  erro: string | null;
+};
+
+export async function getInsightsCampanhasMeta(
+  adAccountId: string,
+  datePreset: "last_7d" | "last_30d" = "last_7d",
+): Promise<CampanhaMetrics[]> {
+  const token = process.env.META_ACCESS_TOKEN;
+  if (!token) return [];
+
+  try {
+    const insightFields = [
+      "spend",
+      "impressions",
+      "clicks",
+      "ctr",
+      "cpc",
+      "actions",
+    ].join(",");
+
+    const url = new URL(
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${adAccountId}/campaigns`,
+    );
+    url.searchParams.set(
+      "fields",
+      `id,name,objective,destination_type,status,insights.date_preset(${datePreset}){${insightFields}}`,
+    );
+    url.searchParams.set(
+      "filtering",
+      JSON.stringify([
+        {
+          field: "effective_status",
+          operator: "IN",
+          value: ["ACTIVE", "PAUSED"],
+        },
+      ]),
+    );
+    url.searchParams.set("limit", "100");
+
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+
+    const json = await res.json();
+    if (!res.ok || json.error) return [];
+
+    const campaigns = (json.data as Record<string, unknown>[]) ?? [];
+
+    return campaigns
+      .map((c): CampanhaMetrics => {
+        const insightsData = (
+          c.insights as { data?: Record<string, unknown>[] } | undefined
+        )?.data?.[0];
+
+        const actions =
+          (insightsData?.actions as Array<{
+            action_type: string;
+            value: string;
+          }>) ?? [];
+        const conversoes = actions
+          .filter((a) => ACTION_TYPES_CONVERSAO.has(a.action_type))
+          .reduce((sum, a) => sum + toNumber(a.value), 0);
+
+        const cliques = toNumber(insightsData?.clicks);
+        const spend = toNumber(insightsData?.spend);
+        const objetivoRaw = (c.objective as string) ?? "";
+        const destinoRaw = (c.destination_type as string) ?? null;
+
+        return {
+          campanhaId: c.id as string,
+          nome: c.name as string,
+          objetivo: OBJETIVO_PT[objetivoRaw] ?? objetivoRaw,
+          objetivoRaw,
+          destinoConversao: destinoRaw
+            ? (DESTINO_PT[destinoRaw] ?? destinoRaw)
+            : null,
+          destinoRaw,
+          status: c.status as string,
+          spend,
+          impressoes: toNumber(insightsData?.impressions),
+          cliques,
+          ctr: toNumber(insightsData?.ctr),
+          cpc: toNumber(insightsData?.cpc),
+          conversoes: Math.round(conversoes * 100) / 100,
+          taxaConversao:
+            cliques > 0
+              ? Math.round((conversoes / cliques) * 100 * 100) / 100
+              : 0,
+          erro: null,
+        };
+      })
+      .filter((c) => c.spend > 0 || c.impressoes > 0);
+  } catch (err) {
+    console.error("[META] getInsightsCampanhasMeta:", err);
+    return [];
+  }
 }
 
 function makeInsightsResult(

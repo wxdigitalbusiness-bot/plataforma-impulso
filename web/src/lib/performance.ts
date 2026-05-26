@@ -13,10 +13,11 @@ export type PerformanceMetricas = {
   spend: number;
   impressoes: number;
   cliques: number;
-  ctr: number;        // percentage 0..100 (calculado a partir dos totais)
-  cpc: number;        // moeda (calculado a partir dos totais)
+  ctr: number;           // percentage 0..100 (calculado a partir dos totais)
+  cpc: number;           // moeda (calculado a partir dos totais)
   conversoes: number;
-  erros: string[];    // mensagens de contas que falharam
+  taxaConversao: number; // percentage 0..100 (conversoes / cliques * 100)
+  erros: string[];       // mensagens de contas que falharam
 };
 
 export type ClientePerformance = {
@@ -207,6 +208,7 @@ function emptyMetricas(): PerformanceMetricas {
     ctr: 0,
     cpc: 0,
     conversoes: 0,
+    taxaConversao: 0,
     erros: [],
   };
 }
@@ -226,6 +228,7 @@ function acumular(acc: PerformanceMetricas, dado: MetaInsightsResultado | Google
 function finalizarMetricas(m: PerformanceMetricas) {
   m.ctr = m.impressoes > 0 ? round2((m.cliques / m.impressoes) * 100) : 0;
   m.cpc = m.cliques > 0 ? round2(m.spend / m.cliques) : 0;
+  m.taxaConversao = m.cliques > 0 ? round2((m.conversoes / m.cliques) * 100) : 0;
   m.spend = round2(m.spend);
   m.conversoes = round2(m.conversoes);
 }
