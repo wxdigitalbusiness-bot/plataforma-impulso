@@ -277,7 +277,9 @@ const MESSAGING_DESTINATIONS = new Set([
   "MESSAGING_MESSENGER_WHATSAPP",
 ]);
 
-// Objetivos que indicam campanha de mensagens
+// Objetivos que indicam campanha de mensagens (legado).
+// Campanhas novas (OUTCOME_ENGAGEMENT + destino mensagem) são cobertas
+// por MESSAGING_DESTINATIONS via o campo destination_type.
 const MESSAGING_OBJECTIVES = new Set(["MESSAGES"]);
 
 /**
@@ -299,10 +301,17 @@ async function tipoResultadoDeCampanhasAtivas(
       `https://graph.facebook.com/${GRAPH_API_VERSION}/${adAccountId}/campaigns`,
     );
     url.searchParams.set("fields", "objective,destination_type");
+    // Para identificar o TIPO de campanha da conta não restringimos a ACTIVE —
+    // campanhas pausadas ou com problemas ainda indicam o objetivo da conta.
+    // Excluímos só as permanentemente removidas (DELETED / ARCHIVED).
     url.searchParams.set(
       "filtering",
       JSON.stringify([
-        { field: "effective_status", operator: "IN", value: ["ACTIVE"] },
+        {
+          field: "effective_status",
+          operator: "IN",
+          value: ["ACTIVE", "PAUSED", "WITH_ISSUES", "IN_PROCESS", "CAMPAIGN_PAUSED"],
+        },
       ]),
     );
     url.searchParams.set("limit", "50");
@@ -312,9 +321,19 @@ async function tipoResultadoDeCampanhasAtivas(
       cache: "no-store",
     });
     const json = await res.json();
-    if (!res.ok || json.error) return "";
+    if (!res.ok || json.error) {
+      console.warn(`[META] tipoResultadoDeCampanhasAtivas ${adAccountId}:`, json.error);
+      return "";
+    }
 
     const campanhas = (json.data as Record<string, unknown>[]) ?? [];
+
+    // Log para diagnóstico — visível nos logs do servidor
+    console.log(
+      `[META] campanhas ${adAccountId}:`,
+      campanhas.map((c) => ({ objective: c.objective, destination_type: c.destination_type })),
+    );
+
     if (campanhas.length === 0) return "";
 
     // Prioridade: qualquer campanha com mensagens → "Conversas iniciadas"
