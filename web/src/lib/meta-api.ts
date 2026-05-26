@@ -284,17 +284,11 @@ export async function getInsightsMeta(
     ["spend", "clicks", "impressions", "reach", "ctr", "cpc", "actions", "account_currency"].join(","),
   );
   url.searchParams.set("time_range", JSON.stringify({ since: from, until: to }));
-  // Inclui apenas métricas de campanhas ativas (exclui pausadas/arquivadas)
-  url.searchParams.set(
-    "filtering",
-    JSON.stringify([
-      {
-        field: "campaign.effective_status",
-        operator: "IN",
-        value: ["ACTIVE"],
-      },
-    ]),
-  );
+  // Nota: não filtramos por campaign.effective_status aqui porque a filtragem
+  // no nível de conta interfere na agregação dos action types (ex: messaging
+  // conversations ficam fora do array de actions). Campanhas pausadas já
+  // contribuem com 0 para o período atual — o filtro é desnecessário aqui.
+  // O filtro ACTIVE vive em getInsightsCampanhasMeta (lista de campanhas).
 
   let json: Record<string, unknown> = {};
   try {
