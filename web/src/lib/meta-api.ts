@@ -310,7 +310,7 @@ async function tipoResultadoDeCampanhasAtivas(
         {
           field: "effective_status",
           operator: "IN",
-          value: ["ACTIVE", "PAUSED", "WITH_ISSUES", "IN_PROCESS", "CAMPAIGN_PAUSED"],
+          value: ["ACTIVE", "PAUSED", "WITH_ISSUES", "IN_PROCESS"],
         },
       ]),
     );
@@ -322,7 +322,10 @@ async function tipoResultadoDeCampanhasAtivas(
     });
     const json = await res.json();
     if (!res.ok || json.error) {
-      console.warn(`[META] tipoResultadoDeCampanhasAtivas ${adAccountId}:`, json.error);
+      console.warn(
+        `[META] tipoResultadoDeCampanhasAtivas ${adAccountId} HTTP ${res.status}:`,
+        JSON.stringify(json.error ?? json),
+      );
       return "";
     }
 
