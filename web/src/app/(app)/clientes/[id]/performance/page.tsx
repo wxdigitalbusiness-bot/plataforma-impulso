@@ -11,6 +11,7 @@ import {
 } from "@/lib/meta-api";
 import { getInsightsGoogle } from "@/lib/google-ads-api";
 import { defaultRange } from "@/lib/performance";
+import { DateFilter } from "@/app/(app)/_date-filter";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -52,14 +53,33 @@ type GoogleContaResult = {
   erro: string | null;
 };
 
-type Props = { params: Promise<{ id: string }> };
+// ─── Helpers de data ─────────────────────────────────────────────────────────
+
+function isValidIso(s: string | undefined): s is string {
+  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+function formatDateBR(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${d}/${m}`;
+}
+
+type Props = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string; to?: string }>;
+};
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default async function PerformancePage({ params }: Props) {
+export default async function PerformancePage({ params, searchParams }: Props) {
   const { id } = await params;
   const clienteId = Number(id);
   if (Number.isNaN(clienteId)) notFound();
+
+  const sp = await searchParams;
+  const def = defaultRange();
+  const from = isValidIso(sp.from) ? sp.from : def.from;
+  const to   = isValidIso(sp.to)   ? sp.to   : def.to;
 
   const cliente = await db.cliente.findUnique({
     where: { id: clienteId },
@@ -78,8 +98,6 @@ export default async function PerformancePage({ params }: Props) {
     },
   });
   if (!cliente) notFound();
-
-  const { from, to } = defaultRange();
 
   const contasMeta = cliente.contas.filter((c) => c.metaAdAccountId);
   const contasGoogle = cliente.contas.filter((c) => c.googleAdCustomerId);
@@ -179,7 +197,7 @@ export default async function PerformancePage({ params }: Props) {
           <span>/</span>
           <span className="text-neutral-700">Performance</span>
         </nav>
-        <div className="flex items-end justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
               {cliente.nome}
@@ -188,15 +206,22 @@ export default async function PerformancePage({ params }: Props) {
               <p className="text-sm text-neutral-500">{cliente.empresa}</p>
             )}
             <p className="mt-0.5 text-xs text-neutral-400">
-              Performance — últimos 3 dias
+              Performance — {formatDateBR(from)} a {formatDateBR(to)}
             </p>
           </div>
-          <Link
-            href={`/clientes/${clienteId}`}
-            className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-          >
-            ⚙ Gerenciar contas
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <DateFilter
+              from={from}
+              to={to}
+              basePath={`/clientes/${clienteId}/performance`}
+            />
+            <Link
+              href={`/clientes/${clienteId}`}
+              className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            >
+              ⚙ Gerenciar contas
+            </Link>
+          </div>
         </div>
       </header>
 

@@ -25,7 +25,15 @@ function isPresetActive(from: string, to: string, dias: number): boolean {
   return from === p.from && to === p.to;
 }
 
-export function DateFilter({ from, to }: { from: string; to: string }) {
+export function DateFilter({
+  from,
+  to,
+  basePath = "/",
+}: {
+  from: string;
+  to: string;
+  basePath?: string;
+}) {
   const router = useRouter();
   const [localFrom, setLocalFrom] = useState(from);
   const [localTo, setLocalTo] = useState(to);
@@ -34,7 +42,7 @@ export function DateFilter({ from, to }: { from: string; to: string }) {
 
   function apply(f = localFrom, t = localTo) {
     if (f && t && f <= t) {
-      router.push(`/?from=${f}&to=${t}`);
+      router.push(`${basePath}?from=${f}&to=${t}`);
     }
   }
 

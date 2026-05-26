@@ -261,6 +261,17 @@ export async function getInsightsMeta(
     ["spend", "clicks", "impressions", "reach", "ctr", "cpc", "actions", "account_currency"].join(","),
   );
   url.searchParams.set("time_range", JSON.stringify({ since: from, until: to }));
+  // Inclui apenas métricas de campanhas ativas (exclui pausadas/arquivadas)
+  url.searchParams.set(
+    "filtering",
+    JSON.stringify([
+      {
+        field: "campaign.effective_status",
+        operator: "IN",
+        value: ["ACTIVE"],
+      },
+    ]),
+  );
 
   let json: Record<string, unknown> = {};
   try {
@@ -372,7 +383,7 @@ export async function getInsightsCampanhasMeta(
         {
           field: "effective_status",
           operator: "IN",
-          value: ["ACTIVE", "PAUSED"],
+          value: ["ACTIVE"],
         },
       ]),
     );
