@@ -156,7 +156,9 @@ export const DESTINO_PT: Record<string, string> = {
 // ATENÇÃO — "messaging_first_reply" e "messaging_block" são métricas
 // distintas de "conversas iniciadas" e NÃO devem ser somadas ao resultado.
 
-type ActionGroup = { types: readonly string[]; label: string };
+// priority: true → esse grupo vence na exibição do label sempre que tiver
+// count > 0, independentemente de outros grupos terem contagem maior.
+type ActionGroup = { types: readonly string[]; label: string; priority?: true };
 
 const ACTION_TYPE_GROUPS: ActionGroup[] = [
   {
@@ -182,10 +184,11 @@ const ACTION_TYPE_GROUPS: ActionGroup[] = [
   { types: ["schedule"], label: "Agendamentos" },
   {
     // Métrica exata exibida pelo Gerenciador de Anúncios como "Conversas por mensagem".
-    // NÃO inclui onsite_conversion.messaging_conversation_started_7d (janela diferente),
-    // messaging_first_reply nem messaging_block.
+    // priority: true → quando presente (> 0) tem preferência sobre qualquer outro grupo,
+    // mesmo que outros grupos tenham contagem maior.
     types: ["messaging_conversation_started_7d"],
     label: "Conversas iniciadas",
+    priority: true,
   },
 ];
 
@@ -206,26 +209,45 @@ function contarConversoes(
   return total;
 }
 
-/** Label PT-BR do resultado dominante (grupo com maior contagem). */
+/** Label PT-BR do resultado dominante.
+ *
+ * Regra de desempate:
+ *  1. Grupos com `priority: true` vencem sempre que tiverem count > 0,
+ *     mesmo que outros grupos tenham contagem maior.
+ *  2. Entre os demais, vence o de maior contagem.
+ *  3. Fallback: "Cliques no link" ou "Impressões".
+ */
 function tipoResultadoLabel(
   actions: Array<{ action_type: string; value: string }>,
   cliques: number,
 ): string {
-  let bestLabel = "";
-  let bestCount = 0;
-  for (const group of ACTION_TYPE_GROUPS) {
+  // Calcula o MAX de cada grupo uma única vez
+  const contagens = ACTION_TYPE_GROUPS.map((group) => {
     let groupMax = 0;
     for (const a of actions) {
       if ((group.types as string[]).includes(a.action_type)) {
         groupMax = Math.max(groupMax, toNumber(a.value));
       }
     }
-    if (groupMax > bestCount) {
-      bestCount = groupMax;
+    return { group, count: groupMax };
+  });
+
+  // 1ª passagem: grupos com prioridade que tenham resultado
+  for (const { group, count } of contagens) {
+    if (group.priority && count > 0) return group.label;
+  }
+
+  // 2ª passagem: maior contagem entre os demais
+  let bestLabel = "";
+  let bestCount = 0;
+  for (const { group, count } of contagens) {
+    if (count > bestCount) {
+      bestCount = count;
       bestLabel = group.label;
     }
   }
   if (bestLabel) return bestLabel;
+
   return cliques > 0 ? "Cliques no link" : "Impressões";
 }
 
