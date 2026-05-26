@@ -189,7 +189,7 @@ export default async function DashboardPage() {
                   Meta Ads
                 </th>
                 <th
-                  colSpan={4}
+                  colSpan={5}
                   className="bg-green-50/60 px-4 py-2 text-center text-xs font-semibold text-green-700"
                 >
                   Google Ads
@@ -205,9 +205,12 @@ export default async function DashboardPage() {
                 </th>
                 <th className="bg-green-50/30 px-4 py-2 text-right">Spend</th>
                 <th className="bg-green-50/30 px-4 py-2 text-right">Cliques</th>
-                <th className="bg-green-50/30 px-4 py-2 text-right">CTR</th>
+                <th className="bg-green-50/30 px-4 py-2 text-right">Conv.</th>
                 <th className="bg-green-50/30 px-4 py-2 text-right">
                   Taxa Conv.
+                </th>
+                <th className="bg-green-50/30 px-4 py-2 text-right">
+                  Custo/Conv.
                 </th>
               </tr>
             </thead>
@@ -274,7 +277,7 @@ export default async function DashboardPage() {
                       </td>
                     )}
 
-                    {/* Google: Spend / Cliques / CTR / Taxa Conv. */}
+                    {/* Google: Spend / Cliques / Conv. / Taxa Conv. / Custo/Conv. */}
                     {c.contasGoogle > 0 ? (
                       <>
                         <td className="px-4 py-3 text-right font-medium text-neutral-900">
@@ -283,16 +286,21 @@ export default async function DashboardPage() {
                         <td className="px-4 py-3 text-right text-neutral-600">
                           {formatInt(c.google.cliques)}
                         </td>
-                        <td className="px-4 py-3 text-right text-neutral-600">
-                          {formatPct(c.google.ctr)}
-                        </td>
                         <td className="px-4 py-3 text-right font-medium text-neutral-900">
+                          {formatInt(c.google.conversoes)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-neutral-600">
                           {formatPct(c.google.taxaConversao)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-neutral-600">
+                          {c.google.conversoes > 0
+                            ? formatBRL(c.google.spend / c.google.conversoes)
+                            : "—"}
                         </td>
                       </>
                     ) : (
                       <td
-                        colSpan={4}
+                        colSpan={5}
                         className="px-4 py-3 text-center text-xs text-neutral-300"
                       >
                         —
@@ -305,7 +313,7 @@ export default async function DashboardPage() {
               ).length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-4 py-12 text-center text-sm text-neutral-500"
                   >
                     Nenhum cliente com conta de anúncio configurada.
