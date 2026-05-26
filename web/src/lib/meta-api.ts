@@ -266,6 +266,88 @@ export type MetaInsightsResultado = {
   erro: string | null;
 };
 
+// Destinos de conversão que indicam campanha de mensagens
+const MESSAGING_DESTINATIONS = new Set([
+  "MESSENGER",
+  "WHATSAPP",
+  "INSTAGRAM_DIRECT",
+  "MESSAGING_INSTAGRAM_DIRECT_MESSENGER",
+  "MESSAGING_INSTAGRAM_DIRECT_MESSENGER_WHATSAPP",
+  "MESSAGING_INSTAGRAM_DIRECT_WHATSAPP",
+  "MESSAGING_MESSENGER_WHATSAPP",
+]);
+
+// Objetivos que indicam campanha de mensagens
+const MESSAGING_OBJECTIVES = new Set(["MESSAGES"]);
+
+/**
+ * Consulta os objetivos/destinos das campanhas ATIVAS da conta para determinar
+ * o tipoResultado de forma confiável — independente de como a API agrega
+ * action types no nível de conta.
+ *
+ * Regra de negócio: se QUALQUER campanha ativa tiver objetivo/destino de
+ * mensagens, "Conversas iniciadas" tem prioridade sobre todos os demais.
+ *
+ * Retorna "" se não conseguir determinar (fallback para tipoResultadoLabel).
+ */
+async function tipoResultadoDeCampanhasAtivas(
+  adAccountId: string,
+  token: string,
+): Promise<string> {
+  try {
+    const url = new URL(
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${adAccountId}/campaigns`,
+    );
+    url.searchParams.set("fields", "objective,destination_type");
+    url.searchParams.set(
+      "filtering",
+      JSON.stringify([
+        { field: "effective_status", operator: "IN", value: ["ACTIVE"] },
+      ]),
+    );
+    url.searchParams.set("limit", "50");
+
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    const json = await res.json();
+    if (!res.ok || json.error) return "";
+
+    const campanhas = (json.data as Record<string, unknown>[]) ?? [];
+    if (campanhas.length === 0) return "";
+
+    // Prioridade: qualquer campanha com mensagens → "Conversas iniciadas"
+    const temMensagens = campanhas.some(
+      (c) =>
+        MESSAGING_OBJECTIVES.has(c.objective as string) ||
+        MESSAGING_DESTINATIONS.has(c.destination_type as string),
+    );
+    if (temMensagens) return "Conversas iniciadas";
+
+    // Demais objetivos: usa o mais comum entre as campanhas ativas
+    const contagem: Record<string, number> = {};
+    for (const c of campanhas) {
+      const label = tipoResultadoPorObjetivo(c.objective as string);
+      if (label) contagem[label] = (contagem[label] ?? 0) + 1;
+    }
+    const melhor = Object.entries(contagem).sort((a, b) => b[1] - a[1])[0];
+    return melhor?.[0] ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function tipoResultadoPorObjetivo(objetivo: string): string {
+  if (!objetivo) return "";
+  if (objetivo === "OUTCOME_LEADS" || objetivo === "LEAD_GENERATION") return "Leads";
+  if (objetivo === "OUTCOME_SALES" || objetivo === "CONVERSIONS" || objetivo === "PRODUCT_CATALOG_SALES") return "Compras";
+  if (objetivo === "OUTCOME_TRAFFIC" || objetivo === "LINK_CLICKS") return "Cliques no link";
+  if (objetivo === "OUTCOME_AWARENESS" || objetivo === "BRAND_AWARENESS" || objetivo === "REACH") return "Alcance";
+  if (objetivo === "OUTCOME_ENGAGEMENT" || objetivo === "POST_ENGAGEMENT") return "Engajamento";
+  return "";
+}
+
 export async function getInsightsMeta(
   adAccountId: string,
   from: string,   // ISO date YYYY-MM-DD
@@ -276,26 +358,30 @@ export async function getInsightsMeta(
     return makeInsightsResult(adAccountId, "META_ACCESS_TOKEN nao configurado");
   }
 
-  const url = new URL(
+  const insightsUrl = new URL(
     `https://graph.facebook.com/${GRAPH_API_VERSION}/${adAccountId}/insights`,
   );
-  url.searchParams.set(
+  insightsUrl.searchParams.set(
     "fields",
     ["spend", "clicks", "impressions", "reach", "ctr", "cpc", "actions", "account_currency"].join(","),
   );
-  url.searchParams.set("time_range", JSON.stringify({ since: from, until: to }));
-  // Nota: não filtramos por campaign.effective_status aqui porque a filtragem
-  // no nível de conta interfere na agregação dos action types (ex: messaging
-  // conversations ficam fora do array de actions). Campanhas pausadas já
-  // contribuem com 0 para o período atual — o filtro é desnecessário aqui.
-  // O filtro ACTIVE vive em getInsightsCampanhasMeta (lista de campanhas).
+  insightsUrl.searchParams.set("time_range", JSON.stringify({ since: from, until: to }));
 
+  // Roda em paralelo: insights de métricas + objetivos das campanhas ativas.
+  // Os objetivos são usados para determinar tipoResultado de forma confiável,
+  // pois alguns action types (ex: messaging_conversation_started_7d) não
+  // aparecem no aggregate de conta da API do Meta.
   let json: Record<string, unknown> = {};
+  let tipoDeObjetivo = "";
   try {
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
+    const [res, tipo] = await Promise.all([
+      fetch(insightsUrl.toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      }),
+      tipoResultadoDeCampanhasAtivas(adAccountId, token),
+    ]);
+    tipoDeObjetivo = tipo;
     json = await res.json();
 
     if (!res.ok || json.error) {
@@ -324,6 +410,10 @@ export async function getInsightsMeta(
 
   const reach = toNumber(row.reach);
 
+  // tipoResultado: usa objetivo das campanhas como fonte primária (confiável),
+  // com fallback para análise dos action types retornados pela API.
+  const tipoResultado = tipoDeObjetivo || tipoResultadoLabel(actions, toNumber(row.clicks));
+
   return {
     adAccountId,
     spend: toNumber(row.spend),
@@ -336,7 +426,7 @@ export async function getInsightsMeta(
     frequencia: reach > 0
       ? Math.round((toNumber(row.impressions) / reach) * 100) / 100
       : 0,
-    tipoResultado: tipoResultadoLabel(actions, toNumber(row.clicks)),
+    tipoResultado,
     moeda: (row.account_currency as string) ?? null,
     erro: null,
   };
