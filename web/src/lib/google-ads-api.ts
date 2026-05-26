@@ -66,6 +66,133 @@ async function gaqlSearch(
   return (data.results ?? []) as Record<string, unknown>[];
 }
 
+// ─── Insights (Performance) ──────────────────────────────────────────────────
+//
+// GAQL agrega métricas do `customer` no período. Em micros pra dinheiro.
+//   metrics.cost_micros        → spend (dividir por 1_000_000)
+//   metrics.clicks             → cliques
+//   metrics.impressions        → impressões
+//   metrics.ctr                → 0..1 (multiplicar por 100 pra %)
+//   metrics.average_cpc        → micros, dividir por 1M
+//   metrics.conversions        → decimal (pode ser fracionário se conversões com peso)
+
+export type GoogleInsightsResultado = {
+  customerId: string;
+  spend: number;
+  impressoes: number;
+  cliques: number;
+  ctr: number;        // percentage 0..100
+  cpc: number;
+  conversoes: number;
+  moeda: string;
+  erro: string | null;
+};
+
+export async function getInsightsGoogle(
+  rawCustomerId: string,
+  rawMccId: string | null,
+  diasAtras: 7 | 30 = 7,
+): Promise<GoogleInsightsResultado> {
+  const customerId = rawCustomerId.replace(/-/g, "");
+  const loginCustomerId = rawMccId
+    ? rawMccId.replace(/-/g, "")
+    : customerId;
+
+  const periodo = diasAtras === 7 ? "LAST_7_DAYS" : "LAST_30_DAYS";
+
+  try {
+    const accessToken = await getAccessToken();
+
+    const rows = await gaqlSearch(
+      customerId,
+      `SELECT
+         customer.currency_code,
+         metrics.cost_micros,
+         metrics.clicks,
+         metrics.impressions,
+         metrics.ctr,
+         metrics.average_cpc,
+         metrics.conversions
+       FROM customer
+       WHERE segments.date DURING ${periodo}`,
+      accessToken,
+      loginCustomerId,
+    );
+
+    type Row = {
+      customer?: { currencyCode?: string };
+      metrics?: {
+        costMicros?: string | number;
+        clicks?: string | number;
+        impressions?: string | number;
+        ctr?: string | number;
+        averageCpc?: string | number;
+        conversions?: string | number;
+      };
+    };
+
+    if (rows.length === 0) {
+      return {
+        customerId,
+        spend: 0,
+        impressoes: 0,
+        cliques: 0,
+        ctr: 0,
+        cpc: 0,
+        conversoes: 0,
+        moeda: "BRL",
+        erro: null,
+      };
+    }
+
+    // Pode vir 1 linha (agregado) ou N (uma por dia). Soma defensiva.
+    let totalCost = 0;
+    let totalClicks = 0;
+    let totalImpressions = 0;
+    let totalConversions = 0;
+    let moeda = "BRL";
+
+    for (const row of rows as Row[]) {
+      moeda = row.customer?.currencyCode ?? moeda;
+      totalCost += Number(row.metrics?.costMicros ?? 0);
+      totalClicks += Number(row.metrics?.clicks ?? 0);
+      totalImpressions += Number(row.metrics?.impressions ?? 0);
+      totalConversions += Number(row.metrics?.conversions ?? 0);
+    }
+
+    const spend = totalCost / 1_000_000;
+    const ctrCalc = totalImpressions > 0
+      ? (totalClicks / totalImpressions) * 100
+      : 0;
+    const cpcCalc = totalClicks > 0 ? spend / totalClicks : 0;
+
+    return {
+      customerId,
+      spend: Math.round(spend * 100) / 100,
+      impressoes: totalImpressions,
+      cliques: totalClicks,
+      ctr: Math.round(ctrCalc * 100) / 100,
+      cpc: Math.round(cpcCalc * 100) / 100,
+      conversoes: Math.round(totalConversions * 100) / 100,
+      moeda,
+      erro: null,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      customerId,
+      spend: 0,
+      impressoes: 0,
+      cliques: 0,
+      ctr: 0,
+      cpc: 0,
+      conversoes: 0,
+      moeda: "BRL",
+      erro: msg,
+    };
+  }
+}
+
 // ─── Principal ───────────────────────────────────────────────────────────────
 
 export async function consultarSaldoGoogle(

@@ -93,6 +93,124 @@ export async function consultarSaldoMeta(adAccountId: string): Promise<MetaAdAcc
   };
 }
 
+// ─── Insights (Performance) ──────────────────────────────────────────────────
+//
+// Endpoint: /{ad_account_id}/insights?fields=spend,clicks,impressions,ctr,cpc,actions&date_preset=last_7d
+//
+// CTR e CPC vêm já calculados pelo Meta:
+//   - ctr é percentage (ex: "3.69" significa 3.69%)
+//   - cpc é em moeda da conta (ex: "0.27" BRL)
+//
+// Conversions: o Meta retorna `actions` como array de { action_type, value }.
+// Contamos como "conversões" os action_types abaixo (lista pode ser expandida):
+const ACTION_TYPES_CONVERSAO = new Set([
+  "purchase",
+  "lead",
+  "complete_registration",
+  "submit_application",
+  "schedule",
+  "onsite_conversion.lead_grouped",
+  "offsite_conversion.fb_pixel_lead",
+  "offsite_conversion.fb_pixel_purchase",
+  "offsite_conversion.fb_pixel_complete_registration",
+]);
+
+export type MetaInsightsResultado = {
+  adAccountId: string;
+  spend: number;
+  impressoes: number;
+  cliques: number;
+  ctr: number;        // percentage 0..100
+  cpc: number;        // moeda
+  conversoes: number;
+  moeda: string | null;
+  erro: string | null;
+};
+
+export async function getInsightsMeta(
+  adAccountId: string,
+  datePreset: "last_7d" | "last_30d" | "this_month" = "last_7d",
+): Promise<MetaInsightsResultado> {
+  const token = process.env.META_ACCESS_TOKEN;
+  if (!token) {
+    return makeInsightsResult(adAccountId, "META_ACCESS_TOKEN nao configurado");
+  }
+
+  const url = new URL(
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${adAccountId}/insights`,
+  );
+  url.searchParams.set(
+    "fields",
+    ["spend", "clicks", "impressions", "ctr", "cpc", "actions", "account_currency"].join(","),
+  );
+  url.searchParams.set("date_preset", datePreset);
+
+  let json: Record<string, unknown> = {};
+  try {
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    json = await res.json();
+
+    if (!res.ok || json.error) {
+      const err = json.error as { message?: string; code?: number } | undefined;
+      const erro = err?.code
+        ? `Meta ${err.code}: ${err.message ?? "erro"}`
+        : err?.message ?? `HTTP ${res.status}`;
+      return makeInsightsResult(adAccountId, erro);
+    }
+  } catch (err) {
+    return makeInsightsResult(
+      adAccountId,
+      err instanceof Error ? err.message : "Falha de rede",
+    );
+  }
+
+  const data = (json.data as Array<Record<string, unknown>>) ?? [];
+  if (data.length === 0) {
+    // Conta sem dados no período (ex.: pausada). Não é erro.
+    return makeInsightsResult(adAccountId, null);
+  }
+
+  const row = data[0];
+  const actions = (row.actions as Array<{ action_type: string; value: string }>) ?? [];
+  const conversoes = actions
+    .filter((a) => ACTION_TYPES_CONVERSAO.has(a.action_type))
+    .reduce((sum, a) => sum + toNumber(a.value), 0);
+
+  return {
+    adAccountId,
+    spend: toNumber(row.spend),
+    impressoes: toNumber(row.impressions),
+    cliques: toNumber(row.clicks),
+    ctr: toNumber(row.ctr),
+    cpc: toNumber(row.cpc),
+    conversoes,
+    moeda: (row.account_currency as string) ?? null,
+    erro: null,
+  };
+}
+
+function makeInsightsResult(
+  adAccountId: string,
+  erro: string | null,
+): MetaInsightsResultado {
+  return {
+    adAccountId,
+    spend: 0,
+    impressoes: 0,
+    cliques: 0,
+    ctr: 0,
+    cpc: 0,
+    conversoes: 0,
+    moeda: null,
+    erro,
+  };
+}
+
+// ─── Helpers (mantidos abaixo) ───────────────────────────────────────────────
+
 export function parseSaldoFromDisplayString(s: string | null | undefined): number | null {
   if (!s) return null;
   const match = s.match(/[R$$€£]\s*([\d.,]+)/);
