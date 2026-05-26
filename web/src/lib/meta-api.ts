@@ -181,9 +181,10 @@ const ACTION_TYPE_GROUPS: ActionGroup[] = [
   { types: ["submit_application"], label: "Candidaturas" },
   { types: ["schedule"], label: "Agendamentos" },
   {
-    // Métrica primária de campanhas de mensagens/WhatsApp.
-    // NÃO inclui messaging_first_reply (métrica diferente) nem messaging_block.
-    types: ["onsite_conversion.messaging_conversation_started_7d"],
+    // Métrica exata exibida pelo Gerenciador de Anúncios como "Conversas por mensagem".
+    // NÃO inclui onsite_conversion.messaging_conversation_started_7d (janela diferente),
+    // messaging_first_reply nem messaging_block.
+    types: ["messaging_conversation_started_7d"],
     label: "Conversas iniciadas",
   },
 ];
