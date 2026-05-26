@@ -19,8 +19,10 @@ export type SyncResult = {
 
 export async function sincronizarSaldosMeta(): Promise<SyncResult> {
   const inicio = Date.now();
+  // Só contas com meta_ad_account_id preenchido — evita consultar Graph API
+  // com ID nulo (causa do bug que travou o SYNC Meta no n8n)
   const clientes = await db.clienteAtivo.findMany({
-    where: { ativo: true },
+    where: { ativo: true, metaAdAccountId: { not: null } },
     select: {
       id: true,
       metaAdAccountId: true,
@@ -38,7 +40,7 @@ export async function sincronizarSaldosMeta(): Promise<SyncResult> {
     const resultados = await Promise.all(
       batch.map(async (c) => ({
         cliente: c,
-        saldo: await consultarSaldoMeta(c.metaAdAccountId),
+        saldo: await consultarSaldoMeta(c.metaAdAccountId!),
       }))
     );
 
