@@ -91,25 +91,15 @@ export type GoogleInsightsResultado = {
 export async function getInsightsGoogle(
   rawCustomerId: string,
   rawMccId: string | null,
-  diasAtras: 3 | 7 | 30 = 7,
+  from: string,   // ISO date YYYY-MM-DD
+  to: string,     // ISO date YYYY-MM-DD
 ): Promise<GoogleInsightsResultado> {
   const customerId = rawCustomerId.replace(/-/g, "");
   const loginCustomerId = rawMccId
     ? rawMccId.replace(/-/g, "")
     : customerId;
 
-  // GAQL só suporta LAST_7_DAYS e LAST_30_DAYS como constantes.
-  // Para outros valores usa BETWEEN com datas calculadas (ontem - N dias até ontem).
-  function gaqlPeriodo(n: number): string {
-    if (n === 7) return "segments.date DURING LAST_7_DAYS";
-    if (n === 30) return "segments.date DURING LAST_30_DAYS";
-    const fmt = (d: Date) => d.toISOString().slice(0, 10);
-    const hoje = new Date();
-    const end = new Date(hoje); end.setDate(hoje.getDate() - 1);       // ontem
-    const start = new Date(hoje); start.setDate(hoje.getDate() - n);   // n dias atrás
-    return `segments.date BETWEEN '${fmt(start)}' AND '${fmt(end)}'`;
-  }
-  const periodoWhere = gaqlPeriodo(diasAtras);
+  const periodoWhere = `segments.date BETWEEN '${from}' AND '${to}'`;
 
   try {
     const accessToken = await getAccessToken();

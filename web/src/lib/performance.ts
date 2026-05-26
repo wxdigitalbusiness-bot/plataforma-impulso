@@ -36,7 +36,8 @@ export type ClientePerformance = {
 };
 
 export type PerformanceAgregada = {
-  diasAtras: 3 | 7 | 30;
+  from: string;   // ISO date YYYY-MM-DD
+  to: string;     // ISO date YYYY-MM-DD
   geradoEm: Date;
   totalSpend: number;
   totalCliques: number;
@@ -52,25 +53,37 @@ type CacheEntry = { data: PerformanceAgregada; expiresAt: number };
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
-function cacheKey(diasAtras: 3 | 7 | 30) {
-  return `performance:${diasAtras}`;
+function cacheKey(from: string, to: string) {
+  return `performance:${from}:${to}`;
+}
+
+// Retorna o intervalo padrão: últimos 3 dias (anteontem → ontem)
+export function defaultRange(): { from: string; to: string } {
+  const hoje = new Date();
+  const to = new Date(hoje); to.setDate(hoje.getDate() - 1);
+  const from = new Date(hoje); from.setDate(hoje.getDate() - 3);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  return { from: fmt(from), to: fmt(to) };
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export async function obterPerformance(opts?: {
-  diasAtras?: 3 | 7 | 30;
+  from?: string;
+  to?: string;
   forcarRefresh?: boolean;
 }): Promise<PerformanceAgregada> {
-  const diasAtras = opts?.diasAtras ?? 7;
-  const key = cacheKey(diasAtras);
+  const range = opts?.from && opts?.to
+    ? { from: opts.from, to: opts.to }
+    : defaultRange();
+  const key = cacheKey(range.from, range.to);
 
   if (!opts?.forcarRefresh) {
     const hit = cache.get(key);
     if (hit && hit.expiresAt > Date.now()) return hit.data;
   }
 
-  const data = await calcular(diasAtras);
+  const data = await calcular(range.from, range.to);
   cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
   return data;
 }
@@ -81,7 +94,7 @@ export function limparCachePerformance() {
 
 // ─── Implementação ───────────────────────────────────────────────────────────
 
-async function calcular(diasAtras: 3 | 7 | 30): Promise<PerformanceAgregada> {
+async function calcular(from: string, to: string): Promise<PerformanceAgregada> {
   // Pega clientes ativos com suas contas
   const clientes = await db.cliente.findMany({
     where: { ativo: true },
@@ -124,10 +137,10 @@ async function calcular(diasAtras: 3 | 7 | 30): Promise<PerformanceAgregada> {
   const CONCURRENCY = 8;
   const resultados = await runComConcorrencia(tasks, CONCURRENCY, async (t) => {
     if (t.type === "meta") {
-      const r = await getInsightsMeta(t.adAccountId, diasAtras === 3 ? "last_3d" : diasAtras === 7 ? "last_7d" : "last_30d");
+      const r = await getInsightsMeta(t.adAccountId, from, to);
       return { type: "meta" as const, clienteId: t.clienteId, dado: r };
     } else {
-      const r = await getInsightsGoogle(t.customerId, t.mccId, diasAtras);
+      const r = await getInsightsGoogle(t.customerId, t.mccId, from, to);
       return { type: "google" as const, clienteId: t.clienteId, dado: r };
     }
   });
@@ -210,7 +223,8 @@ async function calcular(diasAtras: 3 | 7 | 30): Promise<PerformanceAgregada> {
   const cpcMedio = totalCliques > 0 ? totalSpend / totalCliques : 0;
 
   return {
-    diasAtras,
+    from,
+    to,
     geradoEm: new Date(),
     totalSpend: round2(totalSpend),
     totalCliques,

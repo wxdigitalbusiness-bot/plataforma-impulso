@@ -2,7 +2,8 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { sincronizarSaldosTodos } from "@/lib/sync-saldos";
-import { obterPerformance } from "@/lib/performance";
+import { obterPerformance, defaultRange } from "@/lib/performance";
+import { DateFilter } from "./_date-filter";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -40,7 +41,22 @@ function formatPct(v: number): string {
   return `${v.toFixed(2)}%`;
 }
 
-export default async function DashboardPage() {
+function formatDateBR(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${d}/${m}`;
+}
+
+function isValidIso(s?: string): s is string {
+  return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s));
+}
+
+type Props = { searchParams: Promise<{ from?: string; to?: string }> };
+
+export default async function DashboardPage({ searchParams }: Props) {
+  const sp = await searchParams;
+  const def = defaultRange();
+  const from = isValidIso(sp.from) ? sp.from : def.from;
+  const to = isValidIso(sp.to) && sp.to >= from ? sp.to : def.to;
   // Contas ativas (linhas individuais de clientes_ativos)
   const contas = await db.clienteAtivo.findMany({
     where: { ativo: true },
@@ -92,7 +108,7 @@ export default async function DashboardPage() {
   }, null);
 
   // Performance dos últimos 7 dias (cache 10min) — chamada paralela com Meta+Google
-  const perf = await obterPerformance({ diasAtras: 3 });
+  const perf = await obterPerformance({ from, to });
 
   return (
     <div className="space-y-8">
@@ -147,15 +163,19 @@ export default async function DashboardPage() {
 
       {/* Performance — últimos 3 dias */}
       <section>
-        <div className="mb-3 flex items-end justify-between">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-neutral-700">
-              Performance — últimos 3 dias
+              Performance —{" "}
+              <span className="font-normal text-neutral-500">
+                {formatDateBR(from)} a {formatDateBR(to)}
+              </span>
             </h2>
             <p className="text-xs text-neutral-500">
               Meta + Google agregado por cliente. Atualizado a cada 10 min.
             </p>
           </div>
+          <DateFilter from={from} to={to} />
         </div>
 
         {/* KPIs */}

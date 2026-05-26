@@ -10,6 +10,7 @@ import {
   type CampanhaMetrics,
 } from "@/lib/meta-api";
 import { getInsightsGoogle } from "@/lib/google-ads-api";
+import { defaultRange } from "@/lib/performance";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -78,6 +79,8 @@ export default async function PerformancePage({ params }: Props) {
   });
   if (!cliente) notFound();
 
+  const { from, to } = defaultRange();
+
   const contasMeta = cliente.contas.filter((c) => c.metaAdAccountId);
   const contasGoogle = cliente.contas.filter((c) => c.googleAdCustomerId);
 
@@ -85,7 +88,7 @@ export default async function PerformancePage({ params }: Props) {
   const [campanhasMetaBruta, googleResultsBrutos] = await Promise.all([
     Promise.all(
       contasMeta.map((c) =>
-        getInsightsCampanhasMeta(c.metaAdAccountId!, "last_3d").then(
+        getInsightsCampanhasMeta(c.metaAdAccountId!, from, to).then(
           (campanhas) =>
             campanhas.map((camp) => ({
               ...camp,
@@ -98,7 +101,7 @@ export default async function PerformancePage({ params }: Props) {
 
     Promise.all(
       contasGoogle.map(async (c): Promise<GoogleContaResult> => {
-        const r = await getInsightsGoogle(c.googleAdCustomerId!, c.googleAdsMccId, 3);
+        const r = await getInsightsGoogle(c.googleAdCustomerId!, c.googleAdsMccId, from, to);
         return {
           contaId: c.id,
           contaNome: c.nome,

@@ -216,7 +216,8 @@ export type MetaInsightsResultado = {
 
 export async function getInsightsMeta(
   adAccountId: string,
-  datePreset: "last_3d" | "last_7d" | "last_30d" | "this_month" = "last_7d",
+  from: string,   // ISO date YYYY-MM-DD
+  to: string,     // ISO date YYYY-MM-DD
 ): Promise<MetaInsightsResultado> {
   const token = process.env.META_ACCESS_TOKEN;
   if (!token) {
@@ -230,7 +231,7 @@ export async function getInsightsMeta(
     "fields",
     ["spend", "clicks", "impressions", "reach", "ctr", "cpc", "actions", "account_currency"].join(","),
   );
-  url.searchParams.set("date_preset", datePreset);
+  url.searchParams.set("time_range", JSON.stringify({ since: from, until: to }));
 
   let json: Record<string, unknown> = {};
   try {
@@ -311,7 +312,8 @@ export type CampanhaMetrics = {
 
 export async function getInsightsCampanhasMeta(
   adAccountId: string,
-  datePreset: "last_3d" | "last_7d" | "last_30d" = "last_7d",
+  from: string,   // ISO date YYYY-MM-DD
+  to: string,     // ISO date YYYY-MM-DD
 ): Promise<CampanhaMetrics[]> {
   const token = process.env.META_ACCESS_TOKEN;
   if (!token) return [];
@@ -331,8 +333,10 @@ export async function getInsightsCampanhasMeta(
     );
     url.searchParams.set(
       "fields",
-      `id,name,objective,destination_type,status,insights.date_preset(${datePreset}){${insightFields}}`,
+      `id,name,objective,destination_type,status,insights{${insightFields}}`,
     );
+    // time_range no nível raiz é propagado para o sub-edge insights
+    url.searchParams.set("time_range", JSON.stringify({ since: from, until: to }));
     url.searchParams.set(
       "filtering",
       JSON.stringify([
