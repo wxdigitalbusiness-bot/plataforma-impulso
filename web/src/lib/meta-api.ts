@@ -146,56 +146,85 @@ export const DESTINO_PT: Record<string, string> = {
 //
 // Conversions: o Meta retorna `actions` como array de { action_type, value }.
 // Contamos como "conversões" os action_types abaixo (lista pode ser expandida):
-const ACTION_TYPES_CONVERSAO = new Set([
-  "purchase",
-  "lead",
-  "complete_registration",
-  "submit_application",
-  "schedule",
-  "onsite_conversion.lead_grouped",
-  "offsite_conversion.fb_pixel_lead",
-  "offsite_conversion.fb_pixel_purchase",
-  "offsite_conversion.fb_pixel_complete_registration",
-  // Mensagens / WhatsApp
-  "onsite_conversion.messaging_conversation_started_7d",
-  "onsite_conversion.messaging_first_reply",
-  "onsite_conversion.messaging_block",
-]);
+// ─── Grupos de ações de conversão ────────────────────────────────────────────
+//
+// Cada grupo representa o MESMO evento subjacente reportado sob nomes
+// diferentes (ex: "purchase" e "offsite_conversion.fb_pixel_purchase" são
+// o mesmo pixel de compra). Para evitar dupla contagem, usamos MAX dentro
+// do grupo, não SOMA.
+//
+// ATENÇÃO — "messaging_first_reply" e "messaging_block" são métricas
+// distintas de "conversas iniciadas" e NÃO devem ser somadas ao resultado.
 
-// Mapa: action_type → label em PT-BR para exibição no dashboard
-const ACTION_TIPO_LABEL: Record<string, string> = {
-  purchase: "Compras",
-  "offsite_conversion.fb_pixel_purchase": "Compras",
-  lead: "Leads",
-  "offsite_conversion.fb_pixel_lead": "Leads",
-  "onsite_conversion.lead_grouped": "Leads",
-  complete_registration: "Cadastros",
-  "offsite_conversion.fb_pixel_complete_registration": "Cadastros",
-  submit_application: "Candidaturas",
-  schedule: "Agendamentos",
-  "onsite_conversion.messaging_conversation_started_7d": "Conversas",
-  "onsite_conversion.messaging_first_reply": "Conversas iniciadas",
-  "onsite_conversion.messaging_block": "Conversas",
-};
+type ActionGroup = { types: readonly string[]; label: string };
 
+const ACTION_TYPE_GROUPS: ActionGroup[] = [
+  {
+    types: ["purchase", "offsite_conversion.fb_pixel_purchase"],
+    label: "Compras",
+  },
+  {
+    types: [
+      "lead",
+      "offsite_conversion.fb_pixel_lead",
+      "onsite_conversion.lead_grouped",
+    ],
+    label: "Leads",
+  },
+  {
+    types: [
+      "complete_registration",
+      "offsite_conversion.fb_pixel_complete_registration",
+    ],
+    label: "Cadastros",
+  },
+  { types: ["submit_application"], label: "Candidaturas" },
+  { types: ["schedule"], label: "Agendamentos" },
+  {
+    // Métrica primária de campanhas de mensagens/WhatsApp.
+    // NÃO inclui messaging_first_reply (métrica diferente) nem messaging_block.
+    types: ["onsite_conversion.messaging_conversation_started_7d"],
+    label: "Conversas iniciadas",
+  },
+];
+
+/** Soma as conversões sem dupla contagem: para cada grupo pega o MAX. */
+function contarConversoes(
+  actions: Array<{ action_type: string; value: string }>,
+): number {
+  let total = 0;
+  for (const group of ACTION_TYPE_GROUPS) {
+    let groupMax = 0;
+    for (const a of actions) {
+      if ((group.types as string[]).includes(a.action_type)) {
+        groupMax = Math.max(groupMax, toNumber(a.value));
+      }
+    }
+    total += groupMax;
+  }
+  return total;
+}
+
+/** Label PT-BR do resultado dominante (grupo com maior contagem). */
 function tipoResultadoLabel(
   actions: Array<{ action_type: string; value: string }>,
   cliques: number,
 ): string {
-  // Encontra o action_type com maior valor entre os rastreados
-  let bestType = "";
+  let bestLabel = "";
   let bestCount = 0;
-  for (const a of actions) {
-    if (ACTION_TYPES_CONVERSAO.has(a.action_type)) {
-      const v = toNumber(a.value);
-      if (v > bestCount) {
-        bestCount = v;
-        bestType = a.action_type;
+  for (const group of ACTION_TYPE_GROUPS) {
+    let groupMax = 0;
+    for (const a of actions) {
+      if ((group.types as string[]).includes(a.action_type)) {
+        groupMax = Math.max(groupMax, toNumber(a.value));
       }
     }
+    if (groupMax > bestCount) {
+      bestCount = groupMax;
+      bestLabel = group.label;
+    }
   }
-  if (bestType) return ACTION_TIPO_LABEL[bestType] ?? "Conversões";
-  // Sem ações de conversão → campanha de tráfego ou alcance
+  if (bestLabel) return bestLabel;
   return cliques > 0 ? "Cliques no link" : "Impressões";
 }
 
@@ -263,9 +292,7 @@ export async function getInsightsMeta(
 
   const row = data[0];
   const actions = (row.actions as Array<{ action_type: string; value: string }>) ?? [];
-  const conversoes = actions
-    .filter((a) => ACTION_TYPES_CONVERSAO.has(a.action_type))
-    .reduce((sum, a) => sum + toNumber(a.value), 0);
+  const conversoes = contarConversoes(actions);
 
   const reach = toNumber(row.reach);
 
@@ -295,9 +322,9 @@ export async function getInsightsMeta(
 export type CampanhaMetrics = {
   campanhaId: string;
   nome: string;
-  objetivo: string;         // label em PT-BR
+  objetivo: string;              // label em PT-BR
   objetivoRaw: string;
-  destinoConversao: string | null;  // label em PT-BR
+  destinoConversao: string | null;
   destinoRaw: string | null;
   status: string;
   spend: number;
@@ -307,6 +334,8 @@ export type CampanhaMetrics = {
   cpc: number;
   conversoes: number;
   taxaConversao: number;
+  tipoResultado: string;         // label do tipo de resultado (ex: "Conversas iniciadas")
+  custoResultado: number;        // spend / conversoes (0 se sem resultado)
   erro: string | null;
 };
 
@@ -370,14 +399,15 @@ export async function getInsightsCampanhasMeta(
             action_type: string;
             value: string;
           }>) ?? [];
-        const conversoes = actions
-          .filter((a) => ACTION_TYPES_CONVERSAO.has(a.action_type))
-          .reduce((sum, a) => sum + toNumber(a.value), 0);
+        const conversoes = contarConversoes(actions);
 
         const cliques = toNumber(insightsData?.clicks);
         const spend = toNumber(insightsData?.spend);
         const objetivoRaw = (c.objective as string) ?? "";
         const destinoRaw = (c.destination_type as string) ?? null;
+
+        const tipoResultado = tipoResultadoLabel(actions, cliques);
+        const convRound = Math.round(conversoes * 100) / 100;
 
         return {
           campanhaId: c.id as string,
@@ -394,10 +424,15 @@ export async function getInsightsCampanhasMeta(
           cliques,
           ctr: toNumber(insightsData?.ctr),
           cpc: toNumber(insightsData?.cpc),
-          conversoes: Math.round(conversoes * 100) / 100,
+          conversoes: convRound,
           taxaConversao:
             cliques > 0
               ? Math.round((conversoes / cliques) * 100 * 100) / 100
+              : 0,
+          tipoResultado,
+          custoResultado:
+            conversoes > 0
+              ? Math.round((spend / conversoes) * 100) / 100
               : 0,
           erro: null,
         };

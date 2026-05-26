@@ -152,6 +152,10 @@ export default async function PerformancePage({ params }: Props) {
     googleTotal.cliques > 0
       ? round2((googleTotal.conversoes / googleTotal.cliques) * 100)
       : 0;
+  const googleCustoConversao =
+    googleTotal.conversoes > 0
+      ? round2(googleTotal.spend / googleTotal.conversoes)
+      : 0;
 
   return (
     <div className="space-y-8">
@@ -221,13 +225,12 @@ export default async function PerformancePage({ params }: Props) {
                     <th className="px-4 py-3">Campanha</th>
                     <th className="px-4 py-3">Objetivo</th>
                     <th className="px-4 py-3">Destino</th>
-                    <th className="px-4 py-3 text-right">Spend</th>
+                    <th className="px-4 py-3 text-right">Gasto</th>
                     <th className="px-4 py-3 text-right">Impressões</th>
                     <th className="px-4 py-3 text-right">Cliques</th>
                     <th className="px-4 py-3 text-right">CTR</th>
-                    <th className="px-4 py-3 text-right">CPC</th>
-                    <th className="px-4 py-3 text-right">Conv.</th>
-                    <th className="px-4 py-3 text-right">Taxa Conv.</th>
+                    <th className="px-4 py-3 text-right">Resultado</th>
+                    <th className="px-4 py-3 text-right">Custo/Res.</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
@@ -272,20 +275,20 @@ export default async function PerformancePage({ params }: Props) {
                       <td className="px-4 py-3 text-right text-neutral-600">
                         {formatPct(camp.ctr)}
                       </td>
-                      <td className="px-4 py-3 text-right text-neutral-600">
-                        {camp.cliques > 0 ? formatBRL(camp.cpc) : "—"}
+                      <td className="px-4 py-3 text-right">
+                        <p className="font-medium text-neutral-900">
+                          {formatInt(camp.conversoes)}
+                        </p>
+                        {camp.tipoResultado && (
+                          <p className="text-[10px] text-neutral-400">
+                            {camp.tipoResultado}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-neutral-900">
-                        {formatInt(camp.conversoes)}
-                      </td>
-                      <td
-                        className={`px-4 py-3 text-right font-medium ${
-                          camp.taxaConversao > 0
-                            ? "text-emerald-700"
-                            : "text-neutral-400"
-                        }`}
-                      >
-                        {formatPct(camp.taxaConversao)}
+                        {camp.custoResultado > 0
+                          ? formatBRL(camp.custoResultado)
+                          : "—"}
                       </td>
                     </tr>
                   ))}
@@ -310,7 +313,7 @@ export default async function PerformancePage({ params }: Props) {
           </div>
 
           {/* KPIs do total Google */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
             <KpiCard label="Gasto total" value={formatBRL(googleTotal.spend)} />
             <KpiCard
               label="Impressões"
@@ -332,6 +335,10 @@ export default async function PerformancePage({ params }: Props) {
               tone={googleTaxaConversao > 0 ? "ok" : "default"}
               highlight
             />
+            <KpiCard
+              label="Custo/Conv."
+              value={googleCustoConversao > 0 ? formatBRL(googleCustoConversao) : "—"}
+            />
           </div>
 
           {/* Breakdown por conta (só quando há mais de uma) */}
@@ -341,13 +348,12 @@ export default async function PerformancePage({ params }: Props) {
                 <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
                   <tr>
                     <th className="px-4 py-3">Conta</th>
-                    <th className="px-4 py-3 text-right">Spend</th>
-                    <th className="px-4 py-3 text-right">Impressões</th>
+                    <th className="px-4 py-3 text-right">Gasto</th>
                     <th className="px-4 py-3 text-right">Cliques</th>
                     <th className="px-4 py-3 text-right">CTR</th>
-                    <th className="px-4 py-3 text-right">CPC</th>
                     <th className="px-4 py-3 text-right">Conv.</th>
                     <th className="px-4 py-3 text-right">Taxa Conv.</th>
+                    <th className="px-4 py-3 text-right">Custo/Conv.</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
@@ -361,7 +367,7 @@ export default async function PerformancePage({ params }: Props) {
                       </td>
                       {r.erro ? (
                         <td
-                          colSpan={7}
+                          colSpan={6}
                           className="px-4 py-3 text-xs text-red-600"
                         >
                           ⚠ {r.erro}
@@ -372,16 +378,10 @@ export default async function PerformancePage({ params }: Props) {
                             {formatBRL(r.spend)}
                           </td>
                           <td className="px-4 py-3 text-right text-neutral-600">
-                            {formatInt(r.impressoes)}
-                          </td>
-                          <td className="px-4 py-3 text-right text-neutral-600">
                             {formatInt(r.cliques)}
                           </td>
                           <td className="px-4 py-3 text-right text-neutral-600">
                             {formatPct(r.ctr)}
-                          </td>
-                          <td className="px-4 py-3 text-right text-neutral-600">
-                            {r.cliques > 0 ? formatBRL(r.cpc) : "—"}
                           </td>
                           <td className="px-4 py-3 text-right font-medium text-neutral-900">
                             {formatInt(r.conversoes)}
@@ -394,6 +394,11 @@ export default async function PerformancePage({ params }: Props) {
                             }`}
                           >
                             {formatPct(r.taxaConversao)}
+                          </td>
+                          <td className="px-4 py-3 text-right text-neutral-600">
+                            {r.conversoes > 0
+                              ? formatBRL(round2(r.spend / r.conversoes))
+                              : "—"}
                           </td>
                         </>
                       )}
