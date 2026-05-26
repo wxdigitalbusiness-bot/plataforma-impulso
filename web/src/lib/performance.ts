@@ -17,6 +17,9 @@ export type PerformanceMetricas = {
   cpc: number;           // moeda (calculado a partir dos totais)
   conversoes: number;
   taxaConversao: number; // percentage 0..100 (conversoes / cliques * 100)
+  reach: number;         // raw acumulador — apenas Meta (para cálculo de frequencia)
+  frequencia: number;    // impressoes / reach (Meta only)
+  tipoResultado: string; // label PT-BR do resultado dominante (Meta only)
   erros: string[];       // mensagens de contas que falharam
 };
 
@@ -146,20 +149,40 @@ async function calcular(diasAtras: 7 | 30): Promise<PerformanceAgregada> {
     });
   }
 
+  // Acumula métricas e rastreia tipoResultado por cliente (Meta)
+  // { clienteId → Array<{ tipo, conversoes }> } — para escolher o tipo dominante
+  const metaTipos = new Map<number, Array<{ tipo: string; conversoes: number }>>();
+
   for (const r of resultados) {
     const cliente = porClienteMap.get(r.clienteId);
     if (!cliente) continue;
     if (r.type === "meta") {
       acumular(cliente.meta, r.dado);
+      if (!r.dado.erro && (r.dado as MetaInsightsResultado).tipoResultado) {
+        const lista = metaTipos.get(r.clienteId) ?? [];
+        lista.push({
+          tipo: (r.dado as MetaInsightsResultado).tipoResultado,
+          conversoes: r.dado.conversoes,
+        });
+        metaTipos.set(r.clienteId, lista);
+      }
     } else {
       acumular(cliente.google, r.dado);
     }
   }
 
-  // Recalcular CTR/CPC dos agregados a partir dos totais
+  // Recalcular CTR/CPC/freq/taxa dos agregados a partir dos totais
   for (const c of porClienteMap.values()) {
     finalizarMetricas(c.meta);
     finalizarMetricas(c.google);
+    // tipoResultado: escolhe o tipo da conta com mais conversões (ou cliques)
+    const tipos = metaTipos.get(c.clienteId);
+    if (tipos && tipos.length > 0) {
+      const best = tipos.reduce((a, b) =>
+        b.conversoes > a.conversoes ? b : a,
+      );
+      c.meta.tipoResultado = best.tipo;
+    }
     // Total = Meta + Google
     c.total.spend = c.meta.spend + c.google.spend;
     c.total.impressoes = c.meta.impressoes + c.google.impressoes;
@@ -209,6 +232,9 @@ function emptyMetricas(): PerformanceMetricas {
     cpc: 0,
     conversoes: 0,
     taxaConversao: 0,
+    reach: 0,
+    frequencia: 0,
+    tipoResultado: "",
     erros: [],
   };
 }
@@ -222,13 +248,18 @@ function acumular(acc: PerformanceMetricas, dado: MetaInsightsResultado | Google
   acc.impressoes += dado.impressoes;
   acc.cliques += dado.cliques;
   acc.conversoes += dado.conversoes;
-  // ctr/cpc são recalculados em finalizarMetricas a partir dos totais
+  // reach/frequencia são exclusivos do Meta
+  if ("reach" in dado) {
+    acc.reach += (dado as MetaInsightsResultado).reach;
+  }
+  // ctr/cpc/taxaConversao/frequencia são recalculados em finalizarMetricas
 }
 
 function finalizarMetricas(m: PerformanceMetricas) {
   m.ctr = m.impressoes > 0 ? round2((m.cliques / m.impressoes) * 100) : 0;
   m.cpc = m.cliques > 0 ? round2(m.spend / m.cliques) : 0;
   m.taxaConversao = m.cliques > 0 ? round2((m.conversoes / m.cliques) * 100) : 0;
+  m.frequencia = m.reach > 0 ? round2(m.impressoes / m.reach) : 0;
   m.spend = round2(m.spend);
   m.conversoes = round2(m.conversoes);
 }

@@ -156,16 +156,60 @@ const ACTION_TYPES_CONVERSAO = new Set([
   "offsite_conversion.fb_pixel_lead",
   "offsite_conversion.fb_pixel_purchase",
   "offsite_conversion.fb_pixel_complete_registration",
+  // Mensagens / WhatsApp
+  "onsite_conversion.messaging_conversation_started_7d",
+  "onsite_conversion.messaging_first_reply",
+  "onsite_conversion.messaging_block",
 ]);
+
+// Mapa: action_type → label em PT-BR para exibição no dashboard
+const ACTION_TIPO_LABEL: Record<string, string> = {
+  purchase: "Compras",
+  "offsite_conversion.fb_pixel_purchase": "Compras",
+  lead: "Leads",
+  "offsite_conversion.fb_pixel_lead": "Leads",
+  "onsite_conversion.lead_grouped": "Leads",
+  complete_registration: "Cadastros",
+  "offsite_conversion.fb_pixel_complete_registration": "Cadastros",
+  submit_application: "Candidaturas",
+  schedule: "Agendamentos",
+  "onsite_conversion.messaging_conversation_started_7d": "Conversas",
+  "onsite_conversion.messaging_first_reply": "Conversas iniciadas",
+  "onsite_conversion.messaging_block": "Conversas",
+};
+
+function tipoResultadoLabel(
+  actions: Array<{ action_type: string; value: string }>,
+  cliques: number,
+): string {
+  // Encontra o action_type com maior valor entre os rastreados
+  let bestType = "";
+  let bestCount = 0;
+  for (const a of actions) {
+    if (ACTION_TYPES_CONVERSAO.has(a.action_type)) {
+      const v = toNumber(a.value);
+      if (v > bestCount) {
+        bestCount = v;
+        bestType = a.action_type;
+      }
+    }
+  }
+  if (bestType) return ACTION_TIPO_LABEL[bestType] ?? "Conversões";
+  // Sem ações de conversão → campanha de tráfego ou alcance
+  return cliques > 0 ? "Cliques no link" : "Impressões";
+}
 
 export type MetaInsightsResultado = {
   adAccountId: string;
   spend: number;
   impressoes: number;
   cliques: number;
-  ctr: number;        // percentage 0..100
-  cpc: number;        // moeda
+  ctr: number;           // percentage 0..100
+  cpc: number;           // moeda
   conversoes: number;
+  reach: number;         // pessoas únicas alcançadas
+  frequencia: number;    // impressoes / reach
+  tipoResultado: string; // label PT-BR do resultado dominante
   moeda: string | null;
   erro: string | null;
 };
@@ -184,7 +228,7 @@ export async function getInsightsMeta(
   );
   url.searchParams.set(
     "fields",
-    ["spend", "clicks", "impressions", "ctr", "cpc", "actions", "account_currency"].join(","),
+    ["spend", "clicks", "impressions", "reach", "ctr", "cpc", "actions", "account_currency"].join(","),
   );
   url.searchParams.set("date_preset", datePreset);
 
@@ -222,6 +266,8 @@ export async function getInsightsMeta(
     .filter((a) => ACTION_TYPES_CONVERSAO.has(a.action_type))
     .reduce((sum, a) => sum + toNumber(a.value), 0);
 
+  const reach = toNumber(row.reach);
+
   return {
     adAccountId,
     spend: toNumber(row.spend),
@@ -230,6 +276,11 @@ export async function getInsightsMeta(
     ctr: toNumber(row.ctr),
     cpc: toNumber(row.cpc),
     conversoes,
+    reach,
+    frequencia: reach > 0
+      ? Math.round((toNumber(row.impressions) / reach) * 100) / 100
+      : 0,
+    tipoResultado: tipoResultadoLabel(actions, toNumber(row.clicks)),
     moeda: (row.account_currency as string) ?? null,
     erro: null,
   };
@@ -366,6 +417,9 @@ function makeInsightsResult(
     ctr: 0,
     cpc: 0,
     conversoes: 0,
+    reach: 0,
+    frequencia: 0,
+    tipoResultado: "",
     moeda: null,
     erro,
   };

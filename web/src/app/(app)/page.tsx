@@ -183,7 +183,7 @@ export default async function DashboardPage() {
                   Cliente
                 </th>
                 <th
-                  colSpan={4}
+                  colSpan={3}
                   className="border-r border-blue-100 bg-blue-50/60 px-4 py-2 text-center text-xs font-semibold text-blue-700"
                 >
                   Meta Ads
@@ -197,13 +197,12 @@ export default async function DashboardPage() {
               </tr>
               {/* Linha 2: sub-colunas */}
               <tr className="border-b border-neutral-200 text-xs uppercase text-neutral-500">
-                <th className="bg-blue-50/30 px-4 py-2 text-right">Spend</th>
-                <th className="bg-blue-50/30 px-4 py-2 text-right">Cliques</th>
-                <th className="bg-blue-50/30 px-4 py-2 text-right">CTR</th>
+                <th className="bg-blue-50/30 px-4 py-2 text-right">Resultado</th>
+                <th className="bg-blue-50/30 px-4 py-2 text-right">Custo/Res.</th>
                 <th className="border-r border-blue-100 bg-blue-50/30 px-4 py-2 text-right">
-                  Conv.
+                  Frequência
                 </th>
-                <th className="bg-green-50/30 px-4 py-2 text-right">Spend</th>
+                <th className="bg-green-50/30 px-4 py-2 text-right">Gasto</th>
                 <th className="bg-green-50/30 px-4 py-2 text-right">Cliques</th>
                 <th className="bg-green-50/30 px-4 py-2 text-right">Conv.</th>
                 <th className="bg-green-50/30 px-4 py-2 text-right">
@@ -252,25 +251,44 @@ export default async function DashboardPage() {
                       </div>
                     </td>
 
-                    {/* Meta: Spend / Cliques / CTR / Conv. */}
+                    {/* Meta: Resultado / Custo/Resultado / Frequência */}
                     {c.contasMeta > 0 ? (
                       <>
-                        <td className="px-4 py-3 text-right font-medium text-neutral-900">
-                          {formatBRL(c.meta.spend)}
+                        {/* Resultado: número + label abaixo */}
+                        <td className="px-4 py-3 text-right">
+                          <p className="font-medium text-neutral-900">
+                            {c.meta.tipoResultado === "Cliques no link"
+                              ? formatInt(c.meta.cliques)
+                              : formatInt(c.meta.conversoes)}
+                          </p>
+                          {c.meta.tipoResultado && (
+                            <p className="text-[10px] text-neutral-400">
+                              {c.meta.tipoResultado}
+                            </p>
+                          )}
                         </td>
+                        {/* Custo por resultado */}
                         <td className="px-4 py-3 text-right text-neutral-600">
-                          {formatInt(c.meta.cliques)}
+                          {(() => {
+                            const n =
+                              c.meta.tipoResultado === "Cliques no link"
+                                ? c.meta.cliques
+                                : c.meta.conversoes;
+                            return n > 0
+                              ? formatBRL(c.meta.spend / n)
+                              : "—";
+                          })()}
                         </td>
-                        <td className="px-4 py-3 text-right text-neutral-600">
-                          {formatPct(c.meta.ctr)}
-                        </td>
-                        <td className="border-r border-blue-100 px-4 py-3 text-right font-medium text-neutral-900">
-                          {formatInt(c.meta.conversoes)}
+                        {/* Frequência */}
+                        <td className="border-r border-blue-100 px-4 py-3 text-right text-neutral-600">
+                          {c.meta.frequencia > 0
+                            ? `${c.meta.frequencia.toFixed(2)}×`
+                            : "—"}
                         </td>
                       </>
                     ) : (
                       <td
-                        colSpan={4}
+                        colSpan={3}
                         className="border-r border-blue-100 px-4 py-3 text-center text-xs text-neutral-300"
                       >
                         —
@@ -313,7 +331,7 @@ export default async function DashboardPage() {
               ).length === 0 && (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={9}
                     className="px-4 py-12 text-center text-sm text-neutral-500"
                   >
                     Nenhum cliente com conta de anúncio configurada.
