@@ -20,6 +20,10 @@ const clienteSchema = z.object({
     (v) => (!v || String(v).trim() === "" ? null : String(v).trim()),
     z.enum(TIPOS_SERVICO_VALUES as unknown as [string, ...string[]]).nullable()
   ),
+  n8nClientKey: z.preprocess(
+    (v) => (!v || String(v).trim() === "" ? null : String(v).trim().toLowerCase()),
+    z.string().nullable()
+  ),
   ativo: z.coerce.boolean(),
 });
 
@@ -29,6 +33,7 @@ function parseForm(formData: FormData) {
     empresa: formData.get("empresa"),
     whatsappAlerta: formData.get("whatsappAlerta"),
     tipoServico: formData.get("tipoServico"),
+    n8nClientKey: formData.get("n8nClientKey"),
     ativo: formData.get("ativo") === "on",
   });
 }
@@ -41,6 +46,7 @@ export async function criarCliente(formData: FormData) {
       empresa: data.empresa,
       whatsappAlerta: data.whatsappAlerta,
       tipoServico: data.tipoServico,
+      n8nClientKey: data.n8nClientKey,
       ativo: data.ativo,
     },
   });
@@ -58,6 +64,7 @@ export async function atualizarCliente(id: number, formData: FormData) {
       empresa: data.empresa,
       whatsappAlerta: data.whatsappAlerta,
       tipoServico: data.tipoServico,
+      n8nClientKey: data.n8nClientKey,
       ativo: data.ativo,
     },
   });

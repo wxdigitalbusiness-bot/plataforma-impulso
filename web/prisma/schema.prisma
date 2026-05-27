@@ -19,6 +19,9 @@ model Cliente {
   whatsappAlerta  String?   @map("whatsapp_alerta")
   // Tipo de serviço prestado pela agência. Valores: panfletagem_digital | gestao_trafego | impulso_360
   tipoServico     String?   @map("tipo_servico")
+  // Chave usada pelos workflows n8n (ex: "SC", "altaconquista").
+  // Liga este cliente às tabelas fb_meta_insights e impulso.lead_current.
+  n8nClientKey    String?   @map("n8n_client_key")
   ativo           Boolean   @default(true)
   criadoEm        DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
   atualizadoEm    DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz()

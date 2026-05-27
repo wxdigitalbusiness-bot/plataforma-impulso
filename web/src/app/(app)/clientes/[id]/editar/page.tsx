@@ -23,6 +23,7 @@ export default async function EditarClientePage({ params }: Props) {
     empresa: cliente.empresa,
     whatsappAlerta: cliente.whatsappAlerta,
     tipoServico: cliente.tipoServico,
+    n8nClientKey: cliente.n8nClientKey,
     ativo: cliente.ativo,
   };
 

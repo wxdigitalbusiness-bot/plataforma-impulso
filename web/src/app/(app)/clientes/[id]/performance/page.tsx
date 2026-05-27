@@ -1,6 +1,7 @@
 // Página de detalhe de performance por cliente.
-// Meta Ads: tabela por campanha com objetivo + destino de conversão + métricas.
+// Meta Ads: tabela por campanha com objetivo + destino de conversão + métricas + leads CRM.
 // Google Ads: KPIs agregados com taxa de conversão + breakdown por conta (se múltiplas).
+// CRM: funil (leads / qualificados / perdidos / concluídos) via banco direto.
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -12,6 +13,12 @@ import {
 import { getInsightsGoogle } from "@/lib/google-ads-api";
 import { defaultRange } from "@/lib/performance";
 import { DateFilter } from "@/app/(app)/_date-filter";
+import {
+  getCrmFunil,
+  getCrmLeadsPorCampanha,
+  type CrmFunil,
+  type LeadCampanha,
+} from "@/lib/db-insights";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -99,51 +106,64 @@ export default async function PerformancePage({ params, searchParams }: Props) {
   });
   if (!cliente) notFound();
 
-  const contasMeta = cliente.contas.filter((c) => c.metaAdAccountId);
+  const contasMeta   = cliente.contas.filter((c) => c.metaAdAccountId);
   const contasGoogle = cliente.contas.filter((c) => c.googleAdCustomerId);
+  const temCrm       = !!cliente.n8nClientKey;
 
-  // Busca em paralelo: campanhas Meta + insights Google por conta
-  const [campanhasMetaBruta, googleResultsBrutos] = await Promise.all([
-    Promise.all(
-      contasMeta.map((c) =>
-        getInsightsCampanhasMeta(c.metaAdAccountId!, from, to).then(
-          (campanhas) =>
-            campanhas.map((camp) => ({
-              ...camp,
-              contaId: c.id,
-              contaNome: c.nome,
-            })),
+  // Busca em paralelo: campanhas Meta + insights Google por conta + CRM
+  const [campanhasMetaBruta, googleResultsBrutos, crmFunil, leadsParaCampanha] =
+    await Promise.all([
+      Promise.all(
+        contasMeta.map((c) =>
+          getInsightsCampanhasMeta(c.metaAdAccountId!, from, to).then(
+            (campanhas) =>
+              campanhas.map((camp) => ({
+                ...camp,
+                contaId: c.id,
+                contaNome: c.nome,
+              })),
+          ),
         ),
-      ),
-    ).then((arr) => arr.flat()),
+      ).then((arr) => arr.flat()),
 
-    Promise.all(
-      contasGoogle.map(async (c): Promise<GoogleContaResult> => {
-        const r = await getInsightsGoogle(c.googleAdCustomerId!, c.googleAdsMccId, from, to);
-        return {
-          contaId: c.id,
-          contaNome: c.nome,
-          customerId: c.googleAdCustomerId!,
-          spend: r.spend,
-          impressoes: r.impressoes,
-          cliques: r.cliques,
-          ctr: r.ctr,
-          cpc: r.cpc,
-          conversoes: r.conversoes,
-          taxaConversao:
-            r.cliques > 0
-              ? round2((r.conversoes / r.cliques) * 100)
-              : 0,
-          erro: r.erro,
-        };
-      }),
-    ),
-  ]);
+      Promise.all(
+        contasGoogle.map(async (c): Promise<GoogleContaResult> => {
+          const r = await getInsightsGoogle(c.googleAdCustomerId!, c.googleAdsMccId, from, to);
+          return {
+            contaId: c.id,
+            contaNome: c.nome,
+            customerId: c.googleAdCustomerId!,
+            spend: r.spend,
+            impressoes: r.impressoes,
+            cliques: r.cliques,
+            ctr: r.ctr,
+            cpc: r.cpc,
+            conversoes: r.conversoes,
+            taxaConversao:
+              r.cliques > 0 ? round2((r.conversoes / r.cliques) * 100) : 0,
+            erro: r.erro,
+          };
+        }),
+      ),
+
+      // CRM: funil do período
+      temCrm
+        ? getCrmFunil(cliente.n8nClientKey!, from, to)
+        : Promise.resolve(null as CrmFunil | null),
+
+      // CRM: leads atribuídos por campanha
+      temCrm
+        ? getCrmLeadsPorCampanha(cliente.n8nClientKey!, from, to)
+        : Promise.resolve([] as LeadCampanha[]),
+    ]);
+
+  // Mapa campanhaId → leads CRM
+  const leadsMap = new Map<string, number>(
+    leadsParaCampanha.map((l) => [l.campanhaId, l.leads]),
+  );
 
   // Ordena campanhas Meta por spend desc
-  const campanhasMeta = campanhasMetaBruta.sort(
-    (a, b) => b.spend - a.spend,
-  );
+  const campanhasMeta = campanhasMetaBruta.sort((a, b) => b.spend - a.spend);
 
   // Totais Google
   const googleTotal = googleResultsBrutos.reduce(
@@ -174,6 +194,9 @@ export default async function PerformancePage({ params, searchParams }: Props) {
     googleTotal.conversoes > 0
       ? round2(googleTotal.spend / googleTotal.conversoes)
       : 0;
+
+  // Leads CRM: determinar se alguma campanha tem leads para mostrar a coluna
+  const totalLeadsCampanha = leadsParaCampanha.reduce((s, l) => s + l.leads, 0);
 
   return (
     <div className="space-y-8">
@@ -225,6 +248,91 @@ export default async function PerformancePage({ params, searchParams }: Props) {
         </div>
       </header>
 
+      {/* ── Funil CRM ─────────────────────────────────────────────── */}
+      {temCrm && crmFunil && (
+        <section>
+          <div className="mb-3 flex items-center gap-2">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-violet-500" />
+            <h2 className="text-sm font-semibold text-neutral-700">
+              Funil CRM
+            </h2>
+            <span className="text-xs text-neutral-400">
+              Leads criados no período (via webhook)
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+            <KpiCard
+              label="Total de leads"
+              value={formatInt(crmFunil.totalLeads)}
+              tone={crmFunil.totalLeads > 0 ? "ok" : "default"}
+              highlight={crmFunil.totalLeads > 0}
+            />
+            <KpiCard
+              label="Com atribuição"
+              value={formatInt(crmFunil.comAtribuicao)}
+            />
+            <KpiCard
+              label="Direto / Orgânico"
+              value={formatInt(crmFunil.semAtribuicao)}
+            />
+            <KpiCard
+              label="Qualificados"
+              value={formatInt(crmFunil.qualificados)}
+              tone={crmFunil.qualificados > 0 ? "ok" : "default"}
+            />
+            <KpiCard
+              label="Perdidos"
+              value={formatInt(crmFunil.perdidos)}
+            />
+            <KpiCard
+              label="Concluídos"
+              value={formatInt(crmFunil.concluidos)}
+              tone={crmFunil.concluidos > 0 ? "ok" : "default"}
+              highlight={crmFunil.concluidos > 0}
+            />
+          </div>
+          {/* Leads por campanha */}
+          {leadsParaCampanha.length > 0 && (
+            <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200 bg-white">
+              <table className="w-full text-sm">
+                <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
+                  <tr>
+                    <th className="px-4 py-3">Campanha (atribuição CRM)</th>
+                    <th className="px-4 py-3 text-right">Leads</th>
+                    <th className="px-4 py-3 text-right">% do total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {leadsParaCampanha.map((l) => (
+                    <tr key={l.campanhaId} className="hover:bg-neutral-50">
+                      <td className="px-4 py-3">
+                        <p
+                          className="font-medium text-neutral-900"
+                          title={l.campanhaNome}
+                        >
+                          {l.campanhaNome}
+                        </p>
+                        <p className="text-[10px] text-neutral-400">
+                          {l.campanhaId}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-neutral-900">
+                        {formatInt(l.leads)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-neutral-500">
+                        {totalLeadsCampanha > 0
+                          ? `${((l.leads / totalLeadsCampanha) * 100).toFixed(1)}%`
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* ── Meta Ads ──────────────────────────────────────────────── */}
       {contasMeta.length > 0 && (
         <section>
@@ -253,87 +361,105 @@ export default async function PerformancePage({ params, searchParams }: Props) {
                     <th className="px-4 py-3 text-right">Impressões</th>
                     <th className="px-4 py-3 text-right">Alcance</th>
                     <th className="px-4 py-3 text-right">Orçamento</th>
+                    {temCrm && totalLeadsCampanha > 0 && (
+                      <th className="px-4 py-3 text-right text-violet-600">
+                        Leads CRM
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
-                  {campanhasMeta.map((camp) => (
-                    <tr
-                      key={camp.campanhaId}
-                      className="hover:bg-neutral-50"
-                    >
-                      {/* Campanha: nome + objetivo + destino + status */}
-                      <td className="max-w-[260px] px-4 py-3">
-                        <p
-                          className="truncate font-medium text-neutral-900"
-                          title={camp.nome}
-                        >
-                          {camp.nome}
-                        </p>
-                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                          <ObjetivoTag objetivo={camp.objetivo} />
-                          {camp.destinoConversao && (
-                            <span className="text-[10px] text-neutral-400">
-                              → {camp.destinoConversao}
-                            </span>
-                          )}
-                          {camp.status === "PAUSED" && (
-                            <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
-                              pausada
-                            </span>
-                          )}
-                        </div>
-                        {contasMeta.length > 1 && (
-                          <p className="mt-0.5 text-[10px] text-neutral-400">
-                            {camp.contaNome}
+                  {campanhasMeta.map((camp) => {
+                    const leadsCount = leadsMap.get(camp.campanhaId) ?? 0;
+                    return (
+                      <tr key={camp.campanhaId} className="hover:bg-neutral-50">
+                        {/* Campanha: nome + objetivo + destino + status */}
+                        <td className="max-w-[260px] px-4 py-3">
+                          <p
+                            className="truncate font-medium text-neutral-900"
+                            title={camp.nome}
+                          >
+                            {camp.nome}
                           </p>
-                        )}
-                      </td>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <ObjetivoTag objetivo={camp.objetivo} />
+                            {camp.destinoConversao && (
+                              <span className="text-[10px] text-neutral-400">
+                                → {camp.destinoConversao}
+                              </span>
+                            )}
+                            {camp.status === "PAUSED" && (
+                              <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+                                pausada
+                              </span>
+                            )}
+                          </div>
+                          {contasMeta.length > 1 && (
+                            <p className="mt-0.5 text-[10px] text-neutral-400">
+                              {camp.contaNome}
+                            </p>
+                          )}
+                        </td>
 
-                      {/* Resultado */}
-                      <td className="px-4 py-3 text-right">
-                        <p className="font-semibold text-neutral-900">
-                          {formatInt(camp.conversoes)}
-                        </p>
-                        {camp.tipoResultado && (
-                          <p className="text-[10px] text-neutral-400">
-                            {camp.tipoResultado}
+                        {/* Resultado */}
+                        <td className="px-4 py-3 text-right">
+                          <p className="font-semibold text-neutral-900">
+                            {formatInt(camp.conversoes)}
                           </p>
+                          {camp.tipoResultado && (
+                            <p className="text-[10px] text-neutral-400">
+                              {camp.tipoResultado}
+                            </p>
+                          )}
+                        </td>
+
+                        {/* Valor usado */}
+                        <td className="px-4 py-3 text-right font-medium text-neutral-900">
+                          {formatBRL(camp.spend)}
+                        </td>
+
+                        {/* Impressões */}
+                        <td className="px-4 py-3 text-right text-neutral-600">
+                          {formatInt(camp.impressoes)}
+                        </td>
+
+                        {/* Alcance */}
+                        <td className="px-4 py-3 text-right text-neutral-600">
+                          {camp.reach > 0 ? formatInt(camp.reach) : "—"}
+                        </td>
+
+                        {/* Orçamento */}
+                        <td className="px-4 py-3 text-right text-neutral-600">
+                          {camp.orcamentoDiario > 0 ? (
+                            <span>
+                              {formatBRL(camp.orcamentoDiario)}
+                              <span className="ml-0.5 text-[10px] text-neutral-400">/dia</span>
+                            </span>
+                          ) : camp.orcamentoVitalicio > 0 ? (
+                            <span>
+                              {formatBRL(camp.orcamentoVitalicio)}
+                              <span className="ml-0.5 text-[10px] text-neutral-400">total</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-neutral-400">Por conjunto</span>
+                          )}
+                        </td>
+
+                        {/* Leads CRM (condicional) */}
+                        {temCrm && totalLeadsCampanha > 0 && (
+                          <td className="px-4 py-3 text-right">
+                            {leadsCount > 0 ? (
+                              <span className="font-semibold text-violet-700">
+                                {formatInt(leadsCount)}
+                              </span>
+                            ) : (
+                              <span className="text-neutral-300">—</span>
+                            )}
+                          </td>
                         )}
-                      </td>
-
-                      {/* Valor usado */}
-                      <td className="px-4 py-3 text-right font-medium text-neutral-900">
-                        {formatBRL(camp.spend)}
-                      </td>
-
-                      {/* Impressões */}
-                      <td className="px-4 py-3 text-right text-neutral-600">
-                        {formatInt(camp.impressoes)}
-                      </td>
-
-                      {/* Alcance */}
-                      <td className="px-4 py-3 text-right text-neutral-600">
-                        {camp.reach > 0 ? formatInt(camp.reach) : "—"}
-                      </td>
-
-                      {/* Orçamento */}
-                      <td className="px-4 py-3 text-right text-neutral-600">
-                        {camp.orcamentoDiario > 0 ? (
-                          <span>
-                            {formatBRL(camp.orcamentoDiario)}
-                            <span className="ml-0.5 text-[10px] text-neutral-400">/dia</span>
-                          </span>
-                        ) : camp.orcamentoVitalicio > 0 ? (
-                          <span>
-                            {formatBRL(camp.orcamentoVitalicio)}
-                            <span className="ml-0.5 text-[10px] text-neutral-400">total</span>
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-neutral-400">Por conjunto</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -465,6 +591,20 @@ export default async function PerformancePage({ params, searchParams }: Props) {
           </Link>
         </div>
       )}
+
+      {/* Aviso sem CRM */}
+      {!temCrm && (contasMeta.length > 0 || contasGoogle.length > 0) && (
+        <p className="text-xs text-neutral-400">
+          💡 Para ver o funil CRM nesta página, configure a{" "}
+          <Link
+            href={`/clientes/${clienteId}/editar`}
+            className="underline hover:text-neutral-600"
+          >
+            chave n8n do cliente
+          </Link>
+          .
+        </p>
+      )}
     </div>
   );
 }
@@ -485,9 +625,7 @@ function KpiCard({
   const valueClass =
     tone === "ok"
       ? "text-emerald-700"
-      : highlight
-        ? "text-neutral-900"
-        : "text-neutral-900";
+      : "text-neutral-900";
 
   return (
     <div

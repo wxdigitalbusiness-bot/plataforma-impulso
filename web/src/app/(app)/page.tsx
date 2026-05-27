@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { sincronizarSaldosTodos } from "@/lib/sync-saldos";
 import { obterPerformance, defaultRange } from "@/lib/performance";
+import { getCrmFunilMultiplos } from "@/lib/db-insights";
 import { DateFilter } from "./_date-filter";
 
 export const dynamic = "force-dynamic";
@@ -110,6 +111,19 @@ export default async function DashboardPage({ searchParams }: Props) {
   // Performance dos últimos 7 dias (cache 10min) — chamada paralela com Meta+Google
   const perf = await obterPerformance({ from, to });
 
+  // CRM: buscar funções para todos os clientes que têm n8nClientKey
+  const clientesComCrm = await db.cliente.findMany({
+    where: { ativo: true, n8nClientKey: { not: null } },
+    select: { id: true, n8nClientKey: true },
+  });
+  const clienteKeyMap = new Map(
+    clientesComCrm.map((c) => [c.id, c.n8nClientKey!]),
+  );
+  const n8nKeys = clientesComCrm.map((c) => c.n8nClientKey!);
+  const crmFunilMap = n8nKeys.length > 0
+    ? await getCrmFunilMultiplos(n8nKeys, from, to)
+    : new Map();
+
   return (
     <div className="space-y-8">
       <header className="flex items-end justify-between">
@@ -210,9 +224,15 @@ export default async function DashboardPage({ searchParams }: Props) {
                 </th>
                 <th
                   colSpan={5}
-                  className="bg-green-50/60 px-4 py-2 text-center text-xs font-semibold text-green-700"
+                  className="border-r border-green-100 bg-green-50/60 px-4 py-2 text-center text-xs font-semibold text-green-700"
                 >
                   Google Ads
+                </th>
+                <th
+                  colSpan={4}
+                  className="bg-violet-50/60 px-4 py-2 text-center text-xs font-semibold text-violet-700"
+                >
+                  CRM
                 </th>
               </tr>
               {/* Linha 2: sub-colunas */}
@@ -229,134 +249,174 @@ export default async function DashboardPage({ searchParams }: Props) {
                 <th className="bg-green-50/30 px-4 py-2 text-right">
                   Taxa Conv.
                 </th>
-                <th className="bg-green-50/30 px-4 py-2 text-right">
+                <th className="border-r border-green-100 bg-green-50/30 px-4 py-2 text-right">
                   Custo/Conv.
                 </th>
+                <th className="bg-violet-50/30 px-4 py-2 text-right">Leads</th>
+                <th className="bg-violet-50/30 px-4 py-2 text-right">Qualif.</th>
+                <th className="bg-violet-50/30 px-4 py-2 text-right">Perdidos</th>
+                <th className="bg-violet-50/30 px-4 py-2 text-right">Conclui.</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
               {perf.porCliente
                 .filter((c) => c.contasMeta + c.contasGoogle > 0)
-                .map((c) => (
-                  <tr key={c.clienteId} className="hover:bg-neutral-50">
-                    {/* Cliente */}
-                    <td className="border-r border-neutral-100 px-4 py-3">
-                      <Link
-                        href={`/clientes/${c.clienteId}/performance`}
-                        className="font-medium text-neutral-900 hover:underline"
-                      >
-                        {c.nome}
-                      </Link>
-                      {c.empresa && (
-                        <p className="text-xs text-neutral-500">{c.empresa}</p>
-                      )}
-                      <div className="mt-1 flex items-center gap-1">
-                        {c.contasMeta > 0 && (
-                          <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-600">
-                            M{c.contasMeta > 1 ? `×${c.contasMeta}` : ""}
-                          </span>
+                .map((c) => {
+                  const clientKey = clienteKeyMap.get(c.clienteId);
+                  const crm = clientKey
+                    ? crmFunilMap.get(clientKey.toLowerCase())
+                    : undefined;
+                  return (
+                    <tr key={c.clienteId} className="hover:bg-neutral-50">
+                      {/* Cliente */}
+                      <td className="border-r border-neutral-100 px-4 py-3">
+                        <Link
+                          href={`/clientes/${c.clienteId}/performance`}
+                          className="font-medium text-neutral-900 hover:underline"
+                        >
+                          {c.nome}
+                        </Link>
+                        {c.empresa && (
+                          <p className="text-xs text-neutral-500">{c.empresa}</p>
                         )}
-                        {c.contasGoogle > 0 && (
-                          <span className="rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-600">
-                            G{c.contasGoogle > 1 ? `×${c.contasGoogle}` : ""}
-                          </span>
-                        )}
-                        {c.total.erros.length > 0 && (
-                          <span
-                            className="text-[10px] text-red-500"
-                            title={c.total.erros.join("\n")}
-                          >
-                            ⚠ {c.total.erros.length} erro(s)
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Meta: Gasto / Resultado / Custo/Resultado / Frequência */}
-                    {c.contasMeta > 0 ? (
-                      <>
-                        {/* Gasto */}
-                        <td className="px-4 py-3 text-right font-medium text-neutral-900">
-                          {formatBRL(c.meta.spend)}
-                        </td>
-                        {/* Resultado: número + label abaixo */}
-                        <td className="px-4 py-3 text-right">
-                          <p className="font-medium text-neutral-900">
-                            {c.meta.tipoResultado === "Cliques no link"
-                              ? formatInt(c.meta.cliques)
-                              : formatInt(c.meta.conversoes)}
-                          </p>
-                          {c.meta.tipoResultado && (
-                            <p className="text-[10px] text-neutral-400">
-                              {c.meta.tipoResultado}
-                            </p>
+                        <div className="mt-1 flex items-center gap-1">
+                          {c.contasMeta > 0 && (
+                            <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-600">
+                              M{c.contasMeta > 1 ? `×${c.contasMeta}` : ""}
+                            </span>
                           )}
-                        </td>
-                        {/* Custo por resultado */}
-                        <td className="px-4 py-3 text-right text-neutral-600">
-                          {(() => {
-                            const n =
-                              c.meta.tipoResultado === "Cliques no link"
-                                ? c.meta.cliques
-                                : c.meta.conversoes;
-                            return n > 0
-                              ? formatBRL(c.meta.spend / n)
-                              : "—";
-                          })()}
-                        </td>
-                        {/* Frequência */}
-                        <td className="border-r border-blue-100 px-4 py-3 text-right text-neutral-600">
-                          {c.meta.frequencia > 0
-                            ? `${c.meta.frequencia.toFixed(2)}×`
-                            : "—"}
-                        </td>
-                      </>
-                    ) : (
-                      <td
-                        colSpan={4}
-                        className="border-r border-blue-100 px-4 py-3 text-center text-xs text-neutral-300"
-                      >
-                        —
+                          {c.contasGoogle > 0 && (
+                            <span className="rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-600">
+                              G{c.contasGoogle > 1 ? `×${c.contasGoogle}` : ""}
+                            </span>
+                          )}
+                          {clientKey && (
+                            <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-600">
+                              CRM
+                            </span>
+                          )}
+                          {c.total.erros.length > 0 && (
+                            <span
+                              className="text-[10px] text-red-500"
+                              title={c.total.erros.join("\n")}
+                            >
+                              ⚠ {c.total.erros.length} erro(s)
+                            </span>
+                          )}
+                        </div>
                       </td>
-                    )}
 
-                    {/* Google: Spend / Cliques / Conv. / Taxa Conv. / Custo/Conv. */}
-                    {c.contasGoogle > 0 ? (
-                      <>
-                        <td className="px-4 py-3 text-right font-medium text-neutral-900">
-                          {formatBRL(c.google.spend)}
+                      {/* Meta: Gasto / Resultado / Custo/Resultado / Frequência */}
+                      {c.contasMeta > 0 ? (
+                        <>
+                          {/* Gasto */}
+                          <td className="px-4 py-3 text-right font-medium text-neutral-900">
+                            {formatBRL(c.meta.spend)}
+                          </td>
+                          {/* Resultado: número + label abaixo */}
+                          <td className="px-4 py-3 text-right">
+                            <p className="font-medium text-neutral-900">
+                              {c.meta.tipoResultado === "Cliques no link"
+                                ? formatInt(c.meta.cliques)
+                                : formatInt(c.meta.conversoes)}
+                            </p>
+                            {c.meta.tipoResultado && (
+                              <p className="text-[10px] text-neutral-400">
+                                {c.meta.tipoResultado}
+                              </p>
+                            )}
+                          </td>
+                          {/* Custo por resultado */}
+                          <td className="px-4 py-3 text-right text-neutral-600">
+                            {(() => {
+                              const n =
+                                c.meta.tipoResultado === "Cliques no link"
+                                  ? c.meta.cliques
+                                  : c.meta.conversoes;
+                              return n > 0
+                                ? formatBRL(c.meta.spend / n)
+                                : "—";
+                            })()}
+                          </td>
+                          {/* Frequência */}
+                          <td className="border-r border-blue-100 px-4 py-3 text-right text-neutral-600">
+                            {c.meta.frequencia > 0
+                              ? `${c.meta.frequencia.toFixed(2)}×`
+                              : "—"}
+                          </td>
+                        </>
+                      ) : (
+                        <td
+                          colSpan={4}
+                          className="border-r border-blue-100 px-4 py-3 text-center text-xs text-neutral-300"
+                        >
+                          —
                         </td>
-                        <td className="px-4 py-3 text-right text-neutral-600">
-                          {formatInt(c.google.cliques)}
+                      )}
+
+                      {/* Google: Spend / Cliques / Conv. / Taxa Conv. / Custo/Conv. */}
+                      {c.contasGoogle > 0 ? (
+                        <>
+                          <td className="px-4 py-3 text-right font-medium text-neutral-900">
+                            {formatBRL(c.google.spend)}
+                          </td>
+                          <td className="px-4 py-3 text-right text-neutral-600">
+                            {formatInt(c.google.cliques)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-neutral-900">
+                            {formatInt(c.google.conversoes)}
+                          </td>
+                          <td className="px-4 py-3 text-right text-neutral-600">
+                            {formatPct(c.google.taxaConversao)}
+                          </td>
+                          <td className="border-r border-green-100 px-4 py-3 text-right text-neutral-600">
+                            {c.google.conversoes > 0
+                              ? formatBRL(c.google.spend / c.google.conversoes)
+                              : "—"}
+                          </td>
+                        </>
+                      ) : (
+                        <td
+                          colSpan={5}
+                          className="border-r border-green-100 px-4 py-3 text-center text-xs text-neutral-300"
+                        >
+                          —
                         </td>
-                        <td className="px-4 py-3 text-right font-medium text-neutral-900">
-                          {formatInt(c.google.conversoes)}
+                      )}
+
+                      {/* CRM: Leads / Qualificados / Perdidos / Concluídos */}
+                      {crm ? (
+                        <>
+                          <td className="bg-violet-50/20 px-4 py-3 text-right font-semibold text-violet-800">
+                            {formatInt(crm.totalLeads)}
+                          </td>
+                          <td className="bg-violet-50/20 px-4 py-3 text-right text-emerald-700">
+                            {crm.qualificados > 0 ? formatInt(crm.qualificados) : "—"}
+                          </td>
+                          <td className="bg-violet-50/20 px-4 py-3 text-right text-neutral-500">
+                            {crm.perdidos > 0 ? formatInt(crm.perdidos) : "—"}
+                          </td>
+                          <td className="bg-violet-50/20 px-4 py-3 text-right font-medium text-emerald-700">
+                            {crm.concluidos > 0 ? formatInt(crm.concluidos) : "—"}
+                          </td>
+                        </>
+                      ) : (
+                        <td
+                          colSpan={4}
+                          className="bg-violet-50/10 px-4 py-3 text-center text-xs text-neutral-200"
+                        >
+                          —
                         </td>
-                        <td className="px-4 py-3 text-right text-neutral-600">
-                          {formatPct(c.google.taxaConversao)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-neutral-600">
-                          {c.google.conversoes > 0
-                            ? formatBRL(c.google.spend / c.google.conversoes)
-                            : "—"}
-                        </td>
-                      </>
-                    ) : (
-                      <td
-                        colSpan={5}
-                        className="px-4 py-3 text-center text-xs text-neutral-300"
-                      >
-                        —
-                      </td>
-                    )}
-                  </tr>
-                ))}
+                      )}
+                    </tr>
+                  );
+                })}
               {perf.porCliente.filter(
                 (c) => c.contasMeta + c.contasGoogle > 0,
               ).length === 0 && (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={14}
                     className="px-4 py-12 text-center text-sm text-neutral-500"
                   >
                     Nenhum cliente com conta de anúncio configurada.

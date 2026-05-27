@@ -8,6 +8,7 @@ export type ClienteFormData = {
   empresa: string | null;
   whatsappAlerta: string | null;
   tipoServico: string | null;
+  n8nClientKey: string | null;
   ativo: boolean;
 };
 
@@ -94,6 +95,24 @@ export function ClienteForm({
         <p className="mt-1 text-xs text-neutral-400">
           Recebe os alertas de saldo baixo de qualquer conta deste cliente.
           Deixe em branco para desabilitar alertas.
+        </p>
+      </label>
+
+      <label className="block">
+        <span className="mb-1 block text-sm font-medium text-neutral-700">
+          Chave n8n (client_key)
+        </span>
+        <input
+          name="n8nClientKey"
+          defaultValue={cliente?.n8nClientKey ?? ""}
+          placeholder="Ex.: SC, altaconquista"
+          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+        />
+        <p className="mt-1 text-xs text-neutral-400">
+          Chave usada pelos workflows n8n para identificar este cliente nas tabelas{" "}
+          <code className="rounded bg-neutral-100 px-1">fb_meta_insights</code> e{" "}
+          <code className="rounded bg-neutral-100 px-1">impulso.lead_current</code>.
+          Preencha para habilitar dados de CRM no dashboard (ex.: <em>SC</em>, <em>altaconquista</em>).
         </p>
       </label>
 
