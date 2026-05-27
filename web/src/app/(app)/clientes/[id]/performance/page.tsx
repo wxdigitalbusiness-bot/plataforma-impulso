@@ -248,14 +248,11 @@ export default async function PerformancePage({ params, searchParams }: Props) {
                 <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
                   <tr>
                     <th className="px-4 py-3">Campanha</th>
-                    <th className="px-4 py-3">Objetivo</th>
-                    <th className="px-4 py-3">Destino</th>
-                    <th className="px-4 py-3 text-right">Gasto</th>
-                    <th className="px-4 py-3 text-right">Impressões</th>
-                    <th className="px-4 py-3 text-right">Cliques</th>
-                    <th className="px-4 py-3 text-right">CTR</th>
                     <th className="px-4 py-3 text-right">Resultado</th>
-                    <th className="px-4 py-3 text-right">Custo/Res.</th>
+                    <th className="px-4 py-3 text-right">Valor usado</th>
+                    <th className="px-4 py-3 text-right">Impressões</th>
+                    <th className="px-4 py-3 text-right">Alcance</th>
+                    <th className="px-4 py-3 text-right">Orçamento</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
@@ -264,44 +261,37 @@ export default async function PerformancePage({ params, searchParams }: Props) {
                       key={camp.campanhaId}
                       className="hover:bg-neutral-50"
                     >
-                      <td className="max-w-[220px] px-4 py-3">
+                      {/* Campanha: nome + objetivo + destino + status */}
+                      <td className="max-w-[260px] px-4 py-3">
                         <p
                           className="truncate font-medium text-neutral-900"
                           title={camp.nome}
                         >
                           {camp.nome}
                         </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <ObjetivoTag objetivo={camp.objetivo} />
+                          {camp.destinoConversao && (
+                            <span className="text-[10px] text-neutral-400">
+                              → {camp.destinoConversao}
+                            </span>
+                          )}
+                          {camp.status === "PAUSED" && (
+                            <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+                              pausada
+                            </span>
+                          )}
+                        </div>
                         {contasMeta.length > 1 && (
-                          <p className="text-[10px] text-neutral-400">
+                          <p className="mt-0.5 text-[10px] text-neutral-400">
                             {camp.contaNome}
                           </p>
                         )}
-                        {camp.status === "PAUSED" && (
-                          <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
-                            pausada
-                          </span>
-                        )}
                       </td>
-                      <td className="px-4 py-3">
-                        <ObjetivoTag objetivo={camp.objetivo} />
-                      </td>
-                      <td className="px-4 py-3 text-xs text-neutral-600">
-                        {camp.destinoConversao ?? "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium text-neutral-900">
-                        {formatBRL(camp.spend)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-neutral-600">
-                        {formatInt(camp.impressoes)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-neutral-600">
-                        {formatInt(camp.cliques)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-neutral-600">
-                        {formatPct(camp.ctr)}
-                      </td>
+
+                      {/* Resultado */}
                       <td className="px-4 py-3 text-right">
-                        <p className="font-medium text-neutral-900">
+                        <p className="font-semibold text-neutral-900">
                           {formatInt(camp.conversoes)}
                         </p>
                         {camp.tipoResultado && (
@@ -310,10 +300,37 @@ export default async function PerformancePage({ params, searchParams }: Props) {
                           </p>
                         )}
                       </td>
+
+                      {/* Valor usado */}
                       <td className="px-4 py-3 text-right font-medium text-neutral-900">
-                        {camp.custoResultado > 0
-                          ? formatBRL(camp.custoResultado)
-                          : "—"}
+                        {formatBRL(camp.spend)}
+                      </td>
+
+                      {/* Impressões */}
+                      <td className="px-4 py-3 text-right text-neutral-600">
+                        {formatInt(camp.impressoes)}
+                      </td>
+
+                      {/* Alcance */}
+                      <td className="px-4 py-3 text-right text-neutral-600">
+                        {camp.reach > 0 ? formatInt(camp.reach) : "—"}
+                      </td>
+
+                      {/* Orçamento */}
+                      <td className="px-4 py-3 text-right text-neutral-600">
+                        {camp.orcamentoDiario > 0 ? (
+                          <span>
+                            {formatBRL(camp.orcamentoDiario)}
+                            <span className="ml-0.5 text-[10px] text-neutral-400">/dia</span>
+                          </span>
+                        ) : camp.orcamentoVitalicio > 0 ? (
+                          <span>
+                            {formatBRL(camp.orcamentoVitalicio)}
+                            <span className="ml-0.5 text-[10px] text-neutral-400">total</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-neutral-400">Por conjunto</span>
+                        )}
                       </td>
                     </tr>
                   ))}

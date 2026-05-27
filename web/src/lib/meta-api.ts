@@ -469,6 +469,7 @@ export type CampanhaMetrics = {
   status: string;
   spend: number;
   impressoes: number;
+  reach: number;                 // pessoas únicas alcançadas no período
   cliques: number;
   ctr: number;
   cpc: number;
@@ -476,6 +477,8 @@ export type CampanhaMetrics = {
   taxaConversao: number;
   tipoResultado: string;         // label do tipo de resultado (ex: "Conversas iniciadas")
   custoResultado: number;        // spend / conversoes (0 se sem resultado)
+  orcamentoDiario: number;       // em BRL (0 se não for orçamento diário)
+  orcamentoVitalicio: number;    // em BRL (0 se não for orçamento vitalício)
   erro: string | null;
 };
 
@@ -491,6 +494,7 @@ export async function getInsightsCampanhasMeta(
     const insightFields = [
       "spend",
       "impressions",
+      "reach",
       "clicks",
       "ctr",
       "cpc",
@@ -500,9 +504,11 @@ export async function getInsightsCampanhasMeta(
     const url = new URL(
       `https://graph.facebook.com/${GRAPH_API_VERSION}/${adAccountId}/campaigns`,
     );
+    // daily_budget e lifetime_budget são retornados na menor unidade da moeda
+    // (centavos para BRL) — dividimos por 100 na hora de popular o objeto.
     url.searchParams.set(
       "fields",
-      `id,name,objective,destination_type,status,insights{${insightFields}}`,
+      `id,name,objective,destination_type,status,daily_budget,lifetime_budget,insights{${insightFields}}`,
     );
     // time_range no nível raiz é propagado para o sub-edge insights
     url.searchParams.set("time_range", JSON.stringify({ since: from, until: to }));
@@ -561,6 +567,7 @@ export async function getInsightsCampanhasMeta(
           status: c.status as string,
           spend,
           impressoes: toNumber(insightsData?.impressions),
+          reach: toNumber(insightsData?.reach),
           cliques,
           ctr: toNumber(insightsData?.ctr),
           cpc: toNumber(insightsData?.cpc),
@@ -574,6 +581,9 @@ export async function getInsightsCampanhasMeta(
             conversoes > 0
               ? Math.round((spend / conversoes) * 100) / 100
               : 0,
+          // Orçamentos em centavos → dividir por 100 para obter BRL
+          orcamentoDiario: toNumber(c.daily_budget) / 100,
+          orcamentoVitalicio: toNumber(c.lifetime_budget) / 100,
           erro: null,
         };
       })
