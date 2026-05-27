@@ -545,14 +545,24 @@ export async function getInsightsCampanhasMeta(
             action_type: string;
             value: string;
           }>) ?? [];
-        const conversoes = contarConversoes(actions);
 
         const cliques = toNumber(insightsData?.clicks);
         const spend = toNumber(insightsData?.spend);
         const objetivoRaw = (c.objective as string) ?? "";
         const destinoRaw = (c.destination_type as string) ?? null;
 
-        const tipoResultado = tipoResultadoLabel(actions, cliques);
+        // Prioridade: "Conversas por mensagem" (messaging_conversation_started_7d).
+        // Se essa métrica estiver presente, ela é o resultado da campanha —
+        // não somamos com outros grupos. Se for 0 ou ausente, usamos a lógica geral.
+        const mensagensCount = actions
+          .filter((a) => a.action_type === "messaging_conversation_started_7d")
+          .reduce((max, a) => Math.max(max, toNumber(a.value)), 0);
+
+        const conversoes = mensagensCount > 0 ? mensagensCount : contarConversoes(actions);
+        const tipoResultado = mensagensCount > 0
+          ? "Conversas iniciadas"
+          : tipoResultadoLabel(actions, cliques);
+
         const convRound = Math.round(conversoes * 100) / 100;
 
         return {
