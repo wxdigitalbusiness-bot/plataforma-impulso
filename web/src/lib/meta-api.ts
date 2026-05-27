@@ -551,15 +551,21 @@ export async function getInsightsCampanhasMeta(
         const objetivoRaw = (c.objective as string) ?? "";
         const destinoRaw = (c.destination_type as string) ?? null;
 
-        // Prioridade: "Conversas por mensagem" (messaging_conversation_started_7d).
-        // Se essa métrica estiver presente, ela é o resultado da campanha —
-        // não somamos com outros grupos. Se for 0 ou ausente, usamos a lógica geral.
+        // Campanha de mensagens? Detecta pelo destino ou objetivo.
+        // Se for de mensagens: sempre usa messaging_conversation_started_7d
+        // como resultado (mesmo que seja 0 no período — não cai em "Leads").
+        const ehCampanhaMensagens =
+          MESSAGING_OBJECTIVES.has(objetivoRaw) ||
+          MESSAGING_DESTINATIONS.has(destinoRaw ?? "");
+
         const mensagensCount = actions
           .filter((a) => a.action_type === "messaging_conversation_started_7d")
           .reduce((max, a) => Math.max(max, toNumber(a.value)), 0);
 
-        const conversoes = mensagensCount > 0 ? mensagensCount : contarConversoes(actions);
-        const tipoResultado = mensagensCount > 0
+        const usarMensagens = ehCampanhaMensagens || mensagensCount > 0;
+
+        const conversoes = usarMensagens ? mensagensCount : contarConversoes(actions);
+        const tipoResultado = usarMensagens
           ? "Conversas iniciadas"
           : tipoResultadoLabel(actions, cliques);
 
