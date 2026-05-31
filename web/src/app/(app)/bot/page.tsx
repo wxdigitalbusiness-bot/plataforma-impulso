@@ -138,7 +138,7 @@ export default async function BotDashboardPage() {
       )}
 
       <footer className="text-xs text-neutral-400">
-        Bot v3 rodando no n8n · Analista semanal cron seg 09h BRT · Métricas a partir de{" "}
+        Bot v4 rodando no n8n · Analista semanal cron seg 09h BRT · Métricas a partir de{" "}
         <code className="rounded bg-neutral-100 px-1 py-0.5">bot_metricas_7dias</code>
       </footer>
     </div>
