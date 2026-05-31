@@ -19,6 +19,9 @@ model Cliente {
   whatsappAlerta  String?   @map("whatsapp_alerta")
   // Tipo de serviço prestado pela agência. Valores: panfletagem_digital | gestao_trafego | impulso_360
   tipoServico     String?   @map("tipo_servico")
+  // Chave usada pelos workflows n8n (ex: "SC", "altaconquista").
+  // Liga este cliente às tabelas fb_meta_insights e impulso.lead_current.
+  n8nClientKey    String?   @map("n8n_client_key")
   ativo           Boolean   @default(true)
   criadoEm        DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
   atualizadoEm    DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz()
@@ -98,4 +101,99 @@ model Usuario {
   atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz()
 
   @@map("usuarios")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BOT MARKETING IMPULSO — Trilha B (analista + A/B test)
+// Tabelas criadas via n8n setup workflow + db/011-014_bot_*.sql
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model BotConversa {
+  id              Int       @id @default(autoincrement())
+  phone           String    @unique @db.VarChar(30)
+  pushName        String?   @map("push_name") @db.VarChar(120)
+  origem          String?   @db.VarChar(40)
+  abVariante      String?   @map("ab_variante") @db.Char(1)
+  experimentoId   Int?      @map("experimento_id")
+  primeiraMsgEm   DateTime  @default(now()) @map("primeira_msg_em") @db.Timestamptz()
+  ultimaMsgEm     DateTime  @default(now()) @map("ultima_msg_em") @db.Timestamptz()
+  resultado       String?   @db.VarChar(20)
+  motivoPerda     String?   @map("motivo_perda") @db.VarChar(40)
+  fechadoEm       DateTime? @map("fechado_em") @db.Timestamptz()
+  perdidoEm       DateTime? @map("perdido_em") @db.Timestamptz()
+  metadata        Json      @default("{}")
+  criadoEm        DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm    DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz()
+
+  experimento     BotExperimentoAb? @relation(fields: [experimentoId], references: [id], onDelete: SetNull)
+
+  @@index([resultado])
+  @@index([experimentoId])
+  @@index([ultimaMsgEm(sort: Desc)])
+  @@map("bot_conversas")
+}
+
+model BotAnaliseSemanal {
+  id              Int       @id @default(autoincrement())
+  periodoInicio   DateTime  @map("periodo_inicio") @db.Date
+  periodoFim      DateTime  @map("periodo_fim") @db.Date
+  totalConversas  Int       @default(0) @map("total_conversas")
+  fechadas        Int       @default(0)
+  perdidas        Int       @default(0)
+  emAberto        Int       @default(0) @map("em_aberto")
+  taxaFechamento  Decimal?  @map("taxa_fechamento") @db.Decimal(5, 4)
+  resumoExecutivo String?   @map("resumo_executivo")
+  payload         Json
+  status          String    @default("pendente") @db.VarChar(20)
+  decididoPor     String?   @map("decidido_por") @db.VarChar(120)
+  decididoEm      DateTime? @map("decidido_em") @db.Timestamptz()
+  decisaoNotas    String?   @map("decisao_notas")
+  criadoEm        DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm    DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz()
+
+  experimentos    BotExperimentoAb[]
+
+  @@unique([periodoInicio, periodoFim], map: "uniq_bot_analises_periodo")
+  @@index([status])
+  @@map("bot_analises_semanais")
+}
+
+model BotExperimentoAb {
+  id              Int       @id @default(autoincrement())
+  analiseId       Int?      @map("analise_id")
+  nome            String    @db.VarChar(200)
+  hipotese        String?
+  modoAlvo        String    @map("modo_alvo") @db.VarChar(20)
+  varianteA       String    @map("variante_a")
+  varianteB       String    @map("variante_b")
+  metricaAlvo     String    @map("metrica_alvo") @db.VarChar(40)
+  amostraMinima   Int       @default(20) @map("amostra_minima")
+  status          String    @default("rodando") @db.VarChar(20)
+  dataInicio      DateTime  @default(now()) @map("data_inicio") @db.Timestamptz()
+  dataFim         DateTime? @map("data_fim") @db.Timestamptz()
+  resultadoA      Json?     @map("resultado_a")
+  resultadoB      Json?     @map("resultado_b")
+  vencedor        String?   @db.Char(1)
+  promovidoEm     DateTime? @map("promovido_em") @db.Timestamptz()
+  criadoEm        DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm    DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz()
+
+  analise         BotAnaliseSemanal? @relation(fields: [analiseId], references: [id], onDelete: SetNull)
+  conversas       BotConversa[]
+
+  @@index([status])
+  @@index([analiseId])
+  @@map("bot_experimentos_ab")
+}
+
+model ConversaHandoff {
+  phone           String    @id @db.VarChar(30)
+  handoffActive   Boolean   @default(false) @map("handoff_active")
+  motivo          String?   @db.VarChar(50)
+  notas           String?
+  criadoEm        DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz()
+  reativadoEm     DateTime? @map("reativado_em") @db.Timestamptz()
+
+  @@map("conversas_handoff")
 }
