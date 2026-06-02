@@ -51,6 +51,11 @@ export default async function BotDashboardPage() {
     where: { handoffActive: true },
   });
 
+  // Fechamentos aguardando confirmação de venda
+  const fechamentosPendentes = await db.botConversa.count({
+    where: { resultado: "pendente_confirmacao" },
+  });
+
   return (
     <div className="space-y-8">
       <header>
@@ -79,7 +84,14 @@ export default async function BotDashboardPage() {
       </section>
 
       {/* Cards de navegação */}
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <NavCard
+          href="/bot/fechamentos"
+          title="Fechamentos a confirmar"
+          desc="Leads que disseram SIM — confirme se virou venda."
+          badge={fechamentosPendentes > 0 ? `${fechamentosPendentes} aguardando` : undefined}
+          badgeTone={fechamentosPendentes > 0 ? "warn" : undefined}
+        />
         <NavCard
           href="/bot/analises"
           title="Análises semanais"
