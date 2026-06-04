@@ -23,7 +23,7 @@ export type MetaAdAccountBalance = {
   erro: string | null;
 };
 
-const GRAPH_API_VERSION = "v19.0";
+const GRAPH_API_VERSION = "v21.0";
 
 export async function consultarSaldoMeta(adAccountId: string): Promise<MetaAdAccountBalance> {
   const token = process.env.META_ACCESS_TOKEN;
@@ -512,13 +512,15 @@ export async function getInsightsCampanhasMeta(
     );
     // time_range no nível raiz é propagado para o sub-edge insights
     url.searchParams.set("time_range", JSON.stringify({ since: from, until: to }));
+    // Inclui campanhas pausadas para cobrir períodos históricos onde a campanha
+    // estava ativa mas foi pausada depois. Exclui apenas as deletadas/arquivadas.
     url.searchParams.set(
       "filtering",
       JSON.stringify([
         {
           field: "effective_status",
           operator: "IN",
-          value: ["ACTIVE"],
+          value: ["ACTIVE", "PAUSED", "WITH_ISSUES", "IN_PROCESS"],
         },
       ]),
     );

@@ -10,14 +10,21 @@ const PRESETS = [
   { label: "30d", dias: 30 },
 ];
 
+// Formata em horário LOCAL (evita desvio UTC ao usar toISOString)
+function fmtLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function calcPreset(dias: number): { from: string; to: string } {
   const hoje = new Date();
   const to = new Date(hoje);
-  to.setDate(hoje.getDate() - 1); // ontem
+  to.setDate(hoje.getDate() - 1); // ontem LOCAL
   const from = new Date(hoje);
   from.setDate(hoje.getDate() - dias);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  return { from: fmt(from), to: fmt(to) };
+  return { from: fmtLocal(from), to: fmtLocal(to) };
 }
 
 function isPresetActive(from: string, to: string, dias: number): boolean {
@@ -38,7 +45,7 @@ export function DateFilter({
   const [localFrom, setLocalFrom] = useState(from);
   const [localTo, setLocalTo] = useState(to);
 
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = fmtLocal(new Date());
 
   function apply(f = localFrom, t = localTo) {
     if (f && t && f <= t) {
