@@ -28,8 +28,36 @@ model Cliente {
 
   contas          ClienteAtivo[]
   relatorios      RelatorioPublico[]
+  crmWebhooks     ClienteCrmWebhook[]
 
   @@map("clientes")
+}
+
+/**
+ * Webhooks auto-gerados por cliente para receber eventos CRM (1 por etapa).
+ * A plataforma cria os workflows correspondentes no n8n via REST API.
+ */
+model ClienteCrmWebhook {
+  id              BigInt    @id @default(autoincrement())
+  clienteId       Int       @map("cliente_id")
+  // slug da etapa. Pra base: novo_lead | nao_classificado | qualificado | perdido | concluido
+  // Pra extras: slug livre derivado do label (ex: "em_negociacao")
+  etapa           String
+  // Label amigável que aparece no UI e vira o valor de `fb_leads.fase`
+  etapaLabel      String    @map("etapa_label")
+  // true = etapa adicionada manualmente (extra); false = uma das 5 base
+  ehExtra         Boolean   @default(false) @map("eh_extra")
+  webhookPath     String    @map("webhook_path")
+  webhookUrl      String    @map("webhook_url")
+  n8nWorkflowId   String    @map("n8n_workflow_id")
+  criadoEm        DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm    DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz()
+
+  cliente         Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@unique([clienteId, etapa])
+  @@index([clienteId], map: "idx_cliente_crm_webhooks_cliente")
+  @@map("cliente_crm_webhooks")
 }
 
 model RelatorioPublico {

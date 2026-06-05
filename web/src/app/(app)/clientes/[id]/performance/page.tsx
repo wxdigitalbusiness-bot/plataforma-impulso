@@ -9,13 +9,13 @@ import { db } from "@/lib/db";
 import { defaultRange } from "@/lib/performance";
 import { DateFilter } from "@/app/(app)/_date-filter";
 import {
-  getCrmFunil,
+  getCrmFunilDetalhado,
   getCrmLeadsPorCampanha,
   getMetaInsightsPorCampanhaDB,
   getMetaAdsetsDB,
   getMetaAdsDB,
   getGoogleInsightsDBPorCustomerIds,
-  type CrmFunil,
+  type CrmFunilDetalhado,
   type LeadCampanha,
   type MetaCampanhaDB,
 } from "@/lib/db-insights";
@@ -131,8 +131,8 @@ export default async function PerformancePage({ params, searchParams }: Props) {
       getGoogleInsightsDBPorCustomerIds(googleCustomerIds, from, to),
 
       temCrm
-        ? getCrmFunil(clientKey, from, to)
-        : Promise.resolve(null as CrmFunil | null),
+        ? getCrmFunilDetalhado(clientKey, from, to)
+        : Promise.resolve(null as CrmFunilDetalhado | null),
 
       temCrm
         ? getCrmLeadsPorCampanha(clientKey, from, to)
@@ -239,13 +239,27 @@ export default async function PerformancePage({ params, searchParams }: Props) {
       {temCrm && crmFunil && (
         <section>
           <SectionHeader color="bg-violet-500" title="Funil CRM" sub="Leads criados no período (via webhook)" />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-            <KpiCard label="Total de leads"    value={formatInt(crmFunil.totalLeads)}    tone={crmFunil.totalLeads > 0 ? "ok" : "default"}      highlight={crmFunil.totalLeads > 0} />
-            <KpiCard label="Com atribuição"    value={formatInt(crmFunil.comAtribuicao)} />
-            <KpiCard label="Direto / Orgânico" value={formatInt(crmFunil.semAtribuicao)} />
-            <KpiCard label="Qualificados"      value={formatInt(crmFunil.qualificados)}  tone={crmFunil.qualificados > 0 ? "ok" : "default"} />
-            <KpiCard label="Perdidos"          value={formatInt(crmFunil.perdidos)} />
-            <KpiCard label="Concluídos"        value={formatInt(crmFunil.concluidos)}    tone={crmFunil.concluidos > 0 ? "ok" : "default"}       highlight={crmFunil.concluidos > 0} />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <KpiCard
+              label="Total de leads"
+              value={formatInt(crmFunil.totalLeads)}
+              tone={crmFunil.totalLeads > 0 ? "ok" : "default"}
+              highlight={crmFunil.totalLeads > 0}
+            />
+            {crmFunil.porFase.map((p) => {
+              const ehPositivo =
+                p.fase.toLowerCase().includes("qualificad") ||
+                p.fase.toLowerCase().includes("concluido")  ||
+                p.fase.toLowerCase().includes("concluído");
+              return (
+                <KpiCard
+                  key={p.fase}
+                  label={p.fase}
+                  value={formatInt(p.qtd)}
+                  tone={ehPositivo && p.qtd > 0 ? "ok" : "default"}
+                />
+              );
+            })}
           </div>
 
           {leadsParaCampanha.length > 0 && (
