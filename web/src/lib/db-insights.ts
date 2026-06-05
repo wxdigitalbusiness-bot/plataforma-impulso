@@ -31,6 +31,13 @@ export type CrmFunil = {
   comAtribuicao: number;
 };
 
+/** Funil CRM detalhado — contagem por fase (inclui etapas extras) */
+export type CrmFunilDetalhado = {
+  clientKey: string;
+  totalLeads: number;
+  porFase: Array<{ fase: string; qtd: number }>;
+};
+
 /** Leads por campanha Meta Ads (via ad_id → campaign) */
 export type LeadCampanha = {
   campanhaId: string;
@@ -128,26 +135,37 @@ export async function getCrmFunil(
     com_atribuicao: bigint | number;
   };
 
+  // Fonte: fb_leads. Deduplica por TELEFONE (mesmo phone = mesmo lead, mesmo
+  // que venha com lead_ids diferentes do CRM em fases distintas). Pega a fase
+  // mais recente de cada lead único. Unifica 'Novo Lead'+'Não classificado' como 'Leads'.
   try {
     const rows = await db.$queryRaw<Row[]>`
+      WITH leads_unicos AS (
+        SELECT
+          COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id) AS chave,
+          (array_agg(fase    ORDER BY created_at DESC NULLS LAST))[1] AS fase_atual,
+          (array_agg(ad_id   ORDER BY created_at DESC NULLS LAST))[1] AS ad_id_atual
+        FROM fb_leads
+        WHERE lower(client_key) = lower(${clientKey})
+          AND data_criacao::date BETWEEN ${from}::date AND ${to}::date
+        GROUP BY COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id)
+      )
       SELECT
-        COUNT(*)                                                        AS total_leads,
-        COUNT(*) FILTER (WHERE current_stage_id = 'qualified')         AS qualificados,
-        COUNT(*) FILTER (WHERE current_stage_id = 'lost')              AS perdidos,
-        COUNT(*) FILTER (WHERE current_stage_id = 'completed')         AS concluidos,
+        COUNT(*)                                                                AS total_leads,
+        COUNT(*) FILTER (WHERE fase_atual IN ('Qualificado', 'Qualificados'))   AS qualificados,
+        COUNT(*) FILTER (WHERE fase_atual = 'Perdido')                          AS perdidos,
+        COUNT(*) FILTER (WHERE fase_atual = 'Concluido')                        AS concluidos,
         COUNT(*) FILTER (
-          WHERE ad_id IS NULL
-             OR trim(ad_id::text) = ''
-             OR trim(ad_id::text) = 'null'
-        )                                                               AS sem_atribuicao,
+          WHERE ad_id_atual IS NULL
+             OR trim(ad_id_atual) = ''
+             OR trim(ad_id_atual) = 'null'
+        )                                                                       AS sem_atribuicao,
         COUNT(*) FILTER (
-          WHERE ad_id IS NOT NULL
-            AND trim(ad_id::text) <> ''
-            AND trim(ad_id::text) <> 'null'
-        )                                                               AS com_atribuicao
-      FROM impulso.lead_current
-      WHERE lower(client_key) = lower(${clientKey})
-        AND created_at_crm::date BETWEEN ${from}::date AND ${to}::date
+          WHERE ad_id_atual IS NOT NULL
+            AND trim(ad_id_atual) <> ''
+            AND trim(ad_id_atual) <> 'null'
+        )                                                                       AS com_atribuicao
+      FROM leads_unicos
     `;
 
     const r = rows[0];
@@ -186,28 +204,38 @@ export async function getCrmFunilMultiplos(
     com_atribuicao: bigint | number;
   };
 
+  // Mesma estratégia do getCrmFunil: dedupe por telefone, fase mais recente.
   try {
     const rows = await db.$queryRaw<Row[]>`
+      WITH leads_unicos AS (
+        SELECT
+          lower(client_key) AS client_key_lower,
+          COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id) AS chave,
+          (array_agg(fase    ORDER BY created_at DESC NULLS LAST))[1] AS fase_atual,
+          (array_agg(ad_id   ORDER BY created_at DESC NULLS LAST))[1] AS ad_id_atual
+        FROM fb_leads
+        WHERE lower(client_key) = ANY(${lowerKeys})
+          AND data_criacao::date BETWEEN ${from}::date AND ${to}::date
+        GROUP BY lower(client_key), COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id)
+      )
       SELECT
-        lower(client_key)                                               AS client_key_lower,
-        COUNT(*)                                                        AS total_leads,
-        COUNT(*) FILTER (WHERE current_stage_id = 'qualified')         AS qualificados,
-        COUNT(*) FILTER (WHERE current_stage_id = 'lost')              AS perdidos,
-        COUNT(*) FILTER (WHERE current_stage_id = 'completed')         AS concluidos,
+        client_key_lower,
+        COUNT(*)                                                                AS total_leads,
+        COUNT(*) FILTER (WHERE fase_atual IN ('Qualificado', 'Qualificados'))   AS qualificados,
+        COUNT(*) FILTER (WHERE fase_atual = 'Perdido')                          AS perdidos,
+        COUNT(*) FILTER (WHERE fase_atual = 'Concluido')                        AS concluidos,
         COUNT(*) FILTER (
-          WHERE ad_id IS NULL
-             OR trim(ad_id::text) = ''
-             OR trim(ad_id::text) = 'null'
-        )                                                               AS sem_atribuicao,
+          WHERE ad_id_atual IS NULL
+             OR trim(ad_id_atual) = ''
+             OR trim(ad_id_atual) = 'null'
+        )                                                                       AS sem_atribuicao,
         COUNT(*) FILTER (
-          WHERE ad_id IS NOT NULL
-            AND trim(ad_id::text) <> ''
-            AND trim(ad_id::text) <> 'null'
-        )                                                               AS com_atribuicao
-      FROM impulso.lead_current
-      WHERE lower(client_key) = ANY(${lowerKeys})
-        AND created_at_crm::date BETWEEN ${from}::date AND ${to}::date
-      GROUP BY lower(client_key)
+          WHERE ad_id_atual IS NOT NULL
+            AND trim(ad_id_atual) <> ''
+            AND trim(ad_id_atual) <> 'null'
+        )                                                                       AS com_atribuicao
+      FROM leads_unicos
+      GROUP BY client_key_lower
     `;
 
     const result = new Map<string, CrmFunil>();
@@ -225,6 +253,112 @@ export async function getCrmFunilMultiplos(
     return result;
   } catch (err) {
     console.error("[DB] getCrmFunilMultiplos:", err);
+    return new Map();
+  }
+}
+
+/**
+ * Versão detalhada do funil — agrupa por TELEFONE (deduplica leads que
+ * apareceram com lead_ids diferentes mas mesmo phone) e pega a fase mais
+ * recente de cada lead. As fases "Novo Lead" e "Não classificado" são
+ * unificadas como "Leads" no display.
+ *
+ * Total = leads únicos por telefone (ou lead_id se phone vazio).
+ * Por fase = quantos leads únicos estão atualmente em cada fase.
+ */
+export async function getCrmFunilDetalhado(
+  clientKey: string,
+  from: string,
+  to: string,
+): Promise<CrmFunilDetalhado> {
+  type Row = { fase_unificada: string | null; qtd: bigint | number };
+  try {
+    const rows = await db.$queryRaw<Row[]>`
+      WITH leads_unicos AS (
+        SELECT
+          COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id) AS chave,
+          (array_agg(fase ORDER BY created_at DESC NULLS LAST))[1] AS fase_atual
+        FROM fb_leads
+        WHERE lower(client_key) = lower(${clientKey})
+          AND data_criacao::date BETWEEN ${from}::date AND ${to}::date
+        GROUP BY COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id)
+      )
+      SELECT
+        CASE
+          WHEN fase_atual IN ('Novo Lead', 'Não classificado', 'Nao classificado') THEN 'Leads'
+          ELSE fase_atual
+        END AS fase_unificada,
+        COUNT(*) AS qtd
+      FROM leads_unicos
+      WHERE fase_atual IS NOT NULL
+      GROUP BY fase_unificada
+      ORDER BY COUNT(*) DESC
+    `;
+    const porFase = rows
+      .filter((r): r is { fase_unificada: string; qtd: bigint | number } => !!r.fase_unificada)
+      .map((r) => ({ fase: r.fase_unificada, qtd: toInt(r.qtd) }));
+    const totalLeads = porFase.reduce((s, r) => s + r.qtd, 0);
+    return { clientKey, totalLeads, porFase };
+  } catch (err) {
+    console.error("[DB] getCrmFunilDetalhado:", err);
+    return { clientKey, totalLeads: 0, porFase: [] };
+  }
+}
+
+/**
+ * Versão batch (múltiplos clientes) do funil detalhado. Pra cada client_key,
+ * retorna lista de { fase, qtd } com dedupe por telefone e unificação.
+ */
+export async function getCrmFunilDetalhadoMultiplos(
+  clientKeys: string[],
+  from: string,
+  to: string,
+): Promise<Map<string, CrmFunilDetalhado>> {
+  if (clientKeys.length === 0) return new Map();
+  const lowerKeys = clientKeys.map((k) => k.toLowerCase());
+  type Row = { client_key_lower: string; fase_unificada: string | null; qtd: bigint | number };
+  try {
+    const rows = await db.$queryRaw<Row[]>`
+      WITH leads_unicos AS (
+        SELECT
+          lower(client_key) AS client_key_lower,
+          COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id) AS chave,
+          (array_agg(fase ORDER BY created_at DESC NULLS LAST))[1] AS fase_atual
+        FROM fb_leads
+        WHERE lower(client_key) = ANY(${lowerKeys})
+          AND data_criacao::date BETWEEN ${from}::date AND ${to}::date
+        GROUP BY lower(client_key), COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id)
+      )
+      SELECT
+        client_key_lower,
+        CASE
+          WHEN fase_atual IN ('Novo Lead', 'Não classificado', 'Nao classificado') THEN 'Leads'
+          ELSE fase_atual
+        END AS fase_unificada,
+        COUNT(*) AS qtd
+      FROM leads_unicos
+      WHERE fase_atual IS NOT NULL
+      GROUP BY client_key_lower, fase_unificada
+      ORDER BY client_key_lower, COUNT(*) DESC
+    `;
+
+    const result = new Map<string, CrmFunilDetalhado>();
+    for (const r of rows) {
+      const ck = r.client_key_lower;
+      let entry = result.get(ck);
+      if (!entry) {
+        entry = { clientKey: ck, totalLeads: 0, porFase: [] };
+        result.set(ck, entry);
+      }
+      if (r.fase_unificada) {
+        const qtd = toInt(r.qtd);
+        entry.porFase.push({ fase: r.fase_unificada, qtd });
+        entry.totalLeads += qtd;
+      }
+    }
+    return result;
+  } catch (err) {
+    console.error("[DB] getCrmFunilDetalhadoMultiplos:", err);
     return new Map();
   }
 }
@@ -248,7 +382,7 @@ export async function getCrmLeadsPorCampanha(
         COALESCE(acm.campaign_id, 'sem_campanha')                      AS campaign_id,
         COALESCE(acm.campaign_name, 'Sem atribuição de campanha')       AS campaign_name,
         COUNT(*)                                                         AS leads
-      FROM impulso.lead_current lc
+      FROM fb_leads lc
       LEFT JOIN (
         SELECT DISTINCT
           lower(client_key)  AS ck,
@@ -262,12 +396,12 @@ export async function getCrmLeadsPorCampanha(
           AND trim(ad_id::text) <> 'null'
       ) acm
         ON acm.ck    = lower(lc.client_key)
-       AND acm.ad_id = trim(lc.ad_id::text)
+       AND acm.ad_id = trim(lc.ad_id)
       WHERE lower(lc.client_key) = lower(${clientKey})
         AND lc.ad_id IS NOT NULL
-        AND trim(lc.ad_id::text) <> ''
-        AND trim(lc.ad_id::text) <> 'null'
-        AND lc.created_at_crm::date BETWEEN ${from}::date AND ${to}::date
+        AND trim(lc.ad_id) <> ''
+        AND trim(lc.ad_id) <> 'null'
+        AND lc.data_criacao::date BETWEEN ${from}::date AND ${to}::date
       GROUP BY
         COALESCE(acm.campaign_id, 'sem_campanha'),
         COALESCE(acm.campaign_name, 'Sem atribuição de campanha')

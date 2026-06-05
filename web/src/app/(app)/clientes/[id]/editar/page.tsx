@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { ClienteForm, type ClienteFormData } from "../../_cliente-form";
 import { atualizarCliente, excluirCliente } from "../../_cliente-actions";
+import { CrmWebhooksSection, type WebhookExistente } from "./_crm-webhooks-section";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -13,9 +14,23 @@ export default async function EditarClientePage({ params }: Props) {
 
   const cliente = await db.cliente.findUnique({
     where: { id: clienteId },
-    include: { _count: { select: { contas: true } } },
+    include: {
+      _count:      { select: { contas: true } },
+      crmWebhooks: {
+        select: { id: true, etapa: true, etapaLabel: true, ehExtra: true, webhookUrl: true },
+        orderBy: [{ ehExtra: "asc" }, { criadoEm: "asc" }],
+      },
+    },
   });
   if (!cliente) notFound();
+
+  const webhooks: WebhookExistente[] = cliente.crmWebhooks.map((w) => ({
+    id:         Number(w.id),
+    etapa:      w.etapa,
+    etapaLabel: w.etapaLabel,
+    ehExtra:    w.ehExtra,
+    webhookUrl: w.webhookUrl,
+  }));
 
   const clienteData: ClienteFormData = {
     id: cliente.id,
@@ -67,6 +82,12 @@ export default async function EditarClientePage({ params }: Props) {
           backHref={`/clientes/${cliente.id}`}
         />
       </div>
+
+      <CrmWebhooksSection
+        clienteId={cliente.id}
+        temClientKey={!!cliente.n8nClientKey && cliente.n8nClientKey.trim() !== ""}
+        webhooks={webhooks}
+      />
     </div>
   );
 }

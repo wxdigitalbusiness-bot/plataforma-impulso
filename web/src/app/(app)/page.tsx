@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { sincronizarSaldosTodos } from "@/lib/sync-saldos";
 import { obterPerformance, defaultRange } from "@/lib/performance";
-import { getCrmFunilMultiplos } from "@/lib/db-insights";
+import { getCrmFunilDetalhadoMultiplos, type CrmFunilDetalhado } from "@/lib/db-insights";
 import { DateFilter } from "./_date-filter";
 
 export const dynamic = "force-dynamic";
@@ -120,8 +120,8 @@ export default async function DashboardPage({ searchParams }: Props) {
     clientesComCrm.map((c) => [c.id, c.n8nClientKey!]),
   );
   const n8nKeys = clientesComCrm.map((c) => c.n8nClientKey!);
-  const crmFunilMap = n8nKeys.length > 0
-    ? await getCrmFunilMultiplos(n8nKeys, from, to)
+  const crmFunilMap: Map<string, CrmFunilDetalhado> = n8nKeys.length > 0
+    ? await getCrmFunilDetalhadoMultiplos(n8nKeys, from, to)
     : new Map();
 
   return (
@@ -229,10 +229,10 @@ export default async function DashboardPage({ searchParams }: Props) {
                   Google Ads
                 </th>
                 <th
-                  colSpan={4}
-                  className="bg-violet-50/60 px-4 py-2 text-center text-xs font-semibold text-violet-700"
+                  rowSpan={2}
+                  className="bg-violet-50/60 px-4 py-2 text-left text-xs font-semibold text-violet-700 align-bottom"
                 >
-                  CRM
+                  CRM (funil)
                 </th>
               </tr>
               {/* Linha 2: sub-colunas */}
@@ -252,10 +252,6 @@ export default async function DashboardPage({ searchParams }: Props) {
                 <th className="border-r border-green-100 bg-green-50/30 px-4 py-2 text-right">
                   Custo/Conv.
                 </th>
-                <th className="bg-violet-50/30 px-4 py-2 text-right">Leads</th>
-                <th className="bg-violet-50/30 px-4 py-2 text-right">Qualif.</th>
-                <th className="bg-violet-50/30 px-4 py-2 text-right">Perdidos</th>
-                <th className="bg-violet-50/30 px-4 py-2 text-right">Conclui.</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
@@ -384,27 +380,20 @@ export default async function DashboardPage({ searchParams }: Props) {
                         </td>
                       )}
 
-                      {/* CRM: Leads / Qualificados / Perdidos / Concluídos */}
-                      {crm ? (
-                        <>
-                          <td className="bg-violet-50/20 px-4 py-3 text-right font-semibold text-violet-800">
-                            {formatInt(crm.totalLeads)}
-                          </td>
-                          <td className="bg-violet-50/20 px-4 py-3 text-right text-emerald-700">
-                            {crm.qualificados > 0 ? formatInt(crm.qualificados) : "—"}
-                          </td>
-                          <td className="bg-violet-50/20 px-4 py-3 text-right text-neutral-500">
-                            {crm.perdidos > 0 ? formatInt(crm.perdidos) : "—"}
-                          </td>
-                          <td className="bg-violet-50/20 px-4 py-3 text-right font-medium text-emerald-700">
-                            {crm.concluidos > 0 ? formatInt(crm.concluidos) : "—"}
-                          </td>
-                        </>
+                      {/* CRM: badges dinâmicas por fase */}
+                      {crm && crm.totalLeads > 0 ? (
+                        <td className="bg-violet-50/20 px-4 py-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-violet-700">
+                            {formatInt(crm.totalLeads)} total
+                          </p>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {crm.porFase.map((p) => (
+                              <FaseBadge key={p.fase} fase={p.fase} qtd={p.qtd} />
+                            ))}
+                          </div>
+                        </td>
                       ) : (
-                        <td
-                          colSpan={4}
-                          className="bg-violet-50/10 px-4 py-3 text-center text-xs text-neutral-200"
-                        >
+                        <td className="bg-violet-50/10 px-4 py-3 text-center text-xs text-neutral-300">
                           —
                         </td>
                       )}
@@ -416,7 +405,7 @@ export default async function DashboardPage({ searchParams }: Props) {
               ).length === 0 && (
                 <tr>
                   <td
-                    colSpan={14}
+                    colSpan={11}
                     className="px-4 py-12 text-center text-sm text-neutral-500"
                   >
                     Nenhum cliente com conta de anúncio configurada.
@@ -436,6 +425,21 @@ export default async function DashboardPage({ searchParams }: Props) {
         n8n (1h, 08-17h BRT). Alertas WhatsApp a cada 2h (08:05–16:05 BRT).
       </footer>
     </div>
+  );
+}
+
+function FaseBadge({ fase, qtd }: { fase: string; qtd: number }) {
+  const l = fase.toLowerCase();
+  const cor =
+    l.includes("conclu")                  ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+    l.includes("qualif")                  ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+    l.includes("perd")                    ? "bg-red-50 text-red-700 border-red-200"             :
+    l === "leads"                         ? "bg-violet-100 text-violet-800 border-violet-300"    :
+                                            "bg-neutral-100 text-neutral-700 border-neutral-200";
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${cor}`}>
+      {fase} <strong className="tabular-nums">{qtd}</strong>
+    </span>
   );
 }
 
