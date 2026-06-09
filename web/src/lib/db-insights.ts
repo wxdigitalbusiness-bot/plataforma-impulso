@@ -651,7 +651,12 @@ function metricaPorObjective(
   const obj = (objective ?? "").toUpperCase();
 
   if (obj === "OUTCOME_SALES" || obj === "CONVERSIONS" || obj === "PRODUCT_CATALOG_SALES") {
-    return "purchase";
+    // Campaigns com objective de vendas podem usar purchase (e-commerce) OU msg
+    // (WhatsApp Sales). Usamos purchase se > 0, caso contrário msg, depois link.
+    if (convPurch > 0) return "purchase";
+    if (convMsg   > 0) return "msg";
+    if (convLink  > 0) return "link";
+    return "purchase"; // mantém label "Compras" mesmo com 0, para não perder o tipo
   }
   if (obj === "OUTCOME_MESSAGES" || obj === "MESSAGES") {
     return "msg";

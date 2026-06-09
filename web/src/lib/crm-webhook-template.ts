@@ -175,12 +175,29 @@ ON CONFLICT (lead_id) DO UPDATE SET
   created_at    = now();`;
 }
 
-/** SQL pra etapas que só atualizam a `fase` (qualificado, perdido, concluído, etc). */
+/**
+ * SQL pra etapas que só atualizam a `fase` (qualificado, perdido, concluído, etc).
+ *
+ * Estratégia de dois passos em uma transação (CTE):
+ * 1. Tenta UPDATE pelo telefone — cobre o caso em que o CRM envia um lead_id
+ *    diferente no webhook de atualização vs o lead_id original do "novo_lead".
+ * 2. Se nenhuma linha foi atualizada por telefone, faz INSERT com ON CONFLICT
+ *    por lead_id como fallback (insere lead novo ou atualiza pelo lead_id).
+ */
 function sqlUpdateFase(): string {
-  return `INSERT INTO fb_leads (
+  return `WITH phone_match AS (
+  UPDATE fb_leads
+  SET fase = '{{$json["Fase"]}}'
+  WHERE lower(client_key) = lower('{{$json["ClientKey"]}}')
+    AND TRIM(COALESCE(lead_whatsapp, '')) <> ''
+    AND TRIM(lead_whatsapp) = TRIM('{{$json["LeadWhatsapp"]}}')
+  RETURNING lead_id
+)
+INSERT INTO fb_leads (
   lead_id, client_key, client_name, lead_nome, lead_whatsapp,
   utm_source, ad_id, data_criacao, fase
-) VALUES (
+)
+SELECT
   '{{$json["LeadId"]}}',
   '{{$json["ClientKey"]}}',
   '{{$json["ClientName"]}}',
@@ -190,9 +207,9 @@ function sqlUpdateFase(): string {
   '{{$json["ad_id"]}}',
   '{{ new Date($json["DataCriação"]).toISOString().split("T")[0] }}',
   '{{$json["Fase"]}}'
-)
+WHERE NOT EXISTS (SELECT 1 FROM phone_match)
 ON CONFLICT (lead_id) DO UPDATE SET
-  fase = EXCLUDED.fase;`;
+  fase = EXCLUDED.fase`;
 }
 
 function postgresNode(sql: string, credentialId?: string, credentialName?: string): N8nNode {

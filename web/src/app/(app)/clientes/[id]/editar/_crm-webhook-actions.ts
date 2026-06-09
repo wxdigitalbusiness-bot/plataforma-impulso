@@ -83,11 +83,13 @@ export async function configurarCrmWebhooks(
   for (const etapa of ETAPAS_CRM) {
     try {
       const { workflow, path } = buildCrmWorkflow({
-        clientKey:  cliente.n8nClientKey,
-        clientName: cliente.nome,
+        clientKey:              cliente.n8nClientKey,
+        clientName:             cliente.nome,
         etapa,
-        faseLabel:  LABEL_FASE[etapa],
-        ehNovoLead: etapa === "novo_lead",
+        faseLabel:              LABEL_FASE[etapa],
+        ehNovoLead:             etapa === "novo_lead",
+        postgresCredentialId:   process.env.N8N_POSTGRES_CREDENTIAL_ID   ?? "uhiDzKcnDvzDL7OQ",
+        postgresCredentialName: process.env.N8N_POSTGRES_CREDENTIAL_NAME ?? "Postgres EasyPanel",
       });
 
       const created = await createWorkflow(workflow);
@@ -364,6 +366,94 @@ export async function removerEtapaWebhook(
   await db.clienteCrmWebhook.delete({ where: { id: wh.id } });
   revalidatePath(`/clientes/${wh.clienteId}/editar`);
   return { ok: true };
+}
+
+/**
+ * Regenera apenas os 5 webhooks BASE para o cliente, preservando etapas extras.
+ * Útil quando o SQL dos workflows mudou e é necessário atualizar sem perder os extras.
+ */
+export async function regenerarWebhooksBase(
+  input: { clienteId: number },
+): Promise<ConfigurarResult> {
+  const parsed = inputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, erro: "Parâmetros inválidos." };
+
+  const session = await auth();
+  if (!session?.user?.email) return { ok: false, erro: "Não autenticado." };
+
+  const cliente = await db.cliente.findUnique({
+    where: { id: parsed.data.clienteId },
+    select: { id: true, nome: true, n8nClientKey: true },
+  });
+  if (!cliente) return { ok: false, erro: "Cliente não encontrado." };
+  if (!cliente.n8nClientKey || cliente.n8nClientKey.trim() === "") {
+    return { ok: false, erro: "Cliente sem n8n_client_key configurada." };
+  }
+  if (!process.env.N8N_API_URL || !process.env.N8N_API_KEY) {
+    return { ok: false, erro: "Configuração ausente: defina N8N_API_URL e N8N_API_KEY no .env.local." };
+  }
+
+  // Apaga apenas os 5 base (não os extras)
+  const existentesBase = await db.clienteCrmWebhook.findMany({
+    where: { clienteId: cliente.id, ehExtra: false },
+    select: { id: true, n8nWorkflowId: true },
+  });
+  for (const w of existentesBase) {
+    try { await deleteWorkflow(w.n8nWorkflowId); }
+    catch (err) { console.warn(`[regenerarWebhooksBase] falhou ao deletar ${w.n8nWorkflowId}:`, err); }
+  }
+  if (existentesBase.length > 0) {
+    await db.clienteCrmWebhook.deleteMany({
+      where: { clienteId: cliente.id, ehExtra: false },
+    });
+  }
+
+  // Recria os 5 base com o SQL atualizado
+  const base = webhookBaseUrl();
+  const criados: Array<{ etapa: EtapaCrm; url: string }> = [];
+
+  for (const etapa of ETAPAS_CRM) {
+    try {
+      const { workflow, path } = buildCrmWorkflow({
+        clientKey:              cliente.n8nClientKey,
+        clientName:             cliente.nome,
+        etapa,
+        faseLabel:              LABEL_FASE[etapa],
+        ehNovoLead:             etapa === "novo_lead",
+        postgresCredentialId:   process.env.N8N_POSTGRES_CREDENTIAL_ID   ?? "uhiDzKcnDvzDL7OQ",
+        postgresCredentialName: process.env.N8N_POSTGRES_CREDENTIAL_NAME ?? "Postgres EasyPanel",
+      });
+
+      const created = await createWorkflow(workflow);
+      try { await activateWorkflow(created.id); }
+      catch (err) { console.warn(`[regenerarWebhooksBase] falha ao ativar ${created.id}:`, err); }
+
+      const webhookUrl = `${base}/webhook/${path}`;
+
+      await db.clienteCrmWebhook.create({
+        data: {
+          clienteId:     cliente.id,
+          etapa,
+          etapaLabel:    LABEL_ETAPA[etapa],
+          ehExtra:       false,
+          webhookPath:   path,
+          webhookUrl,
+          n8nWorkflowId: created.id,
+        },
+      });
+
+      criados.push({ etapa, url: webhookUrl });
+    } catch (err) {
+      console.error(`[regenerarWebhooksBase] etapa=${etapa}:`, err);
+      return {
+        ok: false,
+        erro: `Falhou ao recriar workflow da etapa "${etapa}": ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+  }
+
+  revalidatePath(`/clientes/${cliente.id}/editar`);
+  return { ok: true, criados: criados.length, webhooks: criados };
 }
 
 /** Exclui todos os webhooks CRM do cliente (do banco + do n8n). */
