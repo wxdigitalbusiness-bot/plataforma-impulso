@@ -363,7 +363,110 @@ export async function getCrmFunilDetalhadoMultiplos(
   }
 }
 
-// ─── Leads por campanha ───────────────────────────────────────────────────────
+// ─── Leads por campanha / conjunto / anúncio ─────────────────────────────────
+
+/** Atribuição detalhada: leads agrupados por campanha → conjunto → anúncio → fase */
+export type LeadAtribuicaoDetalhe = {
+  campanhaId: string;
+  campanhaNome: string;
+  adsetId: string;
+  adsetNome: string;
+  adId: string;
+  adNome: string;
+  fase: string;   // fase unificada (Novo Lead + Não classificado → "Leads")
+  leads: number;
+};
+
+export async function getCrmLeadsAtribuicaoCompleta(
+  clientKey: string,
+  from: string,
+  to: string,
+): Promise<LeadAtribuicaoDetalhe[]> {
+  type Row = {
+    campaign_id: string;
+    campaign_name: string;
+    adset_id: string;
+    adset_name: string;
+    ad_id: string;
+    ad_name: string;
+    fase: string;
+    leads: bigint | number;
+  };
+
+  try {
+    const rows = await db.$queryRaw<Row[]>`
+      WITH leads_dedup AS (
+        -- Deduplica por telefone, pega fase mais recente de cada lead único
+        SELECT
+          COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id)      AS chave,
+          (array_agg(
+            CASE
+              WHEN fase IN ('Novo Lead', 'Não classificado', 'Nao classificado') THEN 'Leads'
+              ELSE fase
+            END
+            ORDER BY created_at DESC NULLS LAST
+          ))[1]                                                    AS fase_atual,
+          (array_agg(trim(ad_id) ORDER BY created_at DESC NULLS LAST))[1] AS ad_id_atual
+        FROM fb_leads
+        WHERE lower(client_key) = lower(${clientKey})
+          AND data_criacao::date BETWEEN ${from}::date AND ${to}::date
+          AND ad_id IS NOT NULL
+          AND trim(ad_id) <> ''
+          AND trim(ad_id) <> 'null'
+        GROUP BY COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id)
+      )
+      SELECT
+        COALESCE(acm.campaign_id, 'sem_campanha')             AS campaign_id,
+        COALESCE(acm.campaign_name, 'Sem atribuição')         AS campaign_name,
+        COALESCE(acm.adset_id, 'sem_conjunto')                AS adset_id,
+        COALESCE(acm.adset_name, 'Sem conjunto de anúncio')   AS adset_name,
+        COALESCE(ld.ad_id_atual, 'sem_anuncio')               AS ad_id,
+        COALESCE(acm.ad_name, ld.ad_id_atual, 'Sem anúncio') AS ad_name,
+        COALESCE(ld.fase_atual, 'Desconhecido')               AS fase,
+        COUNT(*)                                               AS leads
+      FROM leads_dedup ld
+      LEFT JOIN (
+        SELECT DISTINCT ON (lower(client_key), trim(ad_id::text))
+          lower(client_key)  AS ck,
+          trim(ad_id::text)  AS ad_id,
+          campaign_id,
+          campaign_name,
+          adset_id,
+          adset_name,
+          ad_name
+        FROM fb_meta_insights_ads
+        WHERE lower(client_key) = lower(${clientKey})
+          AND ad_id IS NOT NULL
+          AND trim(ad_id::text) <> ''
+          AND trim(ad_id::text) <> 'null'
+        ORDER BY lower(client_key), trim(ad_id::text), date DESC
+      ) acm ON acm.ad_id = ld.ad_id_atual
+      GROUP BY
+        COALESCE(acm.campaign_id, 'sem_campanha'),
+        COALESCE(acm.campaign_name, 'Sem atribuição'),
+        COALESCE(acm.adset_id, 'sem_conjunto'),
+        COALESCE(acm.adset_name, 'Sem conjunto de anúncio'),
+        COALESCE(ld.ad_id_atual, 'sem_anuncio'),
+        COALESCE(acm.ad_name, ld.ad_id_atual, 'Sem anúncio'),
+        COALESCE(ld.fase_atual, 'Desconhecido')
+      ORDER BY campaign_name, adset_name, ad_name, leads DESC
+    `;
+
+    return rows.map((r) => ({
+      campanhaId:   r.campaign_id,
+      campanhaNome: r.campaign_name,
+      adsetId:      r.adset_id,
+      adsetNome:    r.adset_name,
+      adId:         r.ad_id,
+      adNome:       r.ad_name,
+      fase:         r.fase,
+      leads:        toInt(r.leads),
+    }));
+  } catch (err) {
+    console.error("[DB] getCrmLeadsAtribuicaoCompleta:", err);
+    return [];
+  }
+}
 
 export async function getCrmLeadsPorCampanha(
   clientKey: string,

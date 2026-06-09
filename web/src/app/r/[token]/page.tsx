@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { formatarPeriodoLabel, type TipoRelatorio } from "@/lib/relatorios";
+import { getCrmFunilDetalhado, getCrmLeadsAtribuicaoCompleta } from "@/lib/db-insights";
 import { EnviarRelatorioButton } from "./_enviar-relatorio-button";
 import type {
   Snapshot,
@@ -16,6 +17,7 @@ import type {
   InstagramSnapshot,
 } from "@/lib/meta-snapshot";
 import { RelatorioHierarquia } from "./_relatorio-hierarquia";
+import { LeadsAtribuicao } from "@/components/crm/leads-atribuicao";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -66,6 +68,17 @@ export default async function RelatorioPublicoPage({ params }: Props) {
   const tipo = relatorio.tipo as TipoRelatorio;
   const periodoLabel = formatarPeriodoLabel(tipo, from, to);
   const saudacaoWhatsApp = construirSaudacaoWhatsApp(tipo, from, to);
+
+  // ── CRM (live query — sempre atualizado) ──────────────────────────────────
+  const clientKey = relatorio.cliente.n8nClientKey;
+  const [crmFunil, leadsAtribuicao] = clientKey
+    ? await Promise.all([
+        getCrmFunilDetalhado(clientKey, from, to),
+        getCrmLeadsAtribuicaoCompleta(clientKey, from, to),
+      ])
+    : [null, [] as Awaited<ReturnType<typeof getCrmLeadsAtribuicaoCompleta>>];
+
+  const totalLeadsCampanha = leadsAtribuicao.reduce((s, l) => s + l.leads, 0);
 
   const snapshot = relatorio.snapshot as unknown as Snapshot | null;
   const campanhas = (snapshot?.campanhas ?? []).filter((c) => c.spend > 0);
@@ -273,6 +286,52 @@ export default async function RelatorioPublicoPage({ params }: Props) {
                 </div>
               </div>
             ))}
+          </section>
+        )}
+
+        {/* ── Funil CRM ────────────────────────────────────────────────── */}
+        {crmFunil && crmFunil.totalLeads > 0 && (
+          <section className="mb-6">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-violet-500" />
+              <h2 className="text-sm font-semibold text-neutral-700">Funil CRM</h2>
+              <span className="text-[11px] text-neutral-400">Leads criados no período</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <KpiCard
+                label="Total de leads"
+                value={fInt(crmFunil.totalLeads)}
+                tone="ok"
+                highlight
+              />
+              {crmFunil.porFase.map((p) => {
+                const ehPositivo =
+                  p.fase.toLowerCase().includes("qualificad") ||
+                  p.fase.toLowerCase().includes("concluido")  ||
+                  p.fase.toLowerCase().includes("concluído");
+                return (
+                  <KpiCard
+                    key={p.fase}
+                    label={p.fase}
+                    value={fInt(p.qtd)}
+                    tone={ehPositivo && p.qtd > 0 ? "ok" : "default"}
+                  />
+                );
+              })}
+            </div>
+
+            {leadsAtribuicao.length > 0 ? (
+              <LeadsAtribuicao
+                dados={leadsAtribuicao}
+                totalLeads={totalLeadsCampanha}
+                totalGeral={crmFunil.totalLeads}
+              />
+            ) : (
+              <p className="mt-3 text-xs text-neutral-400">
+                💡 Nenhum lead deste período possui atribuição de anúncio — os leads podem ter vindo de tráfego orgânico, Google Ads ou formulários sem rastreamento Meta ativo.
+              </p>
+            )}
           </section>
         )}
 

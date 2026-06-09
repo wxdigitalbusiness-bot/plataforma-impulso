@@ -11,15 +11,18 @@ import { DateFilter } from "@/app/(app)/_date-filter";
 import {
   getCrmFunilDetalhado,
   getCrmLeadsPorCampanha,
+  getCrmLeadsAtribuicaoCompleta,
   getMetaInsightsPorCampanhaDB,
   getMetaAdsetsDB,
   getMetaAdsDB,
   getGoogleInsightsDBPorCustomerIds,
   type CrmFunilDetalhado,
   type LeadCampanha,
+  type LeadAtribuicaoDetalhe,
   type MetaCampanhaDB,
 } from "@/lib/db-insights";
 import { MetaHierarquia } from "./_meta-hierarquia";
+import { LeadsAtribuicao } from "@/components/crm/leads-atribuicao";
 import { GerarRelatorioButton } from "./_gerar-relatorio";
 import { listarMesesRecentes, mesAtualEmCurso } from "@/lib/relatorios";
 
@@ -118,7 +121,7 @@ export default async function PerformancePage({ params, searchParams }: Props) {
   );
 
   // Busca tudo em paralelo — tudo via banco
-  const [campanhasMeta, adsetsMeta, adsMeta, googleDbMap, crmFunil, leadsParaCampanha] =
+  const [campanhasMeta, adsetsMeta, adsMeta, googleDbMap, crmFunil, leadsParaCampanha, leadsAtribuicao] =
     await Promise.all([
       contasMeta.length > 0 || temCrm
         ? getMetaInsightsPorCampanhaDB(clientKey, from, to)
@@ -137,6 +140,11 @@ export default async function PerformancePage({ params, searchParams }: Props) {
       temCrm
         ? getCrmLeadsPorCampanha(clientKey, from, to)
         : Promise.resolve([] as LeadCampanha[]),
+
+      // Atribuição detalhada: campanha → conjunto → anúncio
+      temCrm
+        ? getCrmLeadsAtribuicaoCompleta(clientKey, from, to)
+        : Promise.resolve([] as LeadAtribuicaoDetalhe[]),
     ]);
 
   // Mapa campanhaId → leads CRM
@@ -262,32 +270,16 @@ export default async function PerformancePage({ params, searchParams }: Props) {
             })}
           </div>
 
-          {leadsParaCampanha.length > 0 && (
-            <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200 bg-white">
-              <table className="w-full text-sm">
-                <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
-                  <tr>
-                    <th className="px-4 py-3">Campanha (atribuição CRM)</th>
-                    <th className="px-4 py-3 text-right">Leads</th>
-                    <th className="px-4 py-3 text-right">% do total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-100">
-                  {leadsParaCampanha.map((l) => (
-                    <tr key={l.campanhaId} className="hover:bg-neutral-50">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-neutral-900" title={l.campanhaNome}>{l.campanhaNome}</p>
-                        <p className="text-[10px] text-neutral-400">{l.campanhaId}</p>
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-neutral-900">{formatInt(l.leads)}</td>
-                      <td className="px-4 py-3 text-right text-neutral-500">
-                        {totalLeadsCampanha > 0 ? `${((l.leads / totalLeadsCampanha) * 100).toFixed(1)}%` : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {leadsAtribuicao.length > 0 ? (
+            <LeadsAtribuicao
+              dados={leadsAtribuicao}
+              totalLeads={totalLeadsCampanha}
+              totalGeral={crmFunil.totalLeads}
+            />
+          ) : crmFunil.totalLeads > 0 && (
+            <p className="mt-3 text-xs text-neutral-400">
+              💡 Nenhum lead deste período possui atribuição de anúncio — os leads podem ter vindo de tráfego orgânico, Google Ads ou formulários compartilhados sem rastreamento Meta ativo.
+            </p>
           )}
         </section>
       )}
