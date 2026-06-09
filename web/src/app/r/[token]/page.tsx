@@ -143,19 +143,63 @@ export default async function RelatorioPublicoPage({ params }: Props) {
     }))
     .sort((a, b) => a.ordem - b.ordem);
 
-  // ─── Anúncio Campeão ───────────────────────────────────────────────────────
-  // Critério: mais resultados pelo menor custo. Score = valor² / spend.
-  const campeao = (() => {
-    const candidatos = ads.filter((a) => a.resultado && a.resultado.valor > 0 && a.spend > 0);
-    if (candidatos.length === 0) return null;
-    let melhor = candidatos[0];
-    let melhorScore = (melhor.resultado!.valor ** 2) / melhor.spend;
-    for (let i = 1; i < candidatos.length; i++) {
-      const a = candidatos[i];
-      const score = (a.resultado!.valor ** 2) / a.spend;
-      if (score > melhorScore) { melhor = a; melhorScore = score; }
+  // ─── Anúncio Campeão — seleção em 3 tiers ────────────────────────────────
+  //
+  //  Tier 1 (CRM): anúncio com mais "Concluído" pelo menor custo
+  //  Tier 2 (CRM): anúncio com mais leads CRM pelo menor custo
+  //  Tier 3 (fallback): mais resultado Meta pelo menor custo (comportamento anterior)
+  //
+  //  Score = valor² / spend  (penaliza custo, premia volume — ties favorecem quem tem mais)
+
+  type CampeaoTipo = "crm_concluidos" | "crm_leads" | "meta_resultado";
+  type CampeaoInfo = {
+    ad:       AdSnapshot;
+    tipo:     CampeaoTipo;
+    crmStats: { concluidos: number; totalLeads: number } | undefined;
+  };
+
+  const campeaoInfo = ((): CampeaoInfo | null => {
+    // Constrói mapa adId → { concluidos, totalLeads } a partir da atribuição CRM
+    const crmPorAd = new Map<string, { concluidos: number; totalLeads: number }>();
+    for (const l of leadsAtribuicao) {
+      const s = crmPorAd.get(l.adId) ?? { concluidos: 0, totalLeads: 0 };
+      s.totalLeads += l.leads;
+      if (l.fase.toLowerCase().includes("conclu")) s.concluidos += l.leads;
+      crmPorAd.set(l.adId, s);
     }
-    return melhor;
+
+    const base = ads.filter((a) => a.spend > 0);
+    if (base.length === 0) return null;
+
+    function melhorPorScore(lista: AdSnapshot[], score: (a: AdSnapshot) => number): AdSnapshot {
+      return lista.reduce((best, a) => score(a) > score(best) ? a : best);
+    }
+
+    // Tier 1: Concluídos CRM
+    const comConcluidos = base.filter((a) => (crmPorAd.get(a.adId)?.concluidos ?? 0) > 0);
+    if (comConcluidos.length > 0) {
+      const ad = melhorPorScore(comConcluidos,
+        (a) => (crmPorAd.get(a.adId)!.concluidos ** 2) / a.spend,
+      );
+      return { ad, tipo: "crm_concluidos", crmStats: crmPorAd.get(ad.adId) };
+    }
+
+    // Tier 2: Quaisquer leads CRM atribuídos
+    const comLeads = base.filter((a) => (crmPorAd.get(a.adId)?.totalLeads ?? 0) > 0);
+    if (comLeads.length > 0) {
+      const ad = melhorPorScore(comLeads,
+        (a) => (crmPorAd.get(a.adId)!.totalLeads ** 2) / a.spend,
+      );
+      return { ad, tipo: "crm_leads", crmStats: crmPorAd.get(ad.adId) };
+    }
+
+    // Tier 3: Resultado Meta (fallback — sem CRM ou sem atribuição)
+    const comResultado = base.filter((a) => a.resultado && a.resultado.valor > 0);
+    if (comResultado.length === 0) return null;
+    const ad = melhorPorScore(comResultado,
+      (a) => (a.resultado!.valor ** 2) / a.spend,
+    );
+    return { ad, tipo: "meta_resultado", crmStats: undefined };
   })();
 
   // ─── Tipo dominante (pra subtítulo do relatório) ───────────────────────────
@@ -336,61 +380,104 @@ export default async function RelatorioPublicoPage({ params }: Props) {
         )}
 
         {/* ── Anúncio Campeão ──────────────────────────────────────────── */}
-        {campeao && campeao.resultado && (
+        {campeaoInfo && (
           <section className="mb-6">
             <div className="mb-3 flex items-center gap-2">
               <span className="text-lg">🏆</span>
               <h2 className="text-sm font-semibold text-neutral-700">Anúncio Campeão</h2>
               <span className="text-[11px] text-neutral-400">
-                Mais {tipoDominante.toLowerCase()} pelo menor custo
+                {campeaoInfo.tipo === "crm_concluidos"
+                  ? "Mais negócios concluídos pelo menor custo"
+                  : campeaoInfo.tipo === "crm_leads"
+                  ? "Mais leads pelo menor custo"
+                  : `Mais ${tipoDominante.toLowerCase()} pelo menor custo`}
               </span>
+              {campeaoInfo.tipo !== "meta_resultado" && (
+                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700">
+                  via CRM
+                </span>
+              )}
             </div>
             <div className="overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white shadow-sm">
               <div className="grid gap-0 md:grid-cols-[2fr_3fr]">
                 <div className="border-b border-amber-100 p-5 md:border-b-0 md:border-r">
                   <p className="text-[10px] uppercase tracking-wider text-amber-700">Anúncio</p>
-                  <h3 className="mt-1 text-base font-semibold text-neutral-900" title={campeao.adName}>
-                    {campeao.adName}
+                  <h3 className="mt-1 text-base font-semibold text-neutral-900" title={campeaoInfo.ad.adName}>
+                    {campeaoInfo.ad.adName}
                   </h3>
                   <dl className="mt-3 space-y-1.5 text-xs text-neutral-600">
                     <div className="flex gap-2">
                       <dt className="w-20 shrink-0 text-neutral-400">Campanha</dt>
-                      <dd className="truncate text-neutral-700" title={campeao.campaignName}>
-                        {campeao.campaignName}
+                      <dd className="truncate text-neutral-700" title={campeaoInfo.ad.campaignName}>
+                        {campeaoInfo.ad.campaignName}
                       </dd>
                     </div>
                     <div className="flex gap-2">
                       <dt className="w-20 shrink-0 text-neutral-400">Conjunto</dt>
-                      <dd className="truncate text-neutral-700" title={campeao.adsetName}>
-                        {campeao.adsetName}
+                      <dd className="truncate text-neutral-700" title={campeaoInfo.ad.adsetName}>
+                        {campeaoInfo.ad.adsetName}
                       </dd>
                     </div>
                   </dl>
                 </div>
 
                 <div className="grid grid-cols-2 gap-px bg-amber-100/60 md:grid-cols-4">
-                  <ChampionStat
-                    label={campeao.resultado.label}
-                    value={fInt(campeao.resultado.valor)}
-                    tone="amber"
-                    highlight
-                    sub={
-                      campeao.secundarias.length > 0
-                        ? campeao.secundarias.map((s) => `+${fInt(s.valor)} ${s.label.toLowerCase()}`).join(" · ")
-                        : undefined
-                    }
-                  />
-                  <ChampionStat
-                    label="Custo / resultado"
-                    value={fBRL(campeao.resultado.custoPorResultado)}
-                    tone="emerald"
-                    highlight
-                  />
-                  <ChampionStat label="Investimento" value={fBRL(campeao.spend)} />
+                  {campeaoInfo.tipo === "crm_concluidos" ? (
+                    <>
+                      <ChampionStat
+                        label="Negócios concluídos"
+                        value={fInt(campeaoInfo.crmStats!.concluidos)}
+                        tone="amber"
+                        highlight
+                      />
+                      <ChampionStat
+                        label="Custo / concluído"
+                        value={fBRL(round2(campeaoInfo.ad.spend / campeaoInfo.crmStats!.concluidos))}
+                        tone="emerald"
+                        highlight
+                      />
+                    </>
+                  ) : campeaoInfo.tipo === "crm_leads" ? (
+                    <>
+                      <ChampionStat
+                        label="Leads CRM"
+                        value={fInt(campeaoInfo.crmStats!.totalLeads)}
+                        tone="amber"
+                        highlight
+                      />
+                      <ChampionStat
+                        label="Custo / lead"
+                        value={fBRL(round2(campeaoInfo.ad.spend / campeaoInfo.crmStats!.totalLeads))}
+                        tone="emerald"
+                        highlight
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <ChampionStat
+                        label={campeaoInfo.ad.resultado!.label}
+                        value={fInt(campeaoInfo.ad.resultado!.valor)}
+                        tone="amber"
+                        highlight
+                        sub={
+                          campeaoInfo.ad.secundarias.length > 0
+                            ? campeaoInfo.ad.secundarias.map((s) => `+${fInt(s.valor)} ${s.label.toLowerCase()}`).join(" · ")
+                            : undefined
+                        }
+                      />
+                      <ChampionStat
+                        label="Custo / resultado"
+                        value={fBRL(campeaoInfo.ad.resultado!.custoPorResultado)}
+                        tone="emerald"
+                        highlight
+                      />
+                    </>
+                  )}
+                  <ChampionStat label="Investimento" value={fBRL(campeaoInfo.ad.spend)} />
                   <ChampionStat
                     label="CTR"
-                    value={campeao.ctr > 0 ? `${campeao.ctr.toFixed(2)}%` : "—"}
-                    sub={campeao.clicks > 0 ? `${fInt(campeao.clicks)} cliques` : undefined}
+                    value={campeaoInfo.ad.ctr > 0 ? `${campeaoInfo.ad.ctr.toFixed(2)}%` : "—"}
+                    sub={campeaoInfo.ad.clicks > 0 ? `${fInt(campeaoInfo.ad.clicks)} cliques` : undefined}
                   />
                 </div>
               </div>
