@@ -72,6 +72,20 @@ export async function deleteWorkflow(workflowId: string): Promise<void> {
   }
 }
 
+/** Lista todos os workflows (com paginação). */
+export type N8nWorkflowSummary = { id: string; name: string; active: boolean };
+export async function listWorkflows(opts?: { name?: string }): Promise<N8nWorkflowSummary[]> {
+  const params = new URLSearchParams({ limit: "250" });
+  if (opts?.name) params.set("name", opts.name);
+  const r = await n8nFetch(`/workflows?${params}`);
+  if (!r.ok) {
+    const txt = await r.text();
+    throw new Error(`n8n listWorkflows ${r.status}: ${txt.slice(0, 300)}`);
+  }
+  const j = await r.json() as { data?: N8nWorkflowSummary[] } | N8nWorkflowSummary[];
+  return Array.isArray(j) ? j : (j.data ?? []);
+}
+
 /** Lista credentials disponíveis (pra descobrir o ID do Postgres). */
 export type N8nCredential = { id: string; name: string; type: string };
 export async function listCredentials(): Promise<N8nCredential[]> {

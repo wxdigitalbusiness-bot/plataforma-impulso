@@ -6,6 +6,7 @@ import {
   excluirCrmWebhooks,
   adicionarEtapaExtra,
   removerEtapaWebhook,
+  regenerarWebhooksBase,
 } from "./_crm-webhook-actions";
 import { LABEL_ETAPA } from "@/lib/crm-webhook-template";
 
@@ -46,6 +47,15 @@ export function CrmWebhooksSection({ clienteId, temClientKey, webhooks }: Props)
     startTransition(async () => {
       const r = await configurarCrmWebhooks({ clienteId });
       if (r.ok) setOkMsg(`${r.criados} workflows base criados no n8n. Copie as URLs abaixo.`);
+      else setErro(r.erro);
+    });
+  }
+
+  function regenerarBase() {
+    setErro(null); setOkMsg(null);
+    startTransition(async () => {
+      const r = await regenerarWebhooksBase({ clienteId });
+      if (r.ok) setOkMsg(`${r.criados} workflows base regenerados com o SQL atualizado. URLs mantidas.`);
       else setErro(r.erro);
     });
   }
@@ -113,6 +123,17 @@ export function CrmWebhooksSection({ clienteId, temClientKey, webhooks }: Props)
               title={!temClientKey ? "Preencha n8n_client_key antes." : "Cria os 5 webhooks base"}
             >
               {pending ? "Gerando..." : "⚙ Gerar webhooks base"}
+            </button>
+          )}
+          {temBase && (
+            <button
+              type="button"
+              onClick={regenerarBase}
+              disabled={pending}
+              className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+              title="Recria os 5 workflows base com o SQL mais recente. URLs não mudam. Etapas extras são preservadas."
+            >
+              {pending ? "Regenerando..." : "↺ Regenerar base"}
             </button>
           )}
           {temAlgum && (
