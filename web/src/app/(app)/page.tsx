@@ -267,7 +267,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                       {/* Cliente */}
                       <td className="border-r border-neutral-100 px-4 py-3">
                         <Link
-                          href={`/clientes/${c.clienteId}/performance`}
+                          href={`/clientes/${c.clienteId}/${c.tipoServico === "panfletagem_digital" ? "panfletagem" : "performance"}`}
                           className="font-medium text-neutral-900 hover:underline"
                         >
                           {c.nome}
@@ -289,6 +289,11 @@ export default async function DashboardPage({ searchParams }: Props) {
                           {clientKey && (
                             <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-600">
                               CRM
+                            </span>
+                          )}
+                          {c.tipoServico === "panfletagem_digital" && (
+                            <span className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
+                              Panfletagem
                             </span>
                           )}
                           {c.total.erros.length > 0 && (

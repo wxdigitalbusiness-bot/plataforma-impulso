@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+
+export type ContaActionState = { erro: string } | null;
 
 const contaSchema = z
   .object({
@@ -48,7 +51,7 @@ const contaSchema = z
   );
 
 function parseForm(formData: FormData) {
-  return contaSchema.parse({
+  const result = contaSchema.safeParse({
     clienteId: formData.get("clienteId"),
     nome: formData.get("nome"),
     metaAdAccountId: formData.get("metaAdAccountId"),
@@ -61,6 +64,22 @@ function parseForm(formData: FormData) {
     receberAlertaGoogle: formData.get("receberAlertaGoogle") === "on",
     ativo: formData.get("ativo") === "on",
   });
+  return result;
+}
+
+function erroUniqueConstraint(err: unknown): ContaActionState {
+  if (
+    err instanceof Prisma.PrismaClientKnownRequestError &&
+    err.code === "P2002"
+  ) {
+    const fields = (err.meta?.target as string[] | undefined) ?? [];
+    if (fields.some((f) => f.includes("meta")))
+      return { erro: "Este Ad Account ID (Meta) já está cadastrado em outra conta." };
+    if (fields.some((f) => f.includes("google")))
+      return { erro: "Este Customer ID (Google) já está cadastrado em outra conta." };
+    return { erro: "Um dos IDs informados já está vinculado a outra conta." };
+  }
+  throw err;
 }
 
 // Lê empresa+whatsapp do cliente parent para denormalizar em clientes_ativos.
@@ -76,55 +95,80 @@ async function dadosDoCliente(clienteId: number) {
   };
 }
 
-export async function criarConta(formData: FormData) {
-  const data = parseForm(formData);
+export async function criarConta(
+  _prevState: ContaActionState,
+  formData: FormData,
+): Promise<ContaActionState> {
+  const parsed = parseForm(formData);
+  if (!parsed.success)
+    return { erro: parsed.error.issues[0].message };
+
+  const data = parsed.data;
   const parent = await dadosDoCliente(data.clienteId);
 
-  await db.clienteAtivo.create({
-    data: {
-      clienteId: data.clienteId,
-      nome: data.nome,
-      empresa: parent.empresa,
-      whatsappAlerta: parent.whatsappAlerta,
-      metaAdAccountId: data.metaAdAccountId ?? null,
-      limiteMinimo: data.limiteMinimo,
-      moeda: data.moeda,
-      receberAlertaSaldo: data.receberAlertaSaldo,
-      googleAdCustomerId: data.googleAdCustomerId ?? null,
-      googleAdsMccId: data.googleAdsMccId ?? null,
-      limiteMinimoGoogle: data.limiteMinimoGoogle,
-      receberAlertaGoogle: data.receberAlertaGoogle,
-      ativo: data.ativo,
-    },
-  });
+  try {
+    await db.clienteAtivo.create({
+      data: {
+        clienteId: data.clienteId,
+        nome: data.nome,
+        empresa: parent.empresa,
+        whatsappAlerta: parent.whatsappAlerta,
+        metaAdAccountId: data.metaAdAccountId ?? null,
+        limiteMinimo: data.limiteMinimo,
+        moeda: data.moeda,
+        receberAlertaSaldo: data.receberAlertaSaldo,
+        googleAdCustomerId: data.googleAdCustomerId ?? null,
+        googleAdsMccId: data.googleAdsMccId ?? null,
+        limiteMinimoGoogle: data.limiteMinimoGoogle,
+        receberAlertaGoogle: data.receberAlertaGoogle,
+        ativo: data.ativo,
+      },
+    });
+  } catch (err) {
+    return erroUniqueConstraint(err);
+  }
+
   revalidatePath("/");
   revalidatePath("/clientes");
   revalidatePath(`/clientes/${data.clienteId}`);
   redirect(`/clientes/${data.clienteId}`);
 }
 
-export async function atualizarConta(contaId: number, formData: FormData) {
-  const data = parseForm(formData);
+export async function atualizarConta(
+  contaId: number,
+  _prevState: ContaActionState,
+  formData: FormData,
+): Promise<ContaActionState> {
+  const parsed = parseForm(formData);
+  if (!parsed.success)
+    return { erro: parsed.error.issues[0].message };
+
+  const data = parsed.data;
   const parent = await dadosDoCliente(data.clienteId);
 
-  await db.clienteAtivo.update({
-    where: { id: contaId },
-    data: {
-      clienteId: data.clienteId,
-      nome: data.nome,
-      empresa: parent.empresa,
-      whatsappAlerta: parent.whatsappAlerta,
-      metaAdAccountId: data.metaAdAccountId ?? null,
-      limiteMinimo: data.limiteMinimo,
-      moeda: data.moeda,
-      receberAlertaSaldo: data.receberAlertaSaldo,
-      googleAdCustomerId: data.googleAdCustomerId ?? null,
-      googleAdsMccId: data.googleAdsMccId ?? null,
-      limiteMinimoGoogle: data.limiteMinimoGoogle,
-      receberAlertaGoogle: data.receberAlertaGoogle,
-      ativo: data.ativo,
-    },
-  });
+  try {
+    await db.clienteAtivo.update({
+      where: { id: contaId },
+      data: {
+        clienteId: data.clienteId,
+        nome: data.nome,
+        empresa: parent.empresa,
+        whatsappAlerta: parent.whatsappAlerta,
+        metaAdAccountId: data.metaAdAccountId ?? null,
+        limiteMinimo: data.limiteMinimo,
+        moeda: data.moeda,
+        receberAlertaSaldo: data.receberAlertaSaldo,
+        googleAdCustomerId: data.googleAdCustomerId ?? null,
+        googleAdsMccId: data.googleAdsMccId ?? null,
+        limiteMinimoGoogle: data.limiteMinimoGoogle,
+        receberAlertaGoogle: data.receberAlertaGoogle,
+        ativo: data.ativo,
+      },
+    });
+  } catch (err) {
+    return erroUniqueConstraint(err);
+  }
+
   revalidatePath("/");
   revalidatePath("/clientes");
   revalidatePath(`/clientes/${data.clienteId}`);
