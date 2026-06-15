@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
+import type { ContaActionState } from "./_conta-actions";
 
 // Tipo serializado (sem Decimal/Date do Prisma) — seguro para Client Components
 // Nota: empresa e whatsappAlerta agora vivem no Cliente (parent), não na conta.
@@ -24,6 +25,8 @@ export type ClienteOpcao = {
   nome: string;
 };
 
+type ActionFn = (prevState: ContaActionState, formData: FormData) => Promise<ContaActionState>;
+
 type Props = {
   conta?: ContaFormData;
   // Cliente atual da conta (sempre obrigatório — define o parent)
@@ -32,7 +35,7 @@ type Props = {
   // Se omitido, parent vai como hidden input fixo (modo novo).
   clientesDisponiveis?: ClienteOpcao[];
   backHref?: string;
-  action: (formData: FormData) => void | Promise<void>;
+  action: ActionFn;
   submitLabel: string;
 };
 
@@ -47,21 +50,27 @@ export function ContaForm({
   const temMeta = !!conta?.metaAdAccountId;
   const temGoogle = !!conta?.googleAdCustomerId;
 
+  const [serverState, formAction] = useActionState(action, null);
   const [usaMeta, setUsaMeta] = useState(temMeta || (!temMeta && !temGoogle));
   const [usaGoogle, setUsaGoogle] = useState(temGoogle);
-  const [erro, setErro] = useState<string | null>(null);
+  const [erroCliente, setErroCliente] = useState<string | null>(null);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     if (!usaMeta && !usaGoogle) {
       e.preventDefault();
-      setErro("Selecione ao menos uma plataforma (Meta Ads ou Google Ads).");
+      setErroCliente("Selecione ao menos uma plataforma (Meta Ads ou Google Ads).");
       return;
     }
-    setErro(null);
+    setErroCliente(null);
   }
 
   return (
-    <form action={action} onSubmit={handleSubmit} className="space-y-6">
+    <form action={formAction} onSubmit={handleSubmit} className="space-y-6">
+      {serverState?.erro && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {serverState.erro}
+        </div>
+      )}
       {/* ── Vínculo com cliente parent ─────────────────────────────────── */}
       {clientesDisponiveis ? (
         <label className="block">
@@ -119,7 +128,7 @@ export function ContaForm({
             onChange={setUsaGoogle}
           />
         </div>
-        {erro && <p className="mt-2 text-sm text-red-600">{erro}</p>}
+        {erroCliente && <p className="mt-2 text-sm text-red-600">{erroCliente}</p>}
       </div>
 
       {/* ── Meta Ads ─────────────────────────────────────────────────── */}

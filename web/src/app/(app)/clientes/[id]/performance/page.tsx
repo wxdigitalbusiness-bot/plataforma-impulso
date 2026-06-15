@@ -111,10 +111,10 @@ export default async function PerformancePage({ params, searchParams }: Props) {
   });
   if (!cliente) notFound();
 
-  const contasMeta   = cliente.contas.filter((c) => c.metaAdAccountId);
-  const contasGoogle = cliente.contas.filter((c) => c.googleAdCustomerId);
-  const temCrm       = !!cliente.n8nClientKey;
-  const clientKey    = cliente.n8nClientKey ?? "";
+  const contasMeta    = cliente.contas.filter((c) => c.metaAdAccountId);
+  const contasGoogle  = cliente.contas.filter((c) => c.googleAdCustomerId);
+  const temCrm        = !!cliente.n8nClientKey;
+  const clientKey     = cliente.n8nClientKey ?? "";
 
   const googleCustomerIds = contasGoogle.map((c) =>
     c.googleAdCustomerId!.replace(/-/g, ""),
@@ -127,7 +127,6 @@ export default async function PerformancePage({ params, searchParams }: Props) {
         ? getMetaInsightsPorCampanhaDB(clientKey, from, to)
         : Promise.resolve([] as MetaCampanhaDB[]),
 
-      // Conjuntos e anúncios (via fb_meta_insights_ads)
       temCrm ? getMetaAdsetsDB(clientKey, from, to) : Promise.resolve([]),
       temCrm ? getMetaAdsDB(clientKey, from, to)    : Promise.resolve([]),
 
@@ -141,7 +140,6 @@ export default async function PerformancePage({ params, searchParams }: Props) {
         ? getCrmLeadsPorCampanha(clientKey, from, to)
         : Promise.resolve([] as LeadCampanha[]),
 
-      // Atribuição detalhada: campanha → conjunto → anúncio
       temCrm
         ? getCrmLeadsAtribuicaoCompleta(clientKey, from, to)
         : Promise.resolve([] as LeadAtribuicaoDetalhe[]),

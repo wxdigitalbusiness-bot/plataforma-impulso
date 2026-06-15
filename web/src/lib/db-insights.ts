@@ -1060,6 +1060,81 @@ export async function getMetaAdsetsDB(
   }
 }
 
+// ─── Panfletagem Digital ──────────────────────────────────────────────────────
+
+/** Breakdown por anúncio para clientes panfletagem_digital */
+export type PanfletagemAdInsight = {
+  adId: string;
+  adNome: string;
+  impressoes: number;
+  alcance: number;
+  /** conv_link_clicks — tráfego direcionado ao perfil IG */
+  visitasPerfil: number;
+  /** conv_msg_conversations — conversas iniciadas no WhatsApp */
+  conversas: number;
+};
+
+export type PanfletagemInsightsDB = {
+  impressoes: number;
+  alcance: number;
+  visitasPerfil: number;
+  conversas: number;
+  ads: PanfletagemAdInsight[];
+};
+
+export async function getPanfletagemInsights(
+  clientKey: string,
+  from: string,
+  to: string,
+): Promise<PanfletagemInsightsDB> {
+  type Row = {
+    ad_id: string;
+    ad_nome: string | null;
+    impressions: number | string;
+    reach: number | string;
+    conv_link: number | string;
+    conv_msg: number | string;
+  };
+
+  try {
+    const rows = await db.$queryRaw<Row[]>`
+      SELECT
+        ad_id,
+        MAX(ad_name)                              AS ad_nome,
+        COALESCE(SUM(impressions), 0)             AS impressions,
+        COALESCE(SUM(reach), 0)                   AS reach,
+        COALESCE(SUM(conv_link_clicks), 0)        AS conv_link,
+        COALESCE(SUM(conv_msg_conversations), 0)  AS conv_msg
+      FROM fb_meta_insights_ads
+      WHERE lower(client_key) = lower(${clientKey})
+        AND date::date BETWEEN ${from}::date AND ${to}::date
+        AND ad_id IS NOT NULL
+      GROUP BY ad_id
+      ORDER BY SUM(impressions) DESC
+    `;
+
+    const ads: PanfletagemAdInsight[] = rows.map((r) => ({
+      adId:          r.ad_id,
+      adNome:        String(r.ad_nome ?? r.ad_id),
+      impressoes:    toFloat(r.impressions),
+      alcance:       toFloat(r.reach),
+      visitasPerfil: toFloat(r.conv_link),
+      conversas:     toFloat(r.conv_msg),
+    }));
+
+    return {
+      impressoes:    ads.reduce((s, a) => s + a.impressoes, 0),
+      alcance:       ads.reduce((s, a) => s + a.alcance, 0),
+      visitasPerfil: ads.reduce((s, a) => s + a.visitasPerfil, 0),
+      conversas:     ads.reduce((s, a) => s + a.conversas, 0),
+      ads,
+    };
+  } catch (err) {
+    console.error("[DB] getPanfletagemInsights:", err);
+    return { impressoes: 0, alcance: 0, visitasPerfil: 0, conversas: 0, ads: [] };
+  }
+}
+
 // ─── Meta Ads: anúncios ───────────────────────────────────────────────────────
 
 /**

@@ -6,7 +6,8 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { formatarPeriodoLabel, type TipoRelatorio } from "@/lib/relatorios";
-import { getCrmFunilDetalhado, getCrmLeadsAtribuicaoCompleta } from "@/lib/db-insights";
+import { getCrmFunilDetalhado, getCrmLeadsAtribuicaoCompleta, getPanfletagemInsights } from "@/lib/db-insights";
+import { PanfletagemResumo } from "@/components/panfletagem/resumo";
 import { EnviarRelatorioButton } from "./_enviar-relatorio-button";
 import type {
   Snapshot,
@@ -69,14 +70,19 @@ export default async function RelatorioPublicoPage({ params }: Props) {
   const periodoLabel = formatarPeriodoLabel(tipo, from, to);
   const saudacaoWhatsApp = construirSaudacaoWhatsApp(tipo, from, to);
 
-  // ── CRM (live query — sempre atualizado) ──────────────────────────────────
-  const clientKey = relatorio.cliente.n8nClientKey;
-  const [crmFunil, leadsAtribuicao] = clientKey
+  // ── CRM + Panfletagem (live queries — sempre atualizados) ────────────────
+  const clientKey     = relatorio.cliente.n8nClientKey;
+  const ehPanfletagem = relatorio.cliente.tipoServico === "panfletagem_digital";
+
+  const [crmFunil, leadsAtribuicao, panfletagemData] = clientKey
     ? await Promise.all([
         getCrmFunilDetalhado(clientKey, from, to),
         getCrmLeadsAtribuicaoCompleta(clientKey, from, to),
+        ehPanfletagem
+          ? getPanfletagemInsights(clientKey, from, to)
+          : Promise.resolve(null),
       ])
-    : [null, [] as Awaited<ReturnType<typeof getCrmLeadsAtribuicaoCompleta>>];
+    : [null, [] as Awaited<ReturnType<typeof getCrmLeadsAtribuicaoCompleta>>, null];
 
   const totalLeadsCampanha = leadsAtribuicao.reduce((s, l) => s + l.leads, 0);
 
@@ -246,41 +252,60 @@ export default async function RelatorioPublicoPage({ params }: Props) {
           </div>
         </header>
 
-        {/* ── Meta Ads — Resumo ─────────────────────────────────────────── */}
-        <section className="mb-6">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" />
-            <h2 className="text-sm font-semibold text-neutral-700">Meta Ads — Resumo</h2>
-          </div>
-
-          {campanhas.length === 0 ? (
-            <div className="rounded-xl border border-neutral-200 bg-white px-6 py-10 text-center text-sm text-neutral-500">
-              Sem dados de Meta Ads no período.
+        {/* ── Resumo principal: Panfletagem ou Meta Ads ─────────────────── */}
+        {ehPanfletagem ? (
+          <section className="mb-6">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" />
+              <h2 className="text-sm font-semibold text-neutral-700">Panfletagem Digital — Resumo</h2>
             </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                <KpiCard label="Investimento" value={fBRL(totalSpend)} highlight />
-                {cardsResultado.map((c) => (
-                  <ResultadoCard
-                    key={c.label}
-                    label={c.label}
-                    valor={fInt(c.valorTotal)}
-                    custoMedio={c.custoPorRes !== null ? fBRL(c.custoPorRes) : null}
-                    tone={c.tone}
-                  />
-                ))}
-
+            {panfletagemData ? (
+              <PanfletagemResumo
+                dados={panfletagemData}
+                seguidores={igContas[0]?.novosSeguidores ?? null}
+              />
+            ) : (
+              <div className="rounded-xl border border-neutral-200 bg-white px-6 py-10 text-center text-sm text-neutral-500">
+                Sem dados de panfletagem no período.
               </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <KpiCard label="Alcance"     value={totalReach > 0 ? fInt(totalReach) : "—"} />
-                <KpiCard label="Cliques"     value={fInt(totalClicks)} />
-                <KpiCard label="CTR"         value={ctrMedio > 0 ? `${ctrMedio.toFixed(2)}%` : "—"} />
-                <KpiCard label="CPC médio"   value={cpcMedio > 0 ? fBRL(cpcMedio) : "—"} />
-              </div>
+            )}
+          </section>
+        ) : (
+          <section className="mb-6">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" />
+              <h2 className="text-sm font-semibold text-neutral-700">Meta Ads — Resumo</h2>
             </div>
-          )}
-        </section>
+
+            {campanhas.length === 0 ? (
+              <div className="rounded-xl border border-neutral-200 bg-white px-6 py-10 text-center text-sm text-neutral-500">
+                Sem dados de Meta Ads no período.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  <KpiCard label="Investimento" value={fBRL(totalSpend)} highlight />
+                  {cardsResultado.map((c) => (
+                    <ResultadoCard
+                      key={c.label}
+                      label={c.label}
+                      valor={fInt(c.valorTotal)}
+                      custoMedio={c.custoPorRes !== null ? fBRL(c.custoPorRes) : null}
+                      tone={c.tone}
+                    />
+                  ))}
+
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <KpiCard label="Alcance"     value={totalReach > 0 ? fInt(totalReach) : "—"} />
+                  <KpiCard label="Cliques"     value={fInt(totalClicks)} />
+                  <KpiCard label="CTR"         value={ctrMedio > 0 ? `${ctrMedio.toFixed(2)}%` : "—"} />
+                  <KpiCard label="CPC médio"   value={cpcMedio > 0 ? fBRL(cpcMedio) : "—"} />
+                </div>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* ── Visão geral do Instagram ──────────────────────────────────── */}
         {igContas.length > 0 && (
@@ -380,7 +405,7 @@ export default async function RelatorioPublicoPage({ params }: Props) {
         )}
 
         {/* ── Anúncio Campeão ──────────────────────────────────────────── */}
-        {campeaoInfo && (
+        {!ehPanfletagem && campeaoInfo && (
           <section className="mb-6">
             <div className="mb-3 flex items-center gap-2">
               <span className="text-lg">🏆</span>
@@ -486,7 +511,7 @@ export default async function RelatorioPublicoPage({ params }: Props) {
         )}
 
         {/* ── Detalhamento ─────────────────────────────────────────────── */}
-        {campanhas.length > 0 && (
+        {!ehPanfletagem && campanhas.length > 0 && (
           <section className="mb-8">
             <div className="mb-3 flex items-center gap-2">
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" />

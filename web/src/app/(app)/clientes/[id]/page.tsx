@@ -93,9 +93,24 @@ export default async function ClienteDetalhePage({ params }: Props) {
           >
             Editar cliente
           </Link>
+          {cliente.tipoServico === "panfletagem_digital" ? (
+            <Link
+              href={`/clientes/${cliente.id}/panfletagem`}
+              className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+            >
+              Ver Panfletagem
+            </Link>
+          ) : (
+            <Link
+              href={`/clientes/${cliente.id}/performance`}
+              className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+            >
+              Ver Performance
+            </Link>
+          )}
           <Link
             href={`/clientes/${cliente.id}/contas/novo`}
-            className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+            className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
           >
             + Nova conta
           </Link>

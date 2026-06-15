@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 const navItems = [
   { href: "/", label: "Dashboard" },
   { href: "/clientes", label: "Clientes" },
+  { href: "/panfletagem", label: "Panfletagem" },
   { href: "/alertas", label: "Histórico de alertas" },
   { href: "/bot", label: "Bot Marketing Impulso" },
 ];
