@@ -8,6 +8,7 @@ const navItems = [
   { href: "/panfletagem", label: "Panfletagem" },
   { href: "/alertas", label: "Histórico de alertas" },
   { href: "/bot", label: "Bot Marketing Impulso" },
+  { href: "/whatsapp", label: "WhatsApp" },
 ];
 
 export default async function AppLayout({
