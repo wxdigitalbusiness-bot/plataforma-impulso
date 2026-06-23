@@ -22,7 +22,7 @@ export type MensagemParsed = {
   ctwaClid: string | null;   // externalAdReply.ctwaClid
   sourceApp: string | null;  // "instagram" | "facebook"
 
-  // Atribuição Google (código GG-xxxxxx extraído da mensagem)
+  // Atribuição Google (reservado — atribuição agora é por janela de tempo no webhook)
   googleCode: string | null;
 
   // Timestamp (Unix seconds → Date)
@@ -94,15 +94,9 @@ export function parseEvolutionWebhook(body: any): MensagemParsed | null {
   const ctwaClid: string | null = externalAdReply?.ctwaClid ?? null;
   const sourceApp: string | null = externalAdReply?.sourceApp ?? null;
 
-  // Atribuição Google: suporta "GG-xxxxxx" (legado) e "Protocolo: xxxxxx" (novo)
-  // O código no banco é sempre "GG-" + lowercase (ex: GG-8ya6dt) — preservamos esse formato.
-  let googleCodeNorm: string | null = null;
-  if (conteudo) {
-    const legado   = conteudo.match(/GG-([a-z0-9]+)/i);
-    const protocolo = conteudo.match(/Protocolo:\s*([a-z0-9]+)/i);
-    const raw = legado?.[1] ?? protocolo?.[1] ?? null;
-    if (raw) googleCodeNorm = `GG-${raw.toLowerCase()}`;
-  }
+  // Atribuição Google: não lemos mais código da mensagem.
+  // O vínculo é feito por janela de tempo no handler do webhook.
+  const googleCodeNorm: string | null = null;
 
   return {
     instance,
