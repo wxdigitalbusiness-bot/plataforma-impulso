@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 
-const BASE_URL = "https://plataforma.mktimpulso.com.br";
-
-function buildSnippet(slug: string) {
+function buildSnippet(slug: string, origin: string) {
   return `<!-- Rastreamento WhatsApp — CRM Impulso -->
 <script>
 (function(){
@@ -16,7 +14,7 @@ function buildSnippet(slug: string) {
   if(w)q+=(q?'&':'')+'wbraid='+w;
   if(b)q+=(q?'&':'')+'gbraid='+b;
   document.querySelectorAll('a[href*="wa.me"],a[href*="whatsapp"]').forEach(function(el){
-    el.href='${BASE_URL}/r/wa/${slug}?'+q;
+    el.href='${origin}/r/wa/${slug}?'+q;
   });
 })();
 <\/script>`;
@@ -44,8 +42,9 @@ function CopyButton({ text, label = "Copiar" }: { text: string; label?: string }
 }
 
 export function RastreamentoSnippet({ slug }: { slug: string }) {
-  const link = `${BASE_URL}/r/wa/${slug}`;
-  const snippet = buildSnippet(slug);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const link = `${origin}/r/wa/${slug}`;
+  const snippet = buildSnippet(slug, origin);
 
   return (
     <div className="space-y-4 pt-2">
