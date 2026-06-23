@@ -1,0 +1,113 @@
+// Atualiza a fase de um lead e dispara conversões:
+// - "qualificado" → Google Ads (lead qualificado)
+// - "concluido"   → Meta CAPI + Google Ads (lead convertido)
+
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { fireCapiEvent } from "@/lib/capi";
+import { fireGoogleConversion } from "@/lib/google-ads";
+
+type Params = { clienteId: string; leadId: string };
+
+type LeadCrm = {
+  lead_whatsapp: string;
+  fase: string;
+  ctwa_clid: string | null;
+  gclid: string | null;
+  wbraid: string | null;
+  gbraid: string | null;
+};
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<Params> }
+) {
+  const { clienteId, leadId } = await params;
+  const id = parseInt(clienteId, 10);
+  if (isNaN(id)) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+
+  const body = await req.json() as { fase: string; faseLabel: string };
+  const { fase, faseLabel } = body;
+  if (!fase || !faseLabel) {
+    return NextResponse.json({ error: "fase e faseLabel são obrigatórios" }, { status: 400 });
+  }
+
+  const cliente = await db.cliente.findUnique({
+    where: { id },
+    select: {
+      n8nClientKey:                        true,
+      pixelId:                             true,
+      capiToken:                           true,
+      googleAdsCustomerId:                 true,
+      googleConversionActionId:            true,
+      googleConversionActionIdQualificado: true,
+    },
+  });
+
+  if (!cliente?.n8nClientKey) {
+    return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 });
+  }
+
+  const clientKey = cliente.n8nClientKey;
+
+  const leads = await db.$queryRaw<LeadCrm[]>`
+    SELECT lead_whatsapp, fase, ctwa_clid, gclid, wbraid, gbraid
+    FROM fb_leads
+    WHERE lead_id = ${leadId}
+      AND lower(client_key) = lower(${clientKey})
+    LIMIT 1
+  `;
+
+  if (leads.length === 0) {
+    return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
+  }
+
+  const lead = leads[0];
+
+  await db.$executeRaw`
+    UPDATE fb_leads
+    SET fase = ${faseLabel}
+    WHERE lead_id = ${leadId}
+      AND lower(client_key) = lower(${clientKey})
+  `;
+
+  const ehConcluido    = fase === "concluido"   || faseLabel.toLowerCase().includes("conclu");
+  const ehQualificado  = fase === "qualificado" || faseLabel.toLowerCase().includes("qualific");
+  const hasGoogleClick = lead.gclid || lead.wbraid || lead.gbraid;
+
+  // ── Meta CAPI (só em concluído) ────────────────────────────────────────────
+  let capiResult: { ok: boolean; detail?: string } | null = null;
+  if (ehConcluido && lead.ctwa_clid && cliente.pixelId && cliente.capiToken) {
+    const result = await fireCapiEvent({
+      pixelId:   cliente.pixelId,
+      capiToken: cliente.capiToken,
+      phone:     lead.lead_whatsapp,
+      ctwaClid:  lead.ctwa_clid,
+    });
+    capiResult = result.ok ? { ok: true } : { ok: false, detail: result.error };
+  }
+
+  // ── Google Ads Offline Conversions ─────────────────────────────────────────
+  let googleResult: { ok: boolean; detail?: string } | null = null;
+
+  if (hasGoogleClick && cliente.googleAdsCustomerId) {
+    const actionId = ehConcluido
+      ? cliente.googleConversionActionId
+      : ehQualificado
+        ? cliente.googleConversionActionIdQualificado
+        : null;
+
+    if (actionId) {
+      const result = await fireGoogleConversion({
+        customerId:         cliente.googleAdsCustomerId,
+        conversionActionId: actionId,
+        gclid:  lead.gclid,
+        wbraid: lead.wbraid,
+        gbraid: lead.gbraid,
+      });
+      googleResult = result.ok ? { ok: true } : { ok: false, detail: result.error };
+    }
+  }
+
+  return NextResponse.json({ ok: true, capiResult, googleResult });
+}

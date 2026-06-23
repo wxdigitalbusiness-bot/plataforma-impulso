@@ -40,6 +40,14 @@ export default async function EditarClientePage({ params }: Props) {
     tipoServico: cliente.tipoServico,
     n8nClientKey: cliente.n8nClientKey,
     ativo: cliente.ativo,
+    evolutionInstance:        cliente.evolutionInstance,
+    waNumero:                 cliente.waNumero,
+    waMessageTemplate:        cliente.waMessageTemplate,
+    pixelId:                  cliente.pixelId,
+    capiToken:                cliente.capiToken,
+    googleAdsCustomerId:                   cliente.googleAdsCustomerId,
+    googleConversionActionId:              cliente.googleConversionActionId,
+    googleConversionActionIdQualificado:   cliente.googleConversionActionIdQualificado,
   };
 
   const salvar = atualizarCliente.bind(null, cliente.id);

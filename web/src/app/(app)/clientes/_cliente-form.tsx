@@ -1,6 +1,7 @@
 // Form do Cliente (parent). Compartilhado por /novo e /editar.
 
 import { TIPOS_SERVICO } from "./_servicos";
+import { RastreamentoSnippet } from "./_rastreamento-snippet";
 
 export type ClienteFormData = {
   id: number;
@@ -10,6 +11,17 @@ export type ClienteFormData = {
   tipoServico: string | null;
   n8nClientKey: string | null;
   ativo: boolean;
+  // CRM / WhatsApp
+  evolutionInstance: string | null;
+  waNumero: string | null;
+  waMessageTemplate: string | null;
+  // Meta CAPI
+  pixelId: string | null;
+  capiToken: string | null;
+  // Google Ads
+  googleAdsCustomerId: string | null;
+  googleConversionActionId: string | null;
+  googleConversionActionIdQualificado: string | null;
 };
 
 type Props = {
@@ -115,6 +127,160 @@ export function ClienteForm({
           Preencha para habilitar dados de CRM no dashboard (ex.: <em>SC</em>, <em>altaconquista</em>).
         </p>
       </label>
+
+      {/* ── CRM / WhatsApp ───────────────────────────────────────────────── */}
+      <div className="rounded-lg border border-violet-100 bg-violet-50/50 px-4 py-4 space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
+          CRM — WhatsApp
+        </p>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-neutral-700">
+            Instância Evolution API
+          </span>
+          <input
+            name="evolutionInstance"
+            defaultValue={cliente?.evolutionInstance ?? ""}
+            placeholder="Ex.: Caldeiras Santesso"
+            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/10"
+          />
+          <p className="mt-1 text-xs text-neutral-400">
+            Nome exato da instância na Evolution API. Mapeia os webhooks WhatsApp a este cliente.
+          </p>
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-neutral-700">
+            Número WhatsApp (para links de redirecionamento)
+          </span>
+          <input
+            name="waNumero"
+            defaultValue={cliente?.waNumero ?? ""}
+            placeholder="Ex.: 5562999999999"
+            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/10"
+          />
+          <p className="mt-1 text-xs text-neutral-400">
+            Número com DDI + DDD (sem espaços). Usado no link <code>/r/wa/{"{slug}"}</code> instalado nas landing pages.
+          </p>
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-neutral-700">
+            Mensagem personalizada (enviada pelo lead)
+          </span>
+          <input
+            name="waMessageTemplate"
+            defaultValue={cliente?.waMessageTemplate ?? ""}
+            placeholder="Ex.: Olá! Tenho interesse em saber mais."
+            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/10"
+          />
+          <p className="mt-1 text-xs text-neutral-400">
+            Texto que o lead envia ao clicar no botão WhatsApp. O código de rastreamento{" "}
+            <code className="rounded bg-neutral-100 px-1">GG-xxxxxx</code> é adicionado ao final automaticamente.
+          </p>
+        </label>
+
+        {/* Snippet de rastreamento — exibe apenas quando há slug configurado */}
+        {cliente?.n8nClientKey && (
+          <div className="rounded-lg border border-violet-200 bg-white px-4 py-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-violet-500">
+              Instalação na Landing Page
+            </p>
+            <RastreamentoSnippet slug={cliente.n8nClientKey} />
+          </div>
+        )}
+      </div>
+
+      {/* ── Meta CAPI ────────────────────────────────────────────────────── */}
+      <div className="rounded-lg border border-violet-100 bg-violet-50/50 px-4 py-4 space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
+          Meta — Pixel &amp; CAPI
+        </p>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-neutral-700">
+            Pixel ID (Meta)
+          </span>
+          <input
+            name="pixelId"
+            defaultValue={cliente?.pixelId ?? ""}
+            placeholder="Ex.: 1234567890123456"
+            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/10"
+          />
+          <p className="mt-1 text-xs text-neutral-400">
+            ID numérico do Pixel Meta.
+          </p>
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-neutral-700">
+            Token CAPI (Meta)
+          </span>
+          <input
+            name="capiToken"
+            type="password"
+            autoComplete="off"
+            defaultValue={cliente?.capiToken ?? ""}
+            placeholder="EAAG…"
+            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/10"
+          />
+          <p className="mt-1 text-xs text-neutral-400">
+            Gerenciador de Eventos → Pixel → Configurações → API de Conversões → &quot;Gerar token de acesso&quot;.
+          </p>
+        </label>
+      </div>
+
+      {/* ── Google Ads ───────────────────────────────────────────────────── */}
+      <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-4 py-4 space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+          Google Ads — Conversões Offline
+        </p>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-neutral-700">
+            Customer ID (Google Ads)
+          </span>
+          <input
+            name="googleAdsCustomerId"
+            defaultValue={cliente?.googleAdsCustomerId ?? ""}
+            placeholder="Ex.: 1234567890"
+            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+          />
+          <p className="mt-1 text-xs text-neutral-400">
+            ID da conta Google Ads do cliente (sem hífens). Encontrado no canto superior direito do Google Ads.
+          </p>
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-neutral-700">
+            Conversion Action ID — Lead Qualificado
+          </span>
+          <input
+            name="googleConversionActionIdQualificado"
+            defaultValue={cliente?.googleConversionActionIdQualificado ?? ""}
+            placeholder="Ex.: 123456789"
+            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+          />
+          <p className="mt-1 text-xs text-neutral-400">
+            Disparado quando o lead é movido para a etapa <strong>Qualificado</strong>. Google Ads → Metas → Conversões → ID na URL.
+          </p>
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-neutral-700">
+            Conversion Action ID — Lead Convertido
+          </span>
+          <input
+            name="googleConversionActionId"
+            defaultValue={cliente?.googleConversionActionId ?? ""}
+            placeholder="Ex.: 987654321"
+            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+          />
+          <p className="mt-1 text-xs text-neutral-400">
+            Disparado quando o lead é movido para a etapa <strong>Concluído</strong>. Google Ads → Metas → Conversões → ID na URL.
+          </p>
+        </label>
+      </div>
 
       <label className="flex cursor-pointer items-center justify-between rounded-lg border border-neutral-200 bg-white px-4 py-3">
         <span className="text-sm font-medium text-neutral-700">
