@@ -53,6 +53,7 @@ export async function GET(
   const ip        = req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "";
   const userAgent = req.headers.get("user-agent") ?? "";
 
+  // Salva o clique para atribuição por janela de tempo (sem enviar código na mensagem)
   await db.$executeRaw`
     INSERT INTO google_attribution (
       code, client_key,
@@ -68,7 +69,7 @@ export async function GET(
   `;
 
   const template = cliente.waMessageTemplate?.trim() || "Olá!";
-  const msgText = encodeURIComponent(`${template} ${code}`);
+  const msgText = encodeURIComponent(template);
   return NextResponse.redirect(`https://wa.me/${cliente.waNumero}?text=${msgText}`, {
     status: 302,
   });

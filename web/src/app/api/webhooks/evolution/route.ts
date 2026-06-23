@@ -76,13 +76,21 @@ export async function POST(req: NextRequest) {
     ON CONFLICT (evolution_msg_id) DO NOTHING
   `;
 
-  // Vincula atribuição Google se a mensagem contiver código GG-xxxxxx
-  if (parsed.googleCode) {
-    await db.$executeRaw`
-      UPDATE google_attribution
-      SET lead_id = ${leadId}, vinculado_em = NOW()
-      WHERE code = ${parsed.googleCode} AND lead_id IS NULL
-    `;
+  // Atribuição Google por janela de tempo: vincula o clique mais recente não atribuído
+  // do mesmo cliente nos últimos 30 minutos (mesma lógica usada por ferramentas como Datalitcs).
+  const atribuido = await db.$executeRaw`
+    UPDATE google_attribution
+    SET lead_id = ${leadId}, vinculado_em = NOW()
+    WHERE id = (
+      SELECT id FROM google_attribution
+      WHERE client_key = ${clientKey}
+        AND lead_id IS NULL
+        AND criado_em > NOW() - INTERVAL '30 minutes'
+      ORDER BY criado_em DESC
+      LIMIT 1
+    )
+  `;
+  if (atribuido) {
     // Copia gclid/wbraid/gbraid para o lead (primeira ocorrência vence)
     await db.$executeRaw`
       UPDATE fb_leads fl
@@ -92,7 +100,8 @@ export async function POST(req: NextRequest) {
         wbraid      = COALESCE(fl.wbraid,      ga.wbraid),
         gbraid      = COALESCE(fl.gbraid,      ga.gbraid)
       FROM google_attribution ga
-      WHERE ga.code = ${parsed.googleCode}
+      WHERE ga.lead_id = ${leadId}
+        AND ga.client_key = ${clientKey}
         AND fl.lead_id = ${leadId}
     `;
   }

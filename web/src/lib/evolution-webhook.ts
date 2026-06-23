@@ -22,7 +22,7 @@ export type MensagemParsed = {
   ctwaClid: string | null;   // externalAdReply.ctwaClid
   sourceApp: string | null;  // "instagram" | "facebook"
 
-  // Atribuição Google (código GG-xxxxxx extraído da mensagem)
+  // Atribuição Google (reservado — atribuição agora é por janela de tempo no webhook)
   googleCode: string | null;
 
   // Timestamp (Unix seconds → Date)
@@ -94,8 +94,9 @@ export function parseEvolutionWebhook(body: any): MensagemParsed | null {
   const ctwaClid: string | null = externalAdReply?.ctwaClid ?? null;
   const sourceApp: string | null = externalAdReply?.sourceApp ?? null;
 
-  // Atribuição Google: extrai código GG-xxxxxx da mensagem (landing page redirect)
-  const googleCodeNorm: string | null = conteudo?.match(/GG-[a-z0-9]+/i)?.[0]?.toLowerCase() ?? null;
+  // Atribuição Google: não lemos mais código da mensagem.
+  // O vínculo é feito por janela de tempo no handler do webhook.
+  const googleCodeNorm: string | null = null;
 
   return {
     instance,
