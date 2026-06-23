@@ -1,19 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { LeadCard } from "./lead-card";
+import { LeadCard, type Lead } from "./lead-card";
 import { ConversaPanel } from "./conversa-panel";
-
-type Lead = {
-  lead_id: string;
-  lead_nome: string;
-  lead_whatsapp: string;
-  fase: string;
-  source_app: string | null;
-  ultima_msg: string | null;
-  ultima_msg_tipo: string | null;
-  ultima_msg_em: string | null;
-};
 
 type Etapa = {
   etapa: string;
@@ -38,12 +27,52 @@ function etapaCores(etapa: string) {
   return CORES_ETAPA[etapa] ?? { header: "bg-blue-50 text-blue-700", count: "bg-blue-100 text-blue-700" };
 }
 
+type FiltroOrigem = "todos" | "pago" | "organico";
+
 export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [overlay, setOverlay] = useState(false);
 
+  // ── Filtros ───────────────────────────────────────────────────────────────
+  const [filtroOrigem, setFiltroOrigem] = useState<FiltroOrigem>("todos");
+  const [filtroEtapas, setFiltroEtapas] = useState<Set<string>>(new Set());
+  const [filtroDe, setFiltroDe] = useState("");
+  const [filtroAte, setFiltroAte] = useState("");
+
   const selectedLead = leads.find((l) => l.lead_id === selectedId) ?? null;
+
+  // Leads filtrados por origem e data
+  const leadsFiltrados = leads.filter((l) => {
+    const isPago = !!(l.gclid || l.ad_id || l.ctwa_clid);
+    if (filtroOrigem === "pago"     && !isPago) return false;
+    if (filtroOrigem === "organico" &&  isPago) return false;
+    if (filtroDe && l.data_criacao && l.data_criacao < filtroDe) return false;
+    if (filtroAte && l.data_criacao && l.data_criacao > filtroAte + "T23:59:59.999Z") return false;
+    return true;
+  });
+
+  // Etapas visíveis (todas se nenhuma selecionada)
+  const etapasFiltradas = filtroEtapas.size === 0
+    ? etapas
+    : etapas.filter((e) => filtroEtapas.has(e.etapa));
+
+  function toggleEtapa(etapa: string) {
+    setFiltroEtapas((prev) => {
+      const next = new Set(prev);
+      next.has(etapa) ? next.delete(etapa) : next.add(etapa);
+      return next;
+    });
+  }
+
+  const temFiltro = filtroOrigem !== "todos" || filtroEtapas.size > 0 || filtroDe || filtroAte;
+
+  function limparFiltros() {
+    setFiltroOrigem("todos");
+    setFiltroEtapas(new Set());
+    setFiltroDe("");
+    setFiltroAte("");
+  }
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -89,15 +118,92 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
 
   return (
     <>
-      {/* Kanban columns */}
+      {/* ── Barra de filtros ─────────────────────────────────────────────── */}
+      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-3">
+
+        {/* Origem */}
+        <div className="flex items-center gap-1 rounded-lg border border-neutral-200 bg-white p-1">
+          {(["todos", "pago", "organico"] as FiltroOrigem[]).map((v) => (
+            <button
+              key={v}
+              onClick={() => setFiltroOrigem(v)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                filtroOrigem === v
+                  ? "bg-neutral-900 text-white"
+                  : "text-neutral-500 hover:text-neutral-800"
+              }`}
+            >
+              {v === "todos" ? "Todos" : v === "pago" ? "Tráfego pago" : "Orgânico"}
+            </button>
+          ))}
+        </div>
+
+        {/* Etapas */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-neutral-400">Etapas:</span>
+          <div className="flex flex-wrap gap-1">
+            {etapas.map((e) => {
+              const ativo = filtroEtapas.has(e.etapa);
+              const cores = etapaCores(e.etapa);
+              return (
+                <button
+                  key={e.etapa}
+                  onClick={() => toggleEtapa(e.etapa)}
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                    ativo ? cores.header + " ring-1 ring-inset ring-current/20" : "bg-neutral-100 text-neutral-400 hover:text-neutral-600"
+                  }`}
+                >
+                  {e.etapaLabel}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Datas */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-neutral-400">De:</span>
+          <input
+            type="date"
+            value={filtroDe}
+            onChange={(e) => setFiltroDe(e.target.value)}
+            className="rounded-lg border border-neutral-200 px-2 py-1 text-xs text-neutral-700 outline-none focus:border-neutral-400"
+          />
+          <span className="text-xs text-neutral-400">até</span>
+          <input
+            type="date"
+            value={filtroAte}
+            onChange={(e) => setFiltroAte(e.target.value)}
+            className="rounded-lg border border-neutral-200 px-2 py-1 text-xs text-neutral-700 outline-none focus:border-neutral-400"
+          />
+        </div>
+
+        {/* Limpar */}
+        {temFiltro && (
+          <button
+            onClick={limparFiltros}
+            className="text-xs text-neutral-400 underline hover:text-neutral-700"
+          >
+            Limpar filtros
+          </button>
+        )}
+
+        {/* Contagem filtrada */}
+        {temFiltro && (
+          <span className="ml-auto text-xs text-neutral-400">
+            {leadsFiltrados.length} de {leads.length} leads
+          </span>
+        )}
+      </div>
+
+      {/* ── Colunas do Kanban ─────────────────────────────────────────────── */}
       <div className="flex h-full gap-3 overflow-x-auto pb-4">
-        {etapas.map((etapa) => {
-          const leadsEtapa = leads.filter((l) => l.fase === etapa.etapaLabel);
+        {etapasFiltradas.map((etapa) => {
+          const leadsEtapa = leadsFiltrados.filter((l) => l.fase === etapa.etapaLabel);
           const cores = etapaCores(etapa.etapa);
 
           return (
             <div key={etapa.etapa} className="flex w-64 shrink-0 flex-col gap-2">
-              {/* Cabeçalho da coluna */}
               <div className={`flex items-center justify-between rounded-lg px-3 py-2 ${cores.header}`}>
                 <span className="text-xs font-semibold">{etapa.etapaLabel}</span>
                 <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${cores.count}`}>
@@ -105,8 +211,7 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
                 </span>
               </div>
 
-              {/* Cards */}
-              <div className="flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: "calc(100vh - 200px)" }}>
+              <div className="flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: "calc(100vh - 260px)" }}>
                 {leadsEtapa.map((lead) => (
                   <LeadCard
                     key={lead.lead_id}
