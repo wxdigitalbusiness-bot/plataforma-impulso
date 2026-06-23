@@ -94,8 +94,15 @@ export function parseEvolutionWebhook(body: any): MensagemParsed | null {
   const ctwaClid: string | null = externalAdReply?.ctwaClid ?? null;
   const sourceApp: string | null = externalAdReply?.sourceApp ?? null;
 
-  // Atribuição Google: extrai código GG-xxxxxx da mensagem (landing page redirect)
-  const googleCodeNorm: string | null = conteudo?.match(/GG-[a-z0-9]+/i)?.[0]?.toLowerCase() ?? null;
+  // Atribuição Google: suporta "GG-xxxxxx" (legado) e "Protocolo: xxxxxx" (novo)
+  // O código no banco é sempre "GG-" + lowercase (ex: GG-8ya6dt) — preservamos esse formato.
+  let googleCodeNorm: string | null = null;
+  if (conteudo) {
+    const legado   = conteudo.match(/GG-([a-z0-9]+)/i);
+    const protocolo = conteudo.match(/Protocolo:\s*([a-z0-9]+)/i);
+    const raw = legado?.[1] ?? protocolo?.[1] ?? null;
+    if (raw) googleCodeNorm = `GG-${raw.toLowerCase()}`;
+  }
 
   return {
     instance,

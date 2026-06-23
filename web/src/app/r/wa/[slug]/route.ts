@@ -68,7 +68,9 @@ export async function GET(
   `;
 
   const template = cliente.waMessageTemplate?.trim() || "Olá!";
-  const msgText = encodeURIComponent(`${template} ${code}`);
+  // O código de rastreamento aparece como "Protocolo" — natural para o lead, reconhecível pelo webhook
+  const protocolo = code.replace("GG-", "");
+  const msgText = encodeURIComponent(`${template}\n\nProtocolo: ${protocolo}`);
   return NextResponse.redirect(`https://wa.me/${cliente.waNumero}?text=${msgText}`, {
     status: 302,
   });
