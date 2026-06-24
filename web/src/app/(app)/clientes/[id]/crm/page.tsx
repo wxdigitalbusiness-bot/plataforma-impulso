@@ -13,6 +13,11 @@ type LeadRow = {
   lead_whatsapp: string;
   fase: string;
   source_app: string | null;
+  ad_id: string | null;
+  ctwa_clid: string | null;
+  gclid: string | null;
+  utm_source: string | null;
+  data_criacao: Date;
   ultima_msg: string | null;
   ultima_msg_tipo: string | null;
   ultima_msg_em: Date | null;
@@ -53,6 +58,11 @@ export default async function CrmPage({ params }: Props) {
           fl.lead_whatsapp,
           fl.fase,
           fl.source_app,
+          fl.ad_id,
+          fl.ctwa_clid,
+          fl.gclid,
+          fl.utm_source,
+          fl.data_criacao,
           m.conteudo     AS ultima_msg,
           m.tipo         AS ultima_msg_tipo,
           m.recebida_em  AS ultima_msg_em
@@ -73,6 +83,7 @@ export default async function CrmPage({ params }: Props) {
   // Serializa datas para passar ao componente cliente
   const leads = leadsRaw.map((l) => ({
     ...l,
+    data_criacao: l.data_criacao ? new Date(l.data_criacao).toISOString() : null,
     ultima_msg_em: l.ultima_msg_em ? l.ultima_msg_em.toISOString() : null,
   }));
 

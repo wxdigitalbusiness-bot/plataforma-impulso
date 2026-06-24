@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 export type LeadUpsertInput = {
   phone: string;         // somente dígitos, ex: "556384823503"
   clientKey: string;
+  clientName: string;    // nome do cliente (coluna client_name NOT NULL na tabela)
   pushName: string | null;
   adId: string | null;
   ctwaClid: string | null;
@@ -21,19 +22,20 @@ export type LeadUpsertResult = {
 };
 
 export async function upsertCrmLead(input: LeadUpsertInput): Promise<LeadUpsertResult> {
-  const { phone, clientKey, pushName, adId, ctwaClid, sourceApp, recebidaEm } = input;
+  const { phone, clientKey, clientName, pushName, adId, ctwaClid, sourceApp, recebidaEm } = input;
 
   // Usa o telefone como lead_id (padrão já adotado nos workflows n8n)
   const leadId = phone;
 
   await db.$executeRaw`
     INSERT INTO fb_leads (
-      lead_id, client_key, lead_nome, lead_whatsapp,
+      lead_id, client_key, client_name, lead_nome, lead_whatsapp,
       ad_id, ctwa_clid, source_app,
       data_criacao, fase
     ) VALUES (
       ${leadId},
       ${clientKey},
+      ${clientName},
       ${pushName ?? ""},
       ${phone},
       ${adId},

@@ -1,11 +1,16 @@
 "use client";
 
-type Lead = {
+export type Lead = {
   lead_id: string;
   lead_nome: string;
   lead_whatsapp: string;
   fase: string;
   source_app: string | null;
+  ad_id: string | null;
+  ctwa_clid: string | null;
+  gclid: string | null;
+  utm_source: string | null;
+  data_criacao: string | null;
   ultima_msg: string | null;
   ultima_msg_tipo: string | null;
   ultima_msg_em: string | null;
@@ -29,19 +34,70 @@ function tempoRelativo(isoStr: string | null): string {
   return `${d}d`;
 }
 
-function previewMsg(tipo: string | null, conteudo: string | null): string {
-  if (!tipo) return "Sem mensagens";
+function previewMsg(tipo: string | null, conteudo: string | null): string | null {
+  if (!tipo) return null;
   if (tipo === "audio") return "🎵 Áudio";
   if (tipo === "image") return conteudo ? `📷 ${conteudo}` : "📷 Foto";
   if (tipo === "video") return conteudo ? `🎬 ${conteudo}` : "🎬 Vídeo";
   if (tipo === "document") return `📎 ${conteudo ?? "Documento"}`;
   if (tipo === "sticker") return "🎭 Sticker";
-  return conteudo ?? "Sem mensagens";
+  return conteudo ?? null;
+}
+
+function dataRelativa(isoStr: string | null): string {
+  if (!isoStr) return "";
+  return new Date(isoStr).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function OrigemBadge({ lead }: { lead: Lead }) {
+  const temGoogle = !!lead.gclid;
+  const temMeta   = !!(lead.ad_id || lead.ctwa_clid);
+  const isIG      = lead.source_app === "instagram";
+  const isFB      = lead.source_app === "facebook" || (temMeta && !isIG);
+  const isSite    = lead.utm_source === "site" && !temGoogle && !temMeta && !isIG;
+
+  if (temGoogle) {
+    return (
+      <span title="Google Ads" className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-600 ring-1 ring-blue-100">
+        G
+      </span>
+    );
+  }
+  if (isIG) {
+    return (
+      <span title="Instagram" className="inline-flex items-center rounded-full bg-pink-50 px-1.5 py-0.5 text-[9px] font-bold text-pink-500 ring-1 ring-pink-100">
+        IG
+      </span>
+    );
+  }
+  if (isFB) {
+    return (
+      <span title="Facebook" className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-500 ring-1 ring-blue-100">
+        FB
+      </span>
+    );
+  }
+  if (isSite) {
+    return (
+      <span title="Site" className="inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 ring-1 ring-emerald-100">
+        WWW
+      </span>
+    );
+  }
+  // Orgânico (WhatsApp direto)
+  return (
+    <span title="Orgânico" className="inline-flex items-center">
+      <svg className="h-3 w-3 text-neutral-300" fill="currentColor" viewBox="0 0 20 20">
+        <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+      </svg>
+    </span>
+  );
 }
 
 export function LeadCard({ lead, isSelected, onClick }: Props) {
   const preview = previewMsg(lead.ultima_msg_tipo, lead.ultima_msg);
   const tempo = tempoRelativo(lead.ultima_msg_em);
+  const dataCriacao = dataRelativa(lead.data_criacao);
 
   return (
     <button
@@ -63,20 +119,12 @@ export function LeadCard({ lead, isSelected, onClick }: Props) {
           {tempo && (
             <span className="text-[10px] text-neutral-400">{tempo}</span>
           )}
-          {lead.source_app && (
-            <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide ${
-              lead.source_app === "instagram"
-                ? "bg-pink-50 text-pink-500"
-                : "bg-blue-50 text-blue-500"
-            }`}>
-              {lead.source_app === "instagram" ? "IG" : "FB"}
-            </span>
-          )}
+          <OrigemBadge lead={lead} />
         </div>
       </div>
-      {preview && (
-        <p className="mt-1.5 truncate text-[11px] text-neutral-500">{preview}</p>
-      )}
+      <p className="mt-1.5 truncate text-[11px] text-neutral-500">
+        {preview ?? `Entrou em ${dataCriacao}`}
+      </p>
     </button>
   );
 }

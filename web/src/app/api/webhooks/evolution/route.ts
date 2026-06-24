@@ -8,12 +8,9 @@ import { parseEvolutionWebhook } from "@/lib/evolution-webhook";
 import { upsertCrmLead } from "@/lib/crm-lead";
 import { db } from "@/lib/db";
 
-// Token de segurança opcional — configure EVOLUTION_WEBHOOK_SECRET no .env
-// e adicione ?secret=<valor> na URL do webhook na Evolution API.
 const WEBHOOK_SECRET = process.env.EVOLUTION_WEBHOOK_SECRET;
 
 export async function POST(req: NextRequest) {
-  // Verificação de secret (se configurado)
   if (WEBHOOK_SECRET) {
     const secret = req.nextUrl.searchParams.get("secret");
     if (secret !== WEBHOOK_SECRET) {
@@ -30,7 +27,6 @@ export async function POST(req: NextRequest) {
   }
 
   const parsed = parseEvolutionWebhook(body);
-  // Evento ignorado (não é messages.upsert ou é mensagem própria)
   if (!parsed) {
     return NextResponse.json({ ok: true, skipped: true });
   }
@@ -38,20 +34,41 @@ export async function POST(req: NextRequest) {
   // Localiza o cliente pela instância Evolution
   const cliente = await db.cliente.findUnique({
     where: { evolutionInstance: parsed.instance },
-    select: { id: true, n8nClientKey: true },
+    select: { id: true, nome: true, n8nClientKey: true },
   });
 
   if (!cliente?.n8nClientKey) {
-    // Instância não mapeada a nenhum cliente — ignora silenciosamente
     return NextResponse.json({ ok: true, skipped: true, reason: "instance_not_mapped" });
   }
 
   const clientKey = cliente.n8nClientKey;
+  const leadId = parsed.phone;
 
-  // Upsert do lead em fb_leads
-  const { leadId } = await upsertCrmLead({
+  // Mensagens enviadas pelo negócio (fromMe): grava como 'atendente', sem criar lead
+  if (parsed.fromMe) {
+    await db.$executeRaw`
+      INSERT INTO crm_mensagens (
+        lead_id, client_key, de, tipo, conteudo, media_url, evolution_msg_id, recebida_em
+      ) VALUES (
+        ${leadId},
+        ${clientKey},
+        'atendente',
+        ${parsed.tipo},
+        ${parsed.conteudo},
+        ${parsed.mediaUrl},
+        ${parsed.evolutionMsgId},
+        ${parsed.recebidaEm}
+      )
+      ON CONFLICT (evolution_msg_id) DO NOTHING
+    `;
+    return NextResponse.json({ ok: true, fromMe: true });
+  }
+
+  // Mensagem do lead: upsert do lead + grava mensagem + atribuição Google
+  const { leadId: upsertedId } = await upsertCrmLead({
     phone: parsed.phone,
     clientKey,
+    clientName: cliente.nome,
     pushName: parsed.pushName,
     adId: parsed.adId,
     ctwaClid: parsed.ctwaClid,
@@ -59,12 +76,11 @@ export async function POST(req: NextRequest) {
     recebidaEm: parsed.recebidaEm,
   });
 
-  // Insere mensagem em crm_mensagens (ON CONFLICT DO NOTHING evita duplicatas)
   await db.$executeRaw`
     INSERT INTO crm_mensagens (
       lead_id, client_key, de, tipo, conteudo, media_url, evolution_msg_id, recebida_em
     ) VALUES (
-      ${leadId},
+      ${upsertedId},
       ${clientKey},
       'lead',
       ${parsed.tipo},
@@ -76,26 +92,38 @@ export async function POST(req: NextRequest) {
     ON CONFLICT (evolution_msg_id) DO NOTHING
   `;
 
-  // Vincula atribuição Google se a mensagem contiver código GG-xxxxxx
-  if (parsed.googleCode) {
-    await db.$executeRaw`
-      UPDATE google_attribution
-      SET lead_id = ${leadId}, vinculado_em = NOW()
-      WHERE code = ${parsed.googleCode} AND lead_id IS NULL
-    `;
-    // Copia gclid/wbraid/gbraid para o lead (primeira ocorrência vence)
+  // Atribuição Google por janela de 30 min
+  const atribuido = await db.$executeRaw`
+    UPDATE google_attribution
+    SET lead_id = ${upsertedId}, vinculado_em = NOW()
+    WHERE id = (
+      SELECT id FROM google_attribution
+      WHERE client_key = ${clientKey}
+        AND lead_id IS NULL
+        AND criado_em > NOW() - INTERVAL '30 minutes'
+      ORDER BY criado_em DESC
+      LIMIT 1
+    )
+  `;
+  if (atribuido) {
     await db.$executeRaw`
       UPDATE fb_leads fl
       SET
-        google_code = COALESCE(fl.google_code, ga.code),
-        gclid       = COALESCE(fl.gclid,       ga.gclid),
-        wbraid      = COALESCE(fl.wbraid,      ga.wbraid),
-        gbraid      = COALESCE(fl.gbraid,      ga.gbraid)
+        google_code  = COALESCE(fl.google_code,  ga.code),
+        gclid        = COALESCE(fl.gclid,        ga.gclid),
+        wbraid       = COALESCE(fl.wbraid,       ga.wbraid),
+        gbraid       = COALESCE(fl.gbraid,       ga.gbraid),
+        utm_source   = COALESCE(fl.utm_source,   ga.utm_source),
+        utm_campaign = COALESCE(fl.utm_campaign, ga.utm_campaign),
+        utm_medium   = COALESCE(fl.utm_medium,   ga.utm_medium),
+        utm_term     = COALESCE(fl.utm_term,     ga.utm_term),
+        utm_content  = COALESCE(fl.utm_content,  ga.utm_content)
       FROM google_attribution ga
-      WHERE ga.code = ${parsed.googleCode}
-        AND fl.lead_id = ${leadId}
+      WHERE ga.lead_id = ${upsertedId}
+        AND ga.client_key = ${clientKey}
+        AND fl.lead_id = ${upsertedId}
     `;
   }
 
-  return NextResponse.json({ ok: true, leadId, clientKey });
+  return NextResponse.json({ ok: true, leadId: upsertedId, clientKey });
 }

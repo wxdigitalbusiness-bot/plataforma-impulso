@@ -13,7 +13,7 @@ function buildSnippet(slug: string, origin: string) {
   if(g)q='gclid='+g;
   if(w)q+=(q?'&':'')+'wbraid='+w;
   if(b)q+=(q?'&':'')+'gbraid='+b;
-  document.querySelectorAll('a[href*="wa.me"],a[href*="whatsapp"],a[href*="/r/wa/"]').forEach(function(el){
+  document.querySelectorAll('a[href*="wa.me"],a[href*="whatsapp"]').forEach(function(el){
     el.href='${origin}/r/wa/${slug}?'+q;
   });
 })();
@@ -42,14 +42,9 @@ function CopyButton({ text, label = "Copiar" }: { text: string; label?: string }
 }
 
 export function RastreamentoSnippet({ slug }: { slug: string }) {
-  const [origin, setOrigin] = useState("");
-
-  useEffect(() => {
-    setOrigin(window.location.origin);
-  }, []);
-
-  const link = origin ? `${origin}/r/wa/${slug}` : `/r/wa/${slug}`;
-  const snippet = buildSnippet(slug, origin || "https://plataforma.marketingimpulso.com");
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const link = `${origin}/r/wa/${slug}`;
+  const snippet = buildSnippet(slug, origin);
 
   return (
     <div className="space-y-4 pt-2">
