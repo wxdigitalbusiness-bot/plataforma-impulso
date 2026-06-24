@@ -10,6 +10,7 @@ export type Lead = {
   ctwa_clid: string | null;
   gclid: string | null;
   utm_source: string | null;
+  webhook_origem: string | null;
   data_criacao: string | null;
   ultima_msg: string | null;
   ultima_msg_tipo: string | null;
@@ -84,12 +85,26 @@ function OrigemBadge({ lead }: { lead: Lead }) {
       </span>
     );
   }
-  // Orgânico (WhatsApp direto)
   return (
     <span title="Orgânico" className="inline-flex items-center">
       <svg className="h-3 w-3 text-neutral-300" fill="currentColor" viewBox="0 0 20 20">
         <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
       </svg>
+    </span>
+  );
+}
+
+function WebhookBadge({ origem }: { origem: string | null }) {
+  if (origem === "plataforma") {
+    return (
+      <span title="Recebido pela plataforma Impulso" className="inline-flex items-center rounded-full bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold text-teal-600 ring-1 ring-teal-100">
+        P
+      </span>
+    );
+  }
+  return (
+    <span title="Recebido via n8n (legado)" className="inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-600 ring-1 ring-amber-100">
+      N8N
     </span>
   );
 }
@@ -119,7 +134,10 @@ export function LeadCard({ lead, isSelected, onClick }: Props) {
           {tempo && (
             <span className="text-[10px] text-neutral-400">{tempo}</span>
           )}
-          <OrigemBadge lead={lead} />
+          <div className="flex items-center gap-1">
+            <WebhookBadge origem={lead.webhook_origem} />
+            <OrigemBadge lead={lead} />
+          </div>
         </div>
       </div>
       <p className="mt-1.5 truncate text-[11px] text-neutral-500">

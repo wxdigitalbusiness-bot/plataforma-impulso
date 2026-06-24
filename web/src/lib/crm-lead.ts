@@ -31,7 +31,7 @@ export async function upsertCrmLead(input: LeadUpsertInput): Promise<LeadUpsertR
     INSERT INTO fb_leads (
       lead_id, client_key, client_name, lead_nome, lead_whatsapp,
       ad_id, ctwa_clid, source_app,
-      data_criacao, fase
+      data_criacao, fase, webhook_origem
     ) VALUES (
       ${leadId},
       ${clientKey},
@@ -42,19 +42,22 @@ export async function upsertCrmLead(input: LeadUpsertInput): Promise<LeadUpsertR
       ${ctwaClid},
       ${sourceApp},
       ${recebidaEm.toISOString().split("T")[0]},
-      'Novo Lead'
+      'Novo Lead',
+      'plataforma'
     )
     ON CONFLICT (lead_id) DO UPDATE SET
       -- Atualiza nome se estava vazio
-      lead_nome    = CASE
+      lead_nome      = CASE
         WHEN TRIM(COALESCE(fb_leads.lead_nome, '')) = '' AND ${pushName} IS NOT NULL
         THEN ${pushName}
         ELSE fb_leads.lead_nome
       END,
       -- Atualiza atribuição CTWA só se ainda não tinha (preserva o primeiro clique)
-      ctwa_clid    = COALESCE(fb_leads.ctwa_clid,  ${ctwaClid}),
-      ad_id        = COALESCE(fb_leads.ad_id,       ${adId}),
-      source_app   = COALESCE(fb_leads.source_app,  ${sourceApp})
+      ctwa_clid      = COALESCE(fb_leads.ctwa_clid,  ${ctwaClid}),
+      ad_id          = COALESCE(fb_leads.ad_id,       ${adId}),
+      source_app     = COALESCE(fb_leads.source_app,  ${sourceApp}),
+      -- Marca como plataforma na primeira vez que passar pelo nosso webhook
+      webhook_origem = COALESCE(fb_leads.webhook_origem, 'plataforma')
   `;
 
   // Verifica se já existia antes do upsert para retornar isNew correto

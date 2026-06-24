@@ -14,6 +14,7 @@ type LeadRow = {
   gclid: string | null;
   source_app: string | null;
   utm_source: string | null;
+  webhook_origem: string | null;
   data_criacao: Date;
   ultima_msg: string | null;
   ultima_msg_tipo: string | null;
@@ -50,6 +51,7 @@ export async function GET(
       fl.gclid,
       fl.source_app,
       fl.utm_source,
+      fl.webhook_origem,
       fl.data_criacao,
       m.conteudo   AS ultima_msg,
       m.tipo       AS ultima_msg_tipo,

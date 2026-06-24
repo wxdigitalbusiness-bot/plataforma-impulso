@@ -17,6 +17,7 @@ type LeadRow = {
   ctwa_clid: string | null;
   gclid: string | null;
   utm_source: string | null;
+  webhook_origem: string | null;
   data_criacao: Date;
   ultima_msg: string | null;
   ultima_msg_tipo: string | null;
@@ -62,6 +63,7 @@ export default async function CrmPage({ params }: Props) {
           fl.ctwa_clid,
           fl.gclid,
           fl.utm_source,
+          fl.webhook_origem,
           fl.data_criacao,
           m.conteudo     AS ultima_msg,
           m.tipo         AS ultima_msg_tipo,
