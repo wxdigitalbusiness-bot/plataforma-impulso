@@ -43,6 +43,10 @@ export function parseEvolutionWebhook(body: any): MensagemParsed | null {
 
   const fromMe: boolean = key.fromMe === true;
   const remoteJid: string = key.remoteJid ?? "";
+
+  // Ignora mensagens de grupos (@g.us) e broadcasts (@broadcast)
+  if (remoteJid.endsWith("@g.us") || remoteJid.endsWith("@broadcast")) return null;
+
   const phone = remoteJid.replace(/@.*$/, "");
   const instance: string = body.instance ?? "";
   const evolutionMsgId: string = key.id ?? "";

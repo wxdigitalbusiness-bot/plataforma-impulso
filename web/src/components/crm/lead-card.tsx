@@ -34,14 +34,19 @@ function tempoRelativo(isoStr: string | null): string {
   return `${d}d`;
 }
 
-function previewMsg(tipo: string | null, conteudo: string | null): string {
-  if (!tipo) return "Sem mensagens";
+function previewMsg(tipo: string | null, conteudo: string | null): string | null {
+  if (!tipo) return null;
   if (tipo === "audio") return "🎵 Áudio";
   if (tipo === "image") return conteudo ? `📷 ${conteudo}` : "📷 Foto";
   if (tipo === "video") return conteudo ? `🎬 ${conteudo}` : "🎬 Vídeo";
   if (tipo === "document") return `📎 ${conteudo ?? "Documento"}`;
   if (tipo === "sticker") return "🎭 Sticker";
-  return conteudo ?? "Sem mensagens";
+  return conteudo ?? null;
+}
+
+function dataRelativa(isoStr: string | null): string {
+  if (!isoStr) return "";
+  return new Date(isoStr).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function OrigemBadge({ lead }: { lead: Lead }) {
@@ -92,6 +97,7 @@ function OrigemBadge({ lead }: { lead: Lead }) {
 export function LeadCard({ lead, isSelected, onClick }: Props) {
   const preview = previewMsg(lead.ultima_msg_tipo, lead.ultima_msg);
   const tempo = tempoRelativo(lead.ultima_msg_em);
+  const dataCriacao = dataRelativa(lead.data_criacao);
 
   return (
     <button
@@ -116,9 +122,9 @@ export function LeadCard({ lead, isSelected, onClick }: Props) {
           <OrigemBadge lead={lead} />
         </div>
       </div>
-      {preview && (
-        <p className="mt-1.5 truncate text-[11px] text-neutral-500">{preview}</p>
-      )}
+      <p className="mt-1.5 truncate text-[11px] text-neutral-500">
+        {preview ?? `Entrou em ${dataCriacao}`}
+      </p>
     </button>
   );
 }
