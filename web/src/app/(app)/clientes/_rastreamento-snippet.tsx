@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function buildSnippet(slug: string, origin: string) {
   return `<!-- Rastreamento WhatsApp — CRM Impulso -->
@@ -42,9 +42,14 @@ function CopyButton({ text, label = "Copiar" }: { text: string; label?: string }
 }
 
 export function RastreamentoSnippet({ slug }: { slug: string }) {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const link = `${origin}/r/wa/${slug}`;
-  const snippet = buildSnippet(slug, origin);
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  const link = origin ? `${origin}/r/wa/${slug}` : `/r/wa/${slug}`;
+  const snippet = buildSnippet(slug, origin || "https://plataforma.marketingimpulso.com");
 
   return (
     <div className="space-y-4 pt-2">

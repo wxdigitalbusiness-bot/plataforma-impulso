@@ -29,17 +29,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 200 });
   }
 
+  // DEBUG TEMPORÁRIO — remover após diagnóstico
+  console.log("[evo-webhook] body recebido:", JSON.stringify(body).slice(0, 500));
+
   const parsed = parseEvolutionWebhook(body);
   // Evento ignorado (não é messages.upsert ou é mensagem própria)
   if (!parsed) {
+    console.log("[evo-webhook] ignorado — event:", body?.event, "fromMe:", body?.data?.key?.fromMe);
     return NextResponse.json({ ok: true, skipped: true });
   }
+
+  console.log("[evo-webhook] parsed — instance:", parsed.instance, "phone:", parsed.phone);
 
   // Localiza o cliente pela instância Evolution
   const cliente = await db.cliente.findUnique({
     where: { evolutionInstance: parsed.instance },
     select: { id: true, n8nClientKey: true },
   });
+
+  console.log("[evo-webhook] cliente encontrado:", cliente ? `id=${cliente.id} key=${cliente.n8nClientKey}` : "NÃO ENCONTRADO para instância: " + parsed.instance);
 
   if (!cliente?.n8nClientKey) {
     // Instância não mapeada a nenhum cliente — ignora silenciosamente
