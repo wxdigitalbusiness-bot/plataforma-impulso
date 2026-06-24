@@ -109,11 +109,15 @@ export async function POST(req: NextRequest) {
     await db.$executeRaw`
       UPDATE fb_leads fl
       SET
-        google_code = COALESCE(fl.google_code, ga.code),
-        gclid       = COALESCE(fl.gclid,       ga.gclid),
-        wbraid      = COALESCE(fl.wbraid,      ga.wbraid),
-        gbraid      = COALESCE(fl.gbraid,      ga.gbraid),
-        utm_source  = COALESCE(fl.utm_source,  ga.utm_source)
+        google_code  = COALESCE(fl.google_code,  ga.code),
+        gclid        = COALESCE(fl.gclid,        ga.gclid),
+        wbraid       = COALESCE(fl.wbraid,       ga.wbraid),
+        gbraid       = COALESCE(fl.gbraid,       ga.gbraid),
+        utm_source   = COALESCE(fl.utm_source,   ga.utm_source),
+        utm_campaign = COALESCE(fl.utm_campaign, ga.utm_campaign),
+        utm_medium   = COALESCE(fl.utm_medium,   ga.utm_medium),
+        utm_term     = COALESCE(fl.utm_term,     ga.utm_term),
+        utm_content  = COALESCE(fl.utm_content,  ga.utm_content)
       FROM google_attribution ga
       WHERE ga.lead_id = ${upsertedId}
         AND ga.client_key = ${clientKey}
