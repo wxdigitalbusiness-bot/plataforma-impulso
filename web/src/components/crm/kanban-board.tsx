@@ -8,6 +8,7 @@ import { ConversaPanel } from "./conversa-panel";
 type Etapa = { etapa: string; etapaLabel: string };
 type Props = { clienteId: number; etapas: Etapa[]; initialLeads: Lead[] };
 type FiltroOrigem = "todos" | "pago" | "organico";
+type FiltroWebhook = "todos" | "plataforma" | "n8n";
 type DateRange = { de: string; ate: string; label: string } | null;
 
 // ── Cores por etapa ────────────────────────────────────────────────────────
@@ -333,40 +334,68 @@ function DataDropdown({
 
 // ── Dropdown Mais Filtros ──────────────────────────────────────────────────
 function MaisFiltrosDropdown({
-  origem, onOrigemChange, open, onOpenToggle,
+  origem, onOrigemChange,
+  webhook, onWebhookChange,
+  open, onOpenToggle,
 }: {
   origem: FiltroOrigem;
   onOrigemChange: (v: FiltroOrigem) => void;
+  webhook: FiltroWebhook;
+  onWebhookChange: (v: FiltroWebhook) => void;
   open: boolean;
   onOpenToggle: () => void;
 }) {
-  const sublabel =
-    origem === "todos" ? "Mais filtros"
-    : origem === "pago" ? "Tráfego pago"
-    : "Orgânico";
+  const active = origem !== "todos" || webhook !== "todos";
+  const sublabel = webhook !== "todos"
+    ? (webhook === "plataforma" ? "Via Plataforma" : "Via n8n")
+    : origem !== "todos"
+      ? (origem === "pago" ? "Tráfego pago" : "Orgânico")
+      : "Mais filtros";
 
   return (
     <FilterDropdown
       label="Outros"
       sublabel={sublabel}
-      active={origem !== "todos"}
+      active={active}
       open={open}
       onToggle={onOpenToggle}
     >
-      <div className="min-w-[180px] p-2">
+      <div className="min-w-[200px] p-2">
         <p className="mb-1 px-3 pt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
-          Origem
+          Mídia
         </p>
         {([ ["todos","Todos"], ["pago","Tráfego pago"], ["organico","Orgânico"] ] as [FiltroOrigem, string][]).map(([v, label]) => (
           <button
             key={v}
-            onClick={() => { onOrigemChange(v); onOpenToggle(); }}
+            onClick={() => { onOrigemChange(v); }}
             className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm ${
               origem === v
                 ? "bg-neutral-100 font-medium text-neutral-900"
                 : "text-neutral-600 hover:bg-neutral-50"
             }`}
           >
+            {label}
+          </button>
+        ))}
+
+        <div className="my-2 border-t border-neutral-100" />
+
+        <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+          Recebido via
+        </p>
+        {([ ["todos","Todos"], ["plataforma","Plataforma Impulso"], ["n8n","n8n (legado)"] ] as [FiltroWebhook, string][]).map(([v, label]) => (
+          <button
+            key={v}
+            onClick={() => { onWebhookChange(v); }}
+            className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm ${
+              webhook === v
+                ? "bg-neutral-100 font-medium text-neutral-900"
+                : "text-neutral-600 hover:bg-neutral-50"
+            }`}
+          >
+            <span className={`h-2 w-2 shrink-0 rounded-full ${
+              v === "plataforma" ? "bg-teal-500" : v === "n8n" ? "bg-amber-400" : "bg-neutral-300"
+            }`} />
             {label}
           </button>
         ))}
@@ -409,10 +438,11 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
   }
 
   // Filtros
-  const [filtroEtapas, setFiltroEtapas]   = useState<Set<string>>(new Set());
-  const [filtroData, setFiltroData]        = useState<DateRange>(null);
-  const [filtroOrigem, setFiltroOrigem]    = useState<FiltroOrigem>("todos");
-  const [busca, setBusca]                  = useState("");
+  const [filtroEtapas, setFiltroEtapas]     = useState<Set<string>>(new Set());
+  const [filtroData, setFiltroData]          = useState<DateRange>(null);
+  const [filtroOrigem, setFiltroOrigem]      = useState<FiltroOrigem>("todos");
+  const [filtroWebhook, setFiltroWebhook]    = useState<FiltroWebhook>("todos");
+  const [busca, setBusca]                    = useState("");
 
   // Qual dropdown está aberto
   const [dropdownAberto, setDropdownAberto] = useState<"etapa" | "data" | "mais" | null>(null);
@@ -428,6 +458,9 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
     const isPago = !!(l.gclid || l.ad_id || l.ctwa_clid);
     if (filtroOrigem === "pago"     && !isPago) return false;
     if (filtroOrigem === "organico" &&  isPago) return false;
+
+    if (filtroWebhook === "plataforma" && l.webhook_origem !== "plataforma") return false;
+    if (filtroWebhook === "n8n"        && l.webhook_origem === "plataforma") return false;
 
     if (filtroData && l.data_criacao) {
       const dataLocal = toLocalDate(l.data_criacao);
@@ -450,12 +483,17 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
     ? etapas
     : etapas.filter((e) => filtroEtapas.has(e.etapa));
 
-  const temFiltro = filtroEtapas.size > 0 || !!filtroData || filtroOrigem !== "todos" || !!busca;
+  // Totais por webhook (sem aplicar filtro de webhook para mostrar o panorama completo)
+  const totalPlataforma = leads.filter((l) => l.webhook_origem === "plataforma").length;
+  const totalN8n        = leads.filter((l) => l.webhook_origem !== "plataforma").length;
+
+  const temFiltro = filtroEtapas.size > 0 || !!filtroData || filtroOrigem !== "todos" || filtroWebhook !== "todos" || !!busca;
 
   function limparFiltros() {
     setFiltroEtapas(new Set());
     setFiltroData(null);
     setFiltroOrigem("todos");
+    setFiltroWebhook("todos");
     setBusca("");
   }
 
@@ -531,6 +569,8 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
         <MaisFiltrosDropdown
           origem={filtroOrigem}
           onOrigemChange={setFiltroOrigem}
+          webhook={filtroWebhook}
+          onWebhookChange={setFiltroWebhook}
           open={dropdownAberto === "mais"}
           onOpenToggle={() => toggleDropdown("mais")}
         />
@@ -545,15 +585,33 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
           </button>
         )}
 
-        {/* Espaço + contagem */}
+        {/* Contagem com filtro ativo */}
         {temFiltro && (
           <span className="text-xs text-neutral-400">
             {leadsFiltrados.length}/{leads.length} leads
           </span>
         )}
 
-        {/* Busca — lado direito */}
-        <div className="ml-auto flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 focus-within:border-neutral-400">
+        {/* Resumo de origem dos webhooks — sempre visível */}
+        <div className="ml-auto flex items-center gap-3 text-[11px] text-neutral-500">
+          <button
+            onClick={() => setFiltroWebhook(filtroWebhook === "plataforma" ? "todos" : "plataforma")}
+            className={`flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors ${filtroWebhook === "plataforma" ? "bg-teal-100 text-teal-700 font-medium" : "hover:bg-neutral-100"}`}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
+            {totalPlataforma} Plataforma
+          </button>
+          <button
+            onClick={() => setFiltroWebhook(filtroWebhook === "n8n" ? "todos" : "n8n")}
+            className={`flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors ${filtroWebhook === "n8n" ? "bg-amber-100 text-amber-700 font-medium" : "hover:bg-neutral-100"}`}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+            {totalN8n} n8n
+          </button>
+        </div>
+
+        {/* Busca */}
+        <div className="flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 focus-within:border-neutral-400">
           <svg className="h-3.5 w-3.5 shrink-0 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1111 17a6 6 0 016-6z" />
           </svg>
