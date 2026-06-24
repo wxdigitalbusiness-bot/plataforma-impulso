@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   // Localiza o cliente pela instância Evolution
   const cliente = await db.cliente.findUnique({
     where: { evolutionInstance: parsed.instance },
-    select: { id: true, n8nClientKey: true },
+    select: { id: true, nome: true, n8nClientKey: true },
   });
 
   console.log("[evo-webhook] cliente encontrado:", cliente ? `id=${cliente.id} key=${cliente.n8nClientKey}` : "NÃO ENCONTRADO para instância: " + parsed.instance);
@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
   const { leadId } = await upsertCrmLead({
     phone: parsed.phone,
     clientKey,
+    clientName: cliente.nome,
     pushName: parsed.pushName,
     adId: parsed.adId,
     ctwaClid: parsed.ctwaClid,
