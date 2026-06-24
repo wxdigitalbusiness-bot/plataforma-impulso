@@ -34,11 +34,20 @@ export async function POST(req: NextRequest) {
   // Localiza o cliente pela instância Evolution
   const cliente = await db.cliente.findUnique({
     where: { evolutionInstance: parsed.instance },
-    select: { id: true, nome: true, n8nClientKey: true },
+    select: { id: true, nome: true, n8nClientKey: true, n8nWebhookForwardUrl: true },
   });
 
   if (!cliente?.n8nClientKey) {
     return NextResponse.json({ ok: true, skipped: true, reason: "instance_not_mapped" });
+  }
+
+  // Encaminha para o n8n (fire-and-forget) para manter fluxos legados funcionando
+  if (cliente.n8nWebhookForwardUrl) {
+    fetch(cliente.n8nWebhookForwardUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).catch(() => {});
   }
 
   const clientKey = cliente.n8nClientKey;

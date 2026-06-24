@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { ClienteForm, type ClienteFormData } from "../../_cliente-form";
 import { atualizarCliente, excluirCliente } from "../../_cliente-actions";
 import { CrmWebhooksSection, type WebhookExistente } from "./_crm-webhooks-section";
+import { EvolutionWebhookConfig } from "./_evolution-webhook-config";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -22,6 +23,7 @@ export default async function EditarClientePage({ params }: Props) {
       },
     },
   });
+
   if (!cliente) notFound();
 
   const webhooks: WebhookExistente[] = cliente.crmWebhooks.map((w) => ({
@@ -90,6 +92,14 @@ export default async function EditarClientePage({ params }: Props) {
           backHref={`/clientes/${cliente.id}`}
         />
       </div>
+
+      {cliente.evolutionInstance && (
+        <EvolutionWebhookConfig
+          clienteId={cliente.id}
+          instanceName={cliente.evolutionInstance}
+          forwardUrl={cliente.n8nWebhookForwardUrl ?? null}
+        />
+      )}
 
       <CrmWebhooksSection
         clienteId={cliente.id}
