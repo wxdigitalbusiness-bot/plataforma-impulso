@@ -23,7 +23,15 @@ function etapaCores(e: string) {
 }
 
 // ── Helpers de data ────────────────────────────────────────────────────────
-function toISO(d: Date) { return d.toISOString().slice(0, 10); }
+// Usa data LOCAL (não UTC) para comparações, evitando deslocamento de fuso (ex: UTC-3)
+function toISO(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+// Converte ISO timestamp do banco (UTC) para data local YYYY-MM-DD
+function toLocalDate(isoStr: string) { return toISO(new Date(isoStr)); }
 
 function getPresetRange(preset: string): DateRange {
   const now = new Date();
@@ -422,8 +430,9 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
     if (filtroOrigem === "organico" &&  isPago) return false;
 
     if (filtroData && l.data_criacao) {
-      if (l.data_criacao.slice(0, 10) < filtroData.de) return false;
-      if (l.data_criacao.slice(0, 10) > filtroData.ate) return false;
+      const dataLocal = toLocalDate(l.data_criacao);
+      if (dataLocal < filtroData.de) return false;
+      if (dataLocal > filtroData.ate) return false;
     }
     if (filtroData && !l.data_criacao) return false;
 
