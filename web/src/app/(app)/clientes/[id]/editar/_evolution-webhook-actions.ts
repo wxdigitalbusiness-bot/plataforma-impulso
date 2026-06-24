@@ -4,6 +4,73 @@ import { db } from "@/lib/db";
 import { evoHeaders, EVOLUTION_API_URL } from "@/lib/whatsapp-sessions";
 import { revalidatePath } from "next/cache";
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function plataformaWebhookUrl(): string | null {
+  const base = process.env.AUTH_URL ?? "";
+  if (!base) return null;
+  const secret = process.env.EVOLUTION_WEBHOOK_SECRET;
+  return secret ? `${base}/api/webhooks/evolution?secret=${secret}` : `${base}/api/webhooks/evolution`;
+}
+
+// ── Criar instância no Evolution + configurar webhook ─────────────────────
+
+export async function criarInstanciaEvolution(
+  clienteId: number,
+  instanceName: string,
+  n8nForwardUrl: string | null
+): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const nome = instanceName.trim();
+  if (!nome) return { ok: false, erro: "Nome da instância é obrigatório." };
+  if (!EVOLUTION_API_URL) return { ok: false, erro: "EVOLUTION_API_URL não configurada." };
+
+  const webhookUrl = plataformaWebhookUrl();
+  if (!webhookUrl) return { ok: false, erro: "AUTH_URL não configurada no ambiente." };
+
+  // 1. Cria a instância
+  const createRes = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
+    method: "POST",
+    headers: { ...evoHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ instanceName: nome, integration: "WHATSAPP-BAILEYS" }),
+  });
+
+  if (!createRes.ok) {
+    const err = await createRes.text().catch(() => String(createRes.status));
+    // Ignora erro de "já existe" e prossegue configurando
+    if (!err.toLowerCase().includes("already") && !err.toLowerCase().includes("exists") && createRes.status !== 409) {
+      return { ok: false, erro: `Erro ao criar instância (${createRes.status}): ${err}` };
+    }
+  }
+
+  // 2. Configura o webhook para a plataforma
+  await fetch(`${EVOLUTION_API_URL}/webhook/set/${encodeURIComponent(nome)}`, {
+    method: "POST",
+    headers: { ...evoHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      url: webhookUrl,
+      webhook_by_events: false,
+      webhook_base64: false,
+      events: ["MESSAGES_UPSERT"],
+    }),
+  }).catch(() => {});
+
+  // 3. Salva no banco
+  const forward = n8nForwardUrl?.trim() || null;
+  await db.$executeRaw`
+    UPDATE clientes
+    SET evolution_instance        = ${nome},
+        n8n_webhook_forward_url   = ${forward},
+        atualizado_em             = NOW()
+    WHERE id = ${clienteId}
+  `;
+
+  revalidatePath(`/clientes/${clienteId}/editar`);
+  revalidatePath(`/clientes/${clienteId}/crm`);
+  return { ok: true };
+}
+
+// ── Configurar webhook de instância existente ─────────────────────────────
+
 type ConfigResult =
   | { ok: true; urlAnterior: string | null; urlNova: string; forwardAtivo: boolean }
   | { ok: false; erro: string };
