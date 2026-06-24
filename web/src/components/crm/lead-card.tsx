@@ -9,6 +9,7 @@ export type Lead = {
   ad_id: string | null;
   ctwa_clid: string | null;
   gclid: string | null;
+  utm_source: string | null;
   data_criacao: string | null;
   ultima_msg: string | null;
   ultima_msg_tipo: string | null;
@@ -48,29 +49,37 @@ function OrigemBadge({ lead }: { lead: Lead }) {
   const temMeta   = !!(lead.ad_id || lead.ctwa_clid);
   const isIG      = lead.source_app === "instagram";
   const isFB      = lead.source_app === "facebook" || (temMeta && !isIG);
+  const isSite    = lead.utm_source === "site" && !temGoogle && !temMeta && !isIG;
 
   if (temGoogle) {
     return (
-      <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-600 ring-1 ring-blue-100">
+      <span title="Google Ads" className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-600 ring-1 ring-blue-100">
         G
       </span>
     );
   }
   if (isIG) {
     return (
-      <span className="inline-flex items-center rounded-full bg-pink-50 px-1.5 py-0.5 text-[9px] font-bold text-pink-500 ring-1 ring-pink-100">
+      <span title="Instagram" className="inline-flex items-center rounded-full bg-pink-50 px-1.5 py-0.5 text-[9px] font-bold text-pink-500 ring-1 ring-pink-100">
         IG
       </span>
     );
   }
   if (isFB) {
     return (
-      <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-500 ring-1 ring-blue-100">
+      <span title="Facebook" className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-500 ring-1 ring-blue-100">
         FB
       </span>
     );
   }
-  // Orgânico
+  if (isSite) {
+    return (
+      <span title="Site" className="inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 ring-1 ring-emerald-100">
+        WWW
+      </span>
+    );
+  }
+  // Orgânico (WhatsApp direto)
   return (
     <span title="Orgânico" className="inline-flex items-center">
       <svg className="h-3 w-3 text-neutral-300" fill="currentColor" viewBox="0 0 20 20">

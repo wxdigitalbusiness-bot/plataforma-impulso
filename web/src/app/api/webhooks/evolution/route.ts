@@ -8,12 +8,9 @@ import { parseEvolutionWebhook } from "@/lib/evolution-webhook";
 import { upsertCrmLead } from "@/lib/crm-lead";
 import { db } from "@/lib/db";
 
-// Token de segurança opcional — configure EVOLUTION_WEBHOOK_SECRET no .env
-// e adicione ?secret=<valor> na URL do webhook na Evolution API.
 const WEBHOOK_SECRET = process.env.EVOLUTION_WEBHOOK_SECRET;
 
 export async function POST(req: NextRequest) {
-  // Verificação de secret (se configurado)
   if (WEBHOOK_SECRET) {
     const secret = req.nextUrl.searchParams.get("secret");
     if (secret !== WEBHOOK_SECRET) {
@@ -29,17 +26,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 200 });
   }
 
-  // DEBUG TEMPORÁRIO — remover após diagnóstico
-  console.log("[evo-webhook] body recebido:", JSON.stringify(body).slice(0, 500));
-
   const parsed = parseEvolutionWebhook(body);
-  // Evento ignorado (não é messages.upsert ou é mensagem própria)
   if (!parsed) {
-    console.log("[evo-webhook] ignorado — event:", body?.event, "fromMe:", body?.data?.key?.fromMe);
     return NextResponse.json({ ok: true, skipped: true });
   }
-
-  console.log("[evo-webhook] parsed — instance:", parsed.instance, "phone:", parsed.phone);
 
   // Localiza o cliente pela instância Evolution
   const cliente = await db.cliente.findUnique({
@@ -47,17 +37,35 @@ export async function POST(req: NextRequest) {
     select: { id: true, nome: true, n8nClientKey: true },
   });
 
-  console.log("[evo-webhook] cliente encontrado:", cliente ? `id=${cliente.id} key=${cliente.n8nClientKey}` : "NÃO ENCONTRADO para instância: " + parsed.instance);
-
   if (!cliente?.n8nClientKey) {
-    // Instância não mapeada a nenhum cliente — ignora silenciosamente
     return NextResponse.json({ ok: true, skipped: true, reason: "instance_not_mapped" });
   }
 
   const clientKey = cliente.n8nClientKey;
+  const leadId = parsed.phone;
 
-  // Upsert do lead em fb_leads
-  const { leadId } = await upsertCrmLead({
+  // Mensagens enviadas pelo negócio (fromMe): grava como 'atendente', sem criar lead
+  if (parsed.fromMe) {
+    await db.$executeRaw`
+      INSERT INTO crm_mensagens (
+        lead_id, client_key, de, tipo, conteudo, media_url, evolution_msg_id, recebida_em
+      ) VALUES (
+        ${leadId},
+        ${clientKey},
+        'atendente',
+        ${parsed.tipo},
+        ${parsed.conteudo},
+        ${parsed.mediaUrl},
+        ${parsed.evolutionMsgId},
+        ${parsed.recebidaEm}
+      )
+      ON CONFLICT (evolution_msg_id) DO NOTHING
+    `;
+    return NextResponse.json({ ok: true, fromMe: true });
+  }
+
+  // Mensagem do lead: upsert do lead + grava mensagem + atribuição Google
+  const { leadId: upsertedId } = await upsertCrmLead({
     phone: parsed.phone,
     clientKey,
     clientName: cliente.nome,
@@ -68,12 +76,11 @@ export async function POST(req: NextRequest) {
     recebidaEm: parsed.recebidaEm,
   });
 
-  // Insere mensagem em crm_mensagens (ON CONFLICT DO NOTHING evita duplicatas)
   await db.$executeRaw`
     INSERT INTO crm_mensagens (
       lead_id, client_key, de, tipo, conteudo, media_url, evolution_msg_id, recebida_em
     ) VALUES (
-      ${leadId},
+      ${upsertedId},
       ${clientKey},
       'lead',
       ${parsed.tipo},
@@ -85,11 +92,10 @@ export async function POST(req: NextRequest) {
     ON CONFLICT (evolution_msg_id) DO NOTHING
   `;
 
-  // Atribuição Google por janela de tempo: vincula o clique mais recente não atribuído
-  // do mesmo cliente nos últimos 30 minutos (mesma lógica usada por ferramentas como Datalitcs).
+  // Atribuição Google por janela de 30 min
   const atribuido = await db.$executeRaw`
     UPDATE google_attribution
-    SET lead_id = ${leadId}, vinculado_em = NOW()
+    SET lead_id = ${upsertedId}, vinculado_em = NOW()
     WHERE id = (
       SELECT id FROM google_attribution
       WHERE client_key = ${clientKey}
@@ -100,20 +106,20 @@ export async function POST(req: NextRequest) {
     )
   `;
   if (atribuido) {
-    // Copia gclid/wbraid/gbraid para o lead (primeira ocorrência vence)
     await db.$executeRaw`
       UPDATE fb_leads fl
       SET
         google_code = COALESCE(fl.google_code, ga.code),
         gclid       = COALESCE(fl.gclid,       ga.gclid),
         wbraid      = COALESCE(fl.wbraid,      ga.wbraid),
-        gbraid      = COALESCE(fl.gbraid,      ga.gbraid)
+        gbraid      = COALESCE(fl.gbraid,      ga.gbraid),
+        utm_source  = COALESCE(fl.utm_source,  ga.utm_source)
       FROM google_attribution ga
-      WHERE ga.lead_id = ${leadId}
+      WHERE ga.lead_id = ${upsertedId}
         AND ga.client_key = ${clientKey}
-        AND fl.lead_id = ${leadId}
+        AND fl.lead_id = ${upsertedId}
     `;
   }
 
-  return NextResponse.json({ ok: true, leadId, clientKey });
+  return NextResponse.json({ ok: true, leadId: upsertedId, clientKey });
 }

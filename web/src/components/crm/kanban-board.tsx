@@ -373,6 +373,33 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [overlay, setOverlay] = useState(false);
 
+  // ── Drag & drop ────────────────────────────────────────────────────────
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [overEtapa, setOverEtapa]   = useState<string | null>(null);
+
+  async function handleDrop(etapa: Etapa) {
+    if (!draggingId) return;
+    const lead = leads.find((l) => l.lead_id === draggingId);
+    setDraggingId(null);
+    setOverEtapa(null);
+    if (!lead || lead.fase === etapa.etapaLabel) return;
+
+    // Optimistic update
+    setLeads((prev) =>
+      prev.map((l) => l.lead_id === draggingId ? { ...l, fase: etapa.etapaLabel } : l)
+    );
+
+    try {
+      await fetch(`/api/crm/${clienteId}/leads/${draggingId}/fase`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fase: etapa.etapa, faseLabel: etapa.etapaLabel }),
+      });
+    } catch {
+      await fetchLeads(); // reverte em caso de erro
+    }
+  }
+
   // Filtros
   const [filtroEtapas, setFiltroEtapas]   = useState<Set<string>>(new Set());
   const [filtroData, setFiltroData]        = useState<DateRange>(null);
@@ -454,6 +481,11 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
 
   function handleFaseChange(leadId: string, _etapa: string, faseLabel: string) {
     setLeads((prev) => prev.map((l) => l.lead_id === leadId ? { ...l, fase: faseLabel } : l));
+  }
+
+  function handleDelete(leadId: string) {
+    setLeads((prev) => prev.filter((l) => l.lead_id !== leadId));
+    fecharPainel();
   }
 
   // ── Render ─────────────────────────────────────────────────────────────
@@ -538,28 +570,55 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
         {etapasFiltradas.map((etapa) => {
           const leadsEtapa = leadsFiltrados.filter((l) => l.fase === etapa.etapaLabel);
           const cores = etapaCores(etapa.etapa);
+          const isOver = overEtapa === etapa.etapa && !!draggingId;
 
           return (
-            <div key={etapa.etapa} className="flex w-64 shrink-0 flex-col gap-2">
-              <div className={`flex items-center justify-between rounded-lg px-3 py-2 ${cores.header}`}>
+            <div
+              key={etapa.etapa}
+              className="flex w-64 shrink-0 flex-col gap-2"
+              onDragOver={(e) => { e.preventDefault(); setOverEtapa(etapa.etapa); }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverEtapa(null);
+              }}
+              onDrop={(e) => { e.preventDefault(); handleDrop(etapa); }}
+            >
+              <div className={`flex items-center justify-between rounded-lg px-3 py-2 transition-colors ${
+                isOver ? "ring-2 ring-violet-300 " + cores.header : cores.header
+              }`}>
                 <span className="text-xs font-semibold">{etapa.etapaLabel}</span>
                 <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${cores.count}`}>
                   {leadsEtapa.length}
                 </span>
               </div>
 
-              <div className="flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: "calc(100vh - 260px)" }}>
+              <div
+                className={`flex flex-col gap-2 overflow-y-auto rounded-xl transition-colors ${
+                  isOver ? "bg-violet-50/60" : ""
+                }`}
+                style={{ maxHeight: "calc(100vh - 260px)" }}
+              >
                 {leadsEtapa.map((lead) => (
-                  <LeadCard
+                  <div
                     key={lead.lead_id}
-                    lead={lead}
-                    isSelected={lead.lead_id === selectedId}
-                    onClick={() => abrirPainel(lead.lead_id)}
-                  />
+                    draggable
+                    onDragStart={() => setDraggingId(lead.lead_id)}
+                    onDragEnd={() => { setDraggingId(null); setOverEtapa(null); }}
+                    className={`cursor-grab active:cursor-grabbing transition-opacity ${
+                      draggingId === lead.lead_id ? "opacity-40" : ""
+                    }`}
+                  >
+                    <LeadCard
+                      lead={lead}
+                      isSelected={lead.lead_id === selectedId}
+                      onClick={() => abrirPainel(lead.lead_id)}
+                    />
+                  </div>
                 ))}
                 {leadsEtapa.length === 0 && (
-                  <p className="rounded-xl border border-dashed border-neutral-200 px-3 py-6 text-center text-xs text-neutral-400">
-                    Nenhum lead
+                  <p className={`rounded-xl border border-dashed px-3 py-6 text-center text-xs transition-colors ${
+                    isOver ? "border-violet-300 text-violet-400" : "border-neutral-200 text-neutral-400"
+                  }`}>
+                    {isOver ? "Soltar aqui" : "Nenhum lead"}
                   </p>
                 )}
               </div>
@@ -578,6 +637,7 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
             etapas={etapas}
             onClose={fecharPainel}
             onFaseChange={handleFaseChange}
+            onDelete={handleDelete}
           />
         </>
       )}

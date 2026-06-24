@@ -11,6 +11,7 @@ export type MensagemParsed = {
   remoteJid: string;       // ex: "556384823503@s.whatsapp.net"
   phone: string;           // apenas os dígitos: "556384823503"
   pushName: string | null;
+  fromMe: boolean;         // true = mensagem enviada pelo negócio ao lead
 
   // Conteúdo
   tipo: TipoMensagem;
@@ -38,9 +39,9 @@ export function parseEvolutionWebhook(body: any): MensagemParsed | null {
   if (!data) return null;
 
   const key = data.key;
-  // Ignora mensagens enviadas pelo próprio número (fromMe)
-  if (!key || key.fromMe) return null;
+  if (!key) return null;
 
+  const fromMe: boolean = key.fromMe === true;
   const remoteJid: string = key.remoteJid ?? "";
   const phone = remoteJid.replace(/@.*$/, "");
   const instance: string = body.instance ?? "";
@@ -104,6 +105,7 @@ export function parseEvolutionWebhook(body: any): MensagemParsed | null {
     remoteJid,
     phone,
     pushName,
+    fromMe,
     tipo,
     conteudo,
     mediaUrl,

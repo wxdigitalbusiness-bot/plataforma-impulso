@@ -13,7 +13,7 @@ function buildSnippet(slug: string, origin: string) {
   if(g)q='gclid='+g;
   if(w)q+=(q?'&':'')+'wbraid='+w;
   if(b)q+=(q?'&':'')+'gbraid='+b;
-  document.querySelectorAll('a[href*="wa.me"],a[href*="whatsapp"]').forEach(function(el){
+  document.querySelectorAll('a[href*="wa.me"],a[href*="whatsapp"],a[href*="/r/wa/"]').forEach(function(el){
     el.href='${origin}/r/wa/${slug}?'+q;
   });
 })();

@@ -11,7 +11,9 @@ type LeadRow = {
   fase: string;
   ad_id: string | null;
   ctwa_clid: string | null;
+  gclid: string | null;
   source_app: string | null;
+  utm_source: string | null;
   data_criacao: Date;
   ultima_msg: string | null;
   ultima_msg_tipo: string | null;
@@ -45,7 +47,9 @@ export async function GET(
       fl.fase,
       fl.ad_id,
       fl.ctwa_clid,
+      fl.gclid,
       fl.source_app,
+      fl.utm_source,
       fl.data_criacao,
       m.conteudo   AS ultima_msg,
       m.tipo       AS ultima_msg_tipo,
