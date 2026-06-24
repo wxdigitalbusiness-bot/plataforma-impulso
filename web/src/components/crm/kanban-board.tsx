@@ -65,6 +65,20 @@ function getPresetRange(preset: string): DateRange {
 const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 const DIAS_SEMANA = ["dom","seg","ter","qua","qui","sex","sáb"];
 
+function formatDateBR(iso: string) {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function buildLabel(de: string, ate: string): string {
+  if (de === ate) return formatDateBR(de);
+  const [dy, dm, dd] = de.split("-");
+  const [ay, am, ad] = ate.split("-");
+  if (dy === ay && dm === am) return `${dd} a ${ad}/${dm}/${dy}`;
+  if (dy === ay) return `${dd}/${dm} a ${ad}/${am}/${ay}`;
+  return `${formatDateBR(de)} a ${formatDateBR(ate)}`;
+}
+
 function CalendarPicker({
   value,
   onChange,
@@ -78,6 +92,10 @@ function CalendarPicker({
     const n = new Date();
     return { year: n.getFullYear(), month: n.getMonth() };
   });
+  // Primeiro clique (início do intervalo pendente)
+  const [rangeStart, setRangeStart] = useState<string | null>(null);
+  // Data sob o cursor durante seleção de período
+  const [hoverDate, setHoverDate]   = useState<string | null>(null);
 
   function navMes(delta: number) {
     setMes(({ year, month }) => {
@@ -99,8 +117,47 @@ function CalendarPicker({
 
   function selectDay(d: number) {
     const iso = dayISO(d);
-    onChange({ de: iso, ate: iso, label: iso });
-    onClose();
+    if (!rangeStart) {
+      // Primeiro clique — marca início, não fecha
+      setRangeStart(iso);
+      setHoverDate(iso);
+    } else {
+      // Segundo clique — completa o intervalo
+      const de  = iso < rangeStart ? iso : rangeStart;
+      const ate = iso < rangeStart ? rangeStart : iso;
+      onChange({ de, ate, label: buildLabel(de, ate) });
+      setRangeStart(null);
+      setHoverDate(null);
+      onClose();
+    }
+  }
+
+  // Intervalo de preview (durante seleção ou valor já salvo)
+  const previewDe  = rangeStart && hoverDate ? (hoverDate < rangeStart ? hoverDate : rangeStart) : (value?.de  ?? null);
+  const previewAte = rangeStart && hoverDate ? (hoverDate < rangeStart ? rangeStart : hoverDate) : (value?.ate ?? null);
+
+  function getDayClass(iso: string): string {
+    const isEndpoint =
+      (rangeStart && iso === rangeStart) ||
+      (rangeStart && hoverDate && iso === hoverDate) ||
+      (!rangeStart && value && (iso === value.de || iso === value.ate));
+
+    const inRange = previewDe && previewAte && iso > previewDe && iso < previewAte;
+
+    if (isEndpoint)  return "bg-violet-600 text-white font-semibold hover:bg-violet-700";
+    if (inRange)     return "text-violet-900";
+    if (iso === today) return "font-semibold text-violet-500 hover:bg-neutral-100";
+    return "text-neutral-700 hover:bg-neutral-100";
+  }
+
+  // Para células de início/fim do intervalo: ajusta bordas do highlight de range
+  function getRoundClass(iso: string): string {
+    if (!previewDe || !previewAte) return "rounded-full";
+    if (iso === previewDe && iso === previewAte) return "rounded-full";
+    if (iso === previewDe)  return "rounded-l-full";
+    if (iso === previewAte) return "rounded-r-full";
+    if (iso > previewDe && iso < previewAte) return "rounded-none";
+    return "rounded-full";
   }
 
   const cells: (number | null)[] = [
@@ -110,25 +167,22 @@ function CalendarPicker({
   while (cells.length % 7 !== 0) cells.push(null);
 
   return (
-    <div className="w-60 p-3">
+    <div className="w-64 p-3">
       {/* Navegação de mês */}
       <div className="mb-3 flex items-center justify-between">
-        <button
-          onClick={() => navMes(-1)}
-          className="rounded-md p-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
-        >
-          ‹
-        </button>
+        <button onClick={() => navMes(-1)} className="rounded-md p-1 text-neutral-500 hover:bg-neutral-100">‹</button>
         <span className="text-xs font-semibold text-neutral-800">
           {MESES[mes.month]} de {mes.year}
         </span>
-        <button
-          onClick={() => navMes(1)}
-          className="rounded-md p-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
-        >
-          ›
-        </button>
+        <button onClick={() => navMes(1)} className="rounded-md p-1 text-neutral-500 hover:bg-neutral-100">›</button>
       </div>
+
+      {/* Hint de seleção de período */}
+      {rangeStart && (
+        <p className="mb-2 text-center text-[10px] text-violet-500 font-medium">
+          Início: {formatDateBR(rangeStart)} — clique para definir o fim
+        </p>
+      )}
 
       {/* Cabeçalho da semana */}
       <div className="mb-1 grid grid-cols-7">
@@ -138,28 +192,22 @@ function CalendarPicker({
       </div>
 
       {/* Grid de dias */}
-      <div className="grid grid-cols-7">
-        {cells.map((d, i) =>
-          d === null ? (
-            <span key={i} className="h-8" />
-          ) : (
-            <button
-              key={i}
-              onClick={() => selectDay(d)}
-              className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-xs transition-colors ${
-                value && (dayISO(d) === value.de || dayISO(d) === value.ate)
-                  ? "bg-neutral-900 text-white font-semibold"
-                  : value && dayISO(d) > value.de && dayISO(d) < value.ate
-                  ? "bg-neutral-100 text-neutral-700"
-                  : dayISO(d) === today
-                  ? "text-blue-600 font-semibold hover:bg-neutral-100"
-                  : "text-neutral-700 hover:bg-neutral-100"
-              }`}
-            >
-              {d}
-            </button>
-          )
-        )}
+      <div className="grid grid-cols-7" onMouseLeave={() => rangeStart && setHoverDate(rangeStart)}>
+        {cells.map((d, i) => {
+          if (d === null) return <span key={i} className="h-8" />;
+          const iso = dayISO(d);
+          return (
+            <div key={i} className={`h-8 ${getRoundClass(iso) === "rounded-none" ? "bg-violet-100" : getRoundClass(iso) === "rounded-l-full" ? "bg-gradient-to-r from-transparent to-violet-100" : getRoundClass(iso) === "rounded-r-full" ? "bg-gradient-to-l from-transparent to-violet-100" : ""}`}>
+              <button
+                onClick={() => selectDay(d)}
+                onMouseEnter={() => rangeStart && setHoverDate(iso)}
+                className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-xs transition-colors ${getDayClass(iso)}`}
+              >
+                {d}
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       <div className="my-2 border-t border-neutral-100" />
@@ -174,7 +222,7 @@ function CalendarPicker({
           return (
             <button
               key={key}
-              onClick={() => { onChange(getPresetRange(key)); onClose(); }}
+              onClick={() => { onChange(getPresetRange(key)); setRangeStart(null); onClose(); }}
               className="rounded-lg px-2 py-1.5 text-left text-xs text-neutral-600 hover:bg-neutral-100"
             >
               {labels[key]}
@@ -182,7 +230,7 @@ function CalendarPicker({
           );
         })}
         <button
-          onClick={() => { onChange(null); onClose(); }}
+          onClick={() => { onChange(null); setRangeStart(null); onClose(); }}
           className="rounded-lg px-2 py-1.5 text-left text-xs text-red-500 hover:bg-red-50"
         >
           Remover Data
@@ -191,6 +239,7 @@ function CalendarPicker({
     </div>
   );
 }
+
 
 // ── Wrapper genérico de dropdown ───────────────────────────────────────────
 function FilterDropdown({
@@ -316,7 +365,9 @@ function DataDropdown({
   onOpenToggle: () => void;
 }) {
   const sublabel = value
-    ? value.de === value.ate ? value.label || value.de : `${value.de} – ${value.ate}`
+    ? (value.label && !value.label.match(/^\d{4}-/))
+      ? value.label
+      : buildLabel(value.de, value.ate)
     : "Selecionar data";
 
   return (
