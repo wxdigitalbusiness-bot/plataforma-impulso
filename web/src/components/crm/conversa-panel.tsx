@@ -489,7 +489,7 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
                           key={cor}
                           onClick={() => setNovaTagCor(cor)}
                           className={`h-5 w-5 rounded-full transition-transform ${novaTagCor === cor ? "scale-125 ring-2 ring-offset-1" : ""}`}
-                          style={{ backgroundColor: cor, ringColor: cor }}
+                          style={{ backgroundColor: cor }}
                         />
                       ))}
                     </div>
