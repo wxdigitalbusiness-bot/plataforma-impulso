@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { MsgBubble } from "./msg-bubble";
+import type { Lead } from "./lead-card";
 
 type MensagemCrm = {
   id: string;
@@ -9,20 +10,12 @@ type MensagemCrm = {
   tipo: string;
   conteudo: string | null;
   media_url: string | null;
-  recebida_em: string; // ISO string (serializado pelo servidor)
+  recebida_em: string;
 };
 
 type Etapa = {
   etapa: string;
   etapaLabel: string;
-};
-
-type Lead = {
-  lead_id: string;
-  lead_nome: string;
-  lead_whatsapp: string;
-  fase: string;
-  source_app: string | null;
 };
 
 type Props = {
@@ -31,19 +24,24 @@ type Props = {
   etapas: Etapa[];
   onClose: () => void;
   onFaseChange: (leadId: string, novaFase: string, faseLabel: string) => void;
+  onDelete: (leadId: string) => void;
 };
 
-function sourceLabel(app: string | null) {
-  if (app === "instagram") return "Instagram";
-  if (app === "facebook") return "Facebook";
-  return "Orgânico";
+function origemLabel(lead: Lead) {
+  if (lead.gclid) return { label: "Google Ads", cls: "bg-blue-50 text-blue-600" };
+  if (lead.source_app === "instagram") return { label: "Instagram", cls: "bg-pink-50 text-pink-600" };
+  if (lead.source_app === "facebook" || lead.ad_id || lead.ctwa_clid)
+    return { label: "Facebook", cls: "bg-blue-50 text-blue-500" };
+  if (lead.utm_source === "site") return { label: "Site", cls: "bg-emerald-50 text-emerald-600" };
+  return { label: "Orgânico", cls: "bg-neutral-100 text-neutral-500" };
 }
 
-export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange }: Props) {
+export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, onDelete }: Props) {
   const [mensagens, setMensagens] = useState<MensagemCrm[]>([]);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [movendo, setMovendo] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const fetchMensagens = useCallback(async () => {
@@ -52,19 +50,15 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange }
       if (!res.ok) return;
       const data = await res.json() as { mensagens: MensagemCrm[] };
       setMensagens(data.mensagens);
-    } catch {
-      // ignora erros de rede
-    }
+    } catch { /* ignora */ }
   }, [clienteId, lead.lead_id]);
 
-  // Busca mensagens ao abrir e polls a cada 8s
   useEffect(() => {
     fetchMensagens();
     const interval = setInterval(fetchMensagens, 8000);
     return () => clearInterval(interval);
   }, [fetchMensagens]);
 
-  // Scroll para o final quando chegam novas mensagens
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [mensagens]);
@@ -79,13 +73,8 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange }
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ texto: texto.trim() }),
       });
-      if (res.ok) {
-        setTexto("");
-        await fetchMensagens();
-      }
-    } finally {
-      setEnviando(false);
-    }
+      if (res.ok) { setTexto(""); await fetchMensagens(); }
+    } finally { setEnviando(false); }
   }
 
   async function mudarFase(etapa: Etapa) {
@@ -98,10 +87,20 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange }
         body: JSON.stringify({ fase: etapa.etapa, faseLabel: etapa.etapaLabel }),
       });
       onFaseChange(lead.lead_id, etapa.etapa, etapa.etapaLabel);
-    } finally {
-      setMovendo(false);
-    }
+    } finally { setMovendo(false); }
   }
+
+  async function excluirLead() {
+    const nome = lead.lead_nome || lead.lead_whatsapp;
+    if (!confirm(`Excluir o lead "${nome}"? Esta ação não pode ser desfeita.`)) return;
+    setExcluindo(true);
+    try {
+      await fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}`, { method: "DELETE" });
+      onDelete(lead.lead_id);
+    } finally { setExcluindo(false); }
+  }
+
+  const origem = origemLabel(lead);
 
   return (
     <div className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l border-neutral-200 bg-white shadow-xl">
@@ -110,22 +109,32 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange }
         <div className="min-w-0">
           <p className="truncate font-semibold text-neutral-900">{lead.lead_nome || "Sem nome"}</p>
           <p className="text-xs text-neutral-500">{lead.lead_whatsapp}</p>
-          <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
-            lead.source_app === "instagram" ? "bg-pink-50 text-pink-600" :
-            lead.source_app === "facebook" ? "bg-blue-50 text-blue-600" :
-            "bg-neutral-100 text-neutral-500"
-          }`}>
-            {sourceLabel(lead.source_app)}
+          <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${origem.cls}`}>
+            {origem.label}
           </span>
         </div>
-        <button
-          onClick={onClose}
-          className="ml-3 mt-0.5 rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
-        >
-          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div className="ml-3 flex shrink-0 items-center gap-1">
+          {/* Excluir */}
+          <button
+            onClick={excluirLead}
+            disabled={excluindo}
+            title="Excluir lead"
+            className="rounded-lg p-1.5 text-neutral-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+          {/* Fechar */}
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Seletor de fase */}
