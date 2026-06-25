@@ -155,6 +155,9 @@ export async function POST(req: NextRequest) {
       adId: parsed.adId,
       ctwaClid: parsed.ctwaClid,
       sourceApp: parsed.sourceApp,
+      adTitle: parsed.adTitle,
+      adBody: parsed.adBody,
+      adMediaUrl: parsed.adMediaUrl,
       recebidaEm: parsed.recebidaEm,
     });
 
