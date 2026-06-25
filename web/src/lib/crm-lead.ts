@@ -6,13 +6,16 @@
 import { db } from "@/lib/db";
 
 export type LeadUpsertInput = {
-  phone: string;         // somente dígitos, ex: "556384823503"
+  phone: string;          // somente dígitos, ex: "556384823503"
   clientKey: string;
-  clientName: string;    // nome do cliente (coluna client_name NOT NULL na tabela)
+  clientName: string;     // nome do cliente (coluna client_name NOT NULL na tabela)
   pushName: string | null;
   adId: string | null;
   ctwaClid: string | null;
   sourceApp: string | null;
+  adTitle: string | null;
+  adBody: string | null;
+  adMediaUrl: string | null;
   recebidaEm: Date;
 };
 
@@ -21,8 +24,38 @@ export type LeadUpsertResult = {
   isNew: boolean;
 };
 
+// Enriquece o lead com nome do anúncio/conjunto/campanha via Meta Graph API (fire-and-forget)
+async function enrichWithMetaAd(leadId: string, clientKey: string, adId: string) {
+  const token = process.env.META_ACCESS_TOKEN;
+  if (!token) return;
+  try {
+    const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(adId)}?fields=name,adset%7Bname%7D,campaign%7Bname%7D&access_token=${token}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: any = await res.json();
+    if (data.error) return;
+    const adName: string | null       = data.name             ?? null;
+    const adsetName: string | null    = data.adset?.name      ?? null;
+    const campaignName: string | null = data.campaign?.name   ?? null;
+    await db.$executeRaw`
+      UPDATE fb_leads
+      SET
+        ad_name       = COALESCE(ad_name,       ${adName}),
+        adset_name    = COALESCE(adset_name,    ${adsetName}),
+        campaign_name = COALESCE(campaign_name, ${campaignName})
+      WHERE lead_id = ${leadId}
+        AND lower(client_key) = lower(${clientKey})
+    `;
+  } catch { /* fire-and-forget */ }
+}
+
 export async function upsertCrmLead(input: LeadUpsertInput): Promise<LeadUpsertResult> {
-  const { phone, clientKey, clientName, pushName, adId, ctwaClid, sourceApp, recebidaEm } = input;
+  const {
+    phone, clientKey, clientName, pushName,
+    adId, ctwaClid, sourceApp, adTitle, adBody, adMediaUrl,
+    recebidaEm,
+  } = input;
 
   // Usa o telefone como lead_id (padrão já adotado nos workflows n8n)
   const leadId = phone;
@@ -30,7 +63,7 @@ export async function upsertCrmLead(input: LeadUpsertInput): Promise<LeadUpsertR
   await db.$executeRaw`
     INSERT INTO fb_leads (
       lead_id, client_key, client_name, lead_nome, lead_whatsapp,
-      ad_id, ctwa_clid, source_app,
+      ad_id, ctwa_clid, source_app, ad_title, ad_body, ad_media_url,
       data_criacao, fase, webhook_origem
     ) VALUES (
       ${leadId},
@@ -41,6 +74,9 @@ export async function upsertCrmLead(input: LeadUpsertInput): Promise<LeadUpsertR
       ${adId},
       ${ctwaClid},
       ${sourceApp},
+      ${adTitle},
+      ${adBody},
+      ${adMediaUrl},
       ${new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(recebidaEm)},
       'Novo Lead',
       'plataforma'
@@ -53,9 +89,12 @@ export async function upsertCrmLead(input: LeadUpsertInput): Promise<LeadUpsertR
         ELSE fb_leads.lead_nome
       END,
       -- Atualiza atribuição CTWA só se ainda não tinha (preserva o primeiro clique)
-      ctwa_clid      = COALESCE(fb_leads.ctwa_clid,  ${ctwaClid}),
-      ad_id          = COALESCE(fb_leads.ad_id,       ${adId}),
-      source_app     = COALESCE(fb_leads.source_app,  ${sourceApp}),
+      ctwa_clid      = COALESCE(fb_leads.ctwa_clid,    ${ctwaClid}),
+      ad_id          = COALESCE(fb_leads.ad_id,         ${adId}),
+      source_app     = COALESCE(fb_leads.source_app,    ${sourceApp}),
+      ad_title       = COALESCE(fb_leads.ad_title,      ${adTitle}),
+      ad_body        = COALESCE(fb_leads.ad_body,       ${adBody}),
+      ad_media_url   = COALESCE(fb_leads.ad_media_url,  ${adMediaUrl}),
       -- Marca como plataforma na primeira vez que passar pelo nosso webhook
       webhook_origem = COALESCE(fb_leads.webhook_origem, 'plataforma')
   `;
@@ -99,6 +138,11 @@ export async function upsertCrmLead(input: LeadUpsertInput): Promise<LeadUpsertR
           AND lower(client_key) = lower(${clientKey})
       `;
     }
+  }
+
+  // Enriquece com dados da Meta Graph API (fire-and-forget, não bloqueia resposta)
+  if (adId) {
+    enrichWithMetaAd(leadId, clientKey, adId).catch(() => {});
   }
 
   return {
