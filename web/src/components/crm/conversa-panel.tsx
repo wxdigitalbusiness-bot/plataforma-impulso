@@ -59,11 +59,9 @@ type Props = {
 };
 
 function origemLabel(lead: Lead) {
-  if (lead.gclid) return { label: "Google Ads", cls: "bg-blue-50 text-blue-600" };
-  if (lead.source_app === "instagram") return { label: "Instagram", cls: "bg-pink-50 text-pink-600" };
-  if (lead.source_app === "facebook" || lead.ad_id || lead.ctwa_clid)
-    return { label: "Facebook", cls: "bg-blue-50 text-blue-500" };
-  if (lead.utm_source === "site") return { label: "Site", cls: "bg-emerald-50 text-emerald-600" };
+  if (lead.gclid)                      return { label: "Google Ads", cls: "bg-blue-50 text-blue-600" };
+  if (lead.ad_id || lead.ctwa_clid)    return { label: "Meta Ads",   cls: "bg-blue-50 text-blue-500" };
+  if (lead.utm_source === "site")      return { label: "Site",        cls: "bg-emerald-50 text-emerald-600" };
   return { label: "Orgânico", cls: "bg-neutral-100 text-neutral-500" };
 }
 
@@ -159,7 +157,8 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
       fetchDetalhes();
       fetchTodasTags();
     }
-    if (aba === "origem" && lead.ad_id && metaAdInfo === null) {
+    // Busca da API apenas como fallback para leads sem dados no banco (legados)
+    if (aba === "origem" && lead.ad_id && !lead.campaign_name && metaAdInfo === null) {
       setMetaAdInfo("loading");
       fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}/meta-attribution?adId=${encodeURIComponent(lead.ad_id)}`)
         .then((r) => r.json())
@@ -575,9 +574,7 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
                     const dt = new Date(r.reentrada_em);
                     const data = dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric", timeZone: "America/Sao_Paulo" });
                     const hora = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
-                    const origem = (r.ad_id || r.ctwa_clid)
-                      ? r.source_app === "instagram" ? "via Instagram Ads" : "via Meta Ads"
-                      : "orgânico";
+                    const origem = (r.ad_id || r.ctwa_clid) ? "via Meta Ads" : "orgânico";
                     return (
                       <div key={r.id} className="rounded-xl border border-neutral-100 bg-neutral-50 px-3 py-2.5">
                         <p className="text-xs font-medium text-neutral-700">
@@ -616,47 +613,78 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
             </span>
           </div>
 
-          {/* Meta Ads (Facebook / Instagram) */}
-          {(lead.ctwa_clid || lead.ad_id || lead.source_app === "facebook" || lead.source_app === "instagram") && (
+          {/* Meta Ads */}
+          {(lead.ctwa_clid || lead.ad_id) && (
             <div>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Meta Ads</p>
               <dl className="space-y-3">
-                {/* Plataforma */}
-                <div>
-                  <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Plataforma</dt>
-                  <dd className="mt-0.5 text-sm text-neutral-800">
-                    {lead.source_app === "instagram" ? "Instagram" : "Facebook"}
-                  </dd>
-                </div>
 
-                {/* Dados enriquecidos do anúncio via Graph API */}
-                {lead.ad_id && metaAdInfo === "loading" && (
+                {/* Plataforma onde o lead viu o anúncio */}
+                {lead.source_app && (
+                  <div>
+                    <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Plataforma</dt>
+                    <dd className="mt-0.5 text-sm text-neutral-800">
+                      {lead.source_app === "instagram" ? "Instagram" : "Facebook"}
+                    </dd>
+                  </div>
+                )}
+
+                {/* Criativo do anúncio (vindo do webhook) */}
+                {lead.ad_title && (
+                  <div>
+                    <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Título do anúncio</dt>
+                    <dd className="mt-0.5 text-sm font-medium text-neutral-800">{lead.ad_title}</dd>
+                  </div>
+                )}
+                {lead.ad_body && (
+                  <div>
+                    <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Texto do anúncio</dt>
+                    <dd className="mt-0.5 text-sm text-neutral-700 leading-relaxed">{lead.ad_body}</dd>
+                  </div>
+                )}
+                {lead.ad_media_url && (
+                  <div>
+                    <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Criativo</dt>
+                    <dd className="mt-0.5">
+                      <a
+                        href={lead.ad_media_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-violet-600 underline hover:text-violet-800"
+                      >
+                        Ver no {lead.source_app === "instagram" ? "Instagram" : "Facebook"} ↗
+                      </a>
+                    </dd>
+                  </div>
+                )}
+
+                {/* Hierarquia da campanha — DB primeiro, API como fallback para leads antigos */}
+                {lead.ad_id && !lead.campaign_name && metaAdInfo === "loading" && (
                   <div className="text-xs text-neutral-400 animate-pulse">Buscando dados do anúncio…</div>
                 )}
-                {lead.ad_id && metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null && (
-                  <>
-                    {metaAdInfo.campanhaNome && (
-                      <div>
-                        <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Campanha</dt>
-                        <dd className="mt-0.5 text-sm text-neutral-800">{metaAdInfo.campanhaNome}</dd>
-                      </div>
-                    )}
-                    {metaAdInfo.adSetNome && (
-                      <div>
-                        <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Conjunto de anúncios</dt>
-                        <dd className="mt-0.5 text-sm text-neutral-800">{metaAdInfo.adSetNome}</dd>
-                      </div>
-                    )}
-                    {metaAdInfo.adNome && (
-                      <div>
-                        <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Anúncio</dt>
-                        <dd className="mt-0.5 text-sm text-neutral-800">{metaAdInfo.adNome}</dd>
-                      </div>
-                    )}
-                  </>
+                {(lead.campaign_name ?? (metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null ? metaAdInfo.campanhaNome : null)) && (
+                  <div>
+                    <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Campanha</dt>
+                    <dd className="mt-0.5 text-sm text-neutral-800">
+                      {lead.campaign_name ?? (metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null ? metaAdInfo.campanhaNome : null)}
+                    </dd>
+                  </div>
                 )}
-                {lead.ad_id && metaAdInfo === "error" && (
-                  <div className="text-xs text-red-400">Não foi possível carregar os dados do anúncio.</div>
+                {(lead.adset_name ?? (metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null ? metaAdInfo.adSetNome : null)) && (
+                  <div>
+                    <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Conjunto de anúncios</dt>
+                    <dd className="mt-0.5 text-sm text-neutral-800">
+                      {lead.adset_name ?? (metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null ? metaAdInfo.adSetNome : null)}
+                    </dd>
+                  </div>
+                )}
+                {(lead.ad_name ?? (metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null ? metaAdInfo.adNome : null)) && (
+                  <div>
+                    <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Nome do anúncio</dt>
+                    <dd className="mt-0.5 text-sm text-neutral-800">
+                      {lead.ad_name ?? (metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null ? metaAdInfo.adNome : null)}
+                    </dd>
+                  </div>
                 )}
 
                 {/* IDs brutos */}

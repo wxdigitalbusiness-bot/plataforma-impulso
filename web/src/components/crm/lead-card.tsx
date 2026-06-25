@@ -14,6 +14,13 @@ export type Lead = {
   data_criacao: string | null;
   primeira_msg_em: string | null;
   reentradas: number;
+  // Detalhes do criativo do anúncio (Meta)
+  ad_title: string | null;
+  ad_body: string | null;
+  ad_media_url: string | null;
+  ad_name: string | null;
+  adset_name: string | null;
+  campaign_name: string | null;
   ultima_msg: string | null;
   ultima_msg_tipo: string | null;
   ultima_msg_em: string | null;
@@ -59,9 +66,7 @@ function dataRelativa(isoStr: string | null): string {
 function OrigemBadge({ lead }: { lead: Lead }) {
   const temGoogle = !!lead.gclid;
   const temMeta   = !!(lead.ad_id || lead.ctwa_clid);
-  const isIG      = lead.source_app === "instagram";
-  const isFB      = lead.source_app === "facebook" || (temMeta && !isIG);
-  const isSite    = lead.utm_source === "site" && !temGoogle && !temMeta && !isIG;
+  const isSite    = lead.utm_source === "site" && !temGoogle && !temMeta;
 
   if (temGoogle) {
     return (
@@ -70,17 +75,10 @@ function OrigemBadge({ lead }: { lead: Lead }) {
       </span>
     );
   }
-  if (isIG) {
+  if (temMeta) {
     return (
-      <span title="Instagram" className="inline-flex items-center rounded-full bg-pink-50 px-1.5 py-0.5 text-[9px] font-bold text-pink-500 ring-1 ring-pink-100">
-        IG
-      </span>
-    );
-  }
-  if (isFB) {
-    return (
-      <span title="Facebook" className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-500 ring-1 ring-blue-100">
-        FB
+      <span title="Meta Ads" className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-500 ring-1 ring-blue-100">
+        Meta
       </span>
     );
   }
