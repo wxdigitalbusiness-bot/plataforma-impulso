@@ -48,10 +48,11 @@ export async function criarInstanciaEvolution(
     headers: { ...evoHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({
       webhook: {
+        enabled: true,
         url: webhookUrl,
-        byEvents: false,
-        base64: false,
         events: ["MESSAGES_UPSERT"],
+        webhookByEvents: false,
+        webhookBase64: false,
       },
     }),
   }).catch(() => {});
@@ -124,10 +125,11 @@ export async function configurarWebhookEvolution(clienteId: number): Promise<Con
       headers: { ...evoHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({
         webhook: {
+          enabled: true,
           url: urlNova,
-          byEvents: false,
-          base64: false,
           events: ["MESSAGES_UPSERT"],
+          webhookByEvents: false,
+          webhookBase64: false,
         },
       }),
     }
