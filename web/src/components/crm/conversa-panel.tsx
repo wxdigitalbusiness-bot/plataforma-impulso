@@ -383,7 +383,20 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
             <div className="rounded-xl border border-neutral-100 bg-neutral-50 px-3 py-2.5">
               <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Data de entrada</p>
               <p className="mt-0.5 text-sm text-neutral-700">
-                {new Date(lead.data_criacao).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+                {(() => {
+                  const d = new Date(lead.data_criacao!);
+                  const local = new Date(d.getTime() + d.getTimezoneOffset() * 60 * 1000);
+                  const data = local.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+                  if (lead.primeira_msg_em) {
+                    const hora = new Date(lead.primeira_msg_em).toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone: "America/Sao_Paulo",
+                    });
+                    return `${data}, às ${hora}`;
+                  }
+                  return data;
+                })()}
               </p>
             </div>
           )}
