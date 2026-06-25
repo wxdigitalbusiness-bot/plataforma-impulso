@@ -31,8 +31,12 @@ function toISO(d: Date) {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
-// Converte ISO timestamp do banco (UTC) para data local YYYY-MM-DD
-function toLocalDate(isoStr: string) { return toISO(new Date(isoStr)); }
+// Converte ISO timestamp do banco (UTC midnight) para data local YYYY-MM-DD
+// Adiciona o offset do fuso para evitar que UTC midnight role para o dia anterior
+function toLocalDate(isoStr: string) {
+  const d = new Date(isoStr);
+  return toISO(new Date(d.getTime() + d.getTimezoneOffset() * 60 * 1000));
+}
 
 function getPresetRange(preset: string): DateRange {
   const now = new Date();

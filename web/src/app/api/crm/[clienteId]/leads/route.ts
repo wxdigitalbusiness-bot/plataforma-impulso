@@ -16,6 +16,7 @@ type LeadRow = {
   utm_source: string | null;
   webhook_origem: string | null;
   data_criacao: Date;
+  primeira_msg_em: Date | null;
   ultima_msg: string | null;
   ultima_msg_tipo: string | null;
   ultima_msg_em: Date | null;
@@ -53,10 +54,19 @@ export async function GET(
       fl.utm_source,
       fl.webhook_origem,
       fl.data_criacao,
-      m.conteudo   AS ultima_msg,
-      m.tipo       AS ultima_msg_tipo,
-      m.recebida_em AS ultima_msg_em
+      fm.recebida_em AS primeira_msg_em,
+      m.conteudo     AS ultima_msg,
+      m.tipo         AS ultima_msg_tipo,
+      m.recebida_em  AS ultima_msg_em
     FROM fb_leads fl
+    LEFT JOIN LATERAL (
+      SELECT recebida_em
+      FROM crm_mensagens
+      WHERE lead_id = fl.lead_id
+        AND client_key = fl.client_key
+      ORDER BY recebida_em ASC
+      LIMIT 1
+    ) fm ON TRUE
     LEFT JOIN LATERAL (
       SELECT conteudo, tipo, recebida_em
       FROM crm_mensagens

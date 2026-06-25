@@ -12,6 +12,7 @@ export type Lead = {
   utm_source: string | null;
   webhook_origem: string | null;
   data_criacao: string | null;
+  primeira_msg_em: string | null;
   ultima_msg: string | null;
   ultima_msg_tipo: string | null;
   ultima_msg_em: string | null;
@@ -47,7 +48,11 @@ function previewMsg(tipo: string | null, conteudo: string | null): string | null
 
 function dataRelativa(isoStr: string | null): string {
   if (!isoStr) return "";
-  return new Date(isoStr).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+  // data_criacao é armazenada como UTC midnight — adiciona o offset local
+  // para evitar que a data role um dia para trás em UTC-3
+  const d = new Date(isoStr);
+  const local = new Date(d.getTime() + d.getTimezoneOffset() * 60 * 1000);
+  return local.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function OrigemBadge({ lead }: { lead: Lead }) {
@@ -140,9 +145,14 @@ export function LeadCard({ lead, isSelected, onClick }: Props) {
           </div>
         </div>
       </div>
-      <p className="mt-1.5 truncate text-[11px] text-neutral-500">
-        {preview ?? `Entrou em ${dataCriacao}`}
-      </p>
+      {preview && (
+        <p className="mt-1.5 truncate text-[11px] text-neutral-500">{preview}</p>
+      )}
+      {dataCriacao && (
+        <p className={`${preview ? "mt-0.5" : "mt-1.5"} truncate text-[11px] text-neutral-400`}>
+          Entrou em {dataCriacao}
+        </p>
+      )}
     </button>
   );
 }

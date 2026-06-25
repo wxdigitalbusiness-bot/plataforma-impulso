@@ -41,7 +41,7 @@ export async function upsertCrmLead(input: LeadUpsertInput): Promise<LeadUpsertR
       ${adId},
       ${ctwaClid},
       ${sourceApp},
-      ${recebidaEm.toISOString().split("T")[0]},
+      ${new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(recebidaEm)},
       'Novo Lead',
       'plataforma'
     )
