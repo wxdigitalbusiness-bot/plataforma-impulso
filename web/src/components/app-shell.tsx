@@ -137,12 +137,16 @@ function Sidebar({
           {/* Sub-itens */}
           {!collapsed && crmOpen && (
             <div className="ml-4 mt-0.5 flex flex-col gap-0.5 border-l border-neutral-100 pl-3">
-              {crmClientes.map((c) => {
-                const href = `/clientes/${c.id}/crm`;
-                const active = pathname === href;
+              {[
+                { href: "/crm/leads",          label: "Leads" },
+                { href: "/crm/etapas",         label: "Etapas do Funil" },
+                { href: "/crm/motivos-perda",  label: "Motivo de Perda" },
+                { href: "/crm/logs",           label: "Logs de Webhooks" },
+              ].map(({ href, label }) => {
+                const active = pathname.startsWith(href);
                 return (
                   <Link
-                    key={c.id}
+                    key={href}
                     href={href}
                     className={`truncate rounded-md px-2 py-1.5 text-xs transition-colors ${
                       active
@@ -150,19 +154,10 @@ function Sidebar({
                         : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
                     }`}
                   >
-                    {c.nome}
+                    {label}
                   </Link>
                 );
               })}
-              {crmClientes.length === 0 && (
-                <p className="px-2 py-1.5 text-xs text-neutral-400">Nenhum cliente com CRM</p>
-              )}
-              <Link
-                href="/clientes"
-                className="mt-0.5 rounded-md px-2 py-1.5 text-xs text-neutral-400 hover:text-neutral-600"
-              >
-                + Configurar cliente
-              </Link>
             </div>
           )}
         </div>

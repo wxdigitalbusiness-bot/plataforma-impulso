@@ -60,16 +60,49 @@ export async function upsertCrmLead(input: LeadUpsertInput): Promise<LeadUpsertR
       webhook_origem = COALESCE(fb_leads.webhook_origem, 'plataforma')
   `;
 
-  // Verifica se já existia antes do upsert para retornar isNew correto
-  const existing = await db.$queryRaw<Array<{ fase: string }>>`
-    SELECT fase FROM fb_leads
+  // Lê o estado atual do lead e os labels das etapas base deste cliente
+  type StageLabel = { etapa: string; etapa_label: string };
+  const stageLabels = await db.$queryRaw<StageLabel[]>`
+    SELECT ccw.etapa, ccw.etapa_label
+    FROM cliente_crm_webhooks ccw
+    JOIN clientes c ON c.id = ccw.cliente_id
+    WHERE lower(c.n8n_client_key) = lower(${clientKey})
+      AND ccw.etapa IN ('novo_lead', 'nao_classificado')
+  `;
+
+  const labelNovoLead = stageLabels.find(s => s.etapa === "novo_lead")?.etapa_label ?? "Novo Lead";
+  const naoClassStage = stageLabels.find(s => s.etapa === "nao_classificado");
+
+  type LeadFase = { fase: string; ad_id: string | null; ctwa_clid: string | null; source_app: string | null };
+  const currentLead = await db.$queryRaw<LeadFase[]>`
+    SELECT fase, ad_id, ctwa_clid, source_app
+    FROM fb_leads
     WHERE lead_id = ${leadId}
       AND lower(client_key) = lower(${clientKey})
     LIMIT 1
   `;
 
+  // Re-entrada: lead já trabalhado volta a entrar em contato
+  if (currentLead.length > 0 && naoClassStage) {
+    const { fase, ad_id: leadAdId, ctwa_clid: leadCtwaClid, source_app: leadSourceApp } = currentLead[0];
+    const isUntouched = fase === labelNovoLead || fase === naoClassStage.etapa_label;
+
+    if (!isUntouched) {
+      await db.$executeRaw`
+        INSERT INTO crm_reentradas (lead_id, client_key, fase_anterior, reentrada_em, ad_id, ctwa_clid, source_app)
+        VALUES (${leadId}, ${clientKey}, ${fase}, NOW(), ${leadAdId}, ${leadCtwaClid}, ${leadSourceApp})
+      `;
+      await db.$executeRaw`
+        UPDATE fb_leads
+        SET fase = ${naoClassStage.etapa_label}, reentradas = reentradas + 1
+        WHERE lead_id = ${leadId}
+          AND lower(client_key) = lower(${clientKey})
+      `;
+    }
+  }
+
   return {
     leadId,
-    isNew: existing.length === 0 || existing[0].fase === "Novo Lead",
+    isNew: currentLead.length === 0 || currentLead[0].fase === labelNovoLead,
   };
 }
