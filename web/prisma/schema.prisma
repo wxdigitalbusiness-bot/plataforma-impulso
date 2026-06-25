@@ -26,6 +26,22 @@ model Cliente {
   criadoEm        DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
   atualizadoEm    DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz()
 
+  // ── CRM / WhatsApp ──────────────────────────────────────────────────────────
+  evolutionInstance         String?  @unique @map("evolution_instance")
+  // Número WhatsApp para onde o /r/wa/[slug] redireciona leads (ex: "5511999999999")
+  waNumero                  String?  @map("wa_numero")
+  // Credenciais Facebook CAPI
+  pixelId                   String?  @map("pixel_id")
+  capiToken                 String?  @map("capi_token")
+  // Credenciais Google Ads Offline Conversions
+  googleAdsCustomerId                  String?  @map("google_ads_customer_id")
+  googleConversionActionId             String?  @map("google_conversion_action_id")
+  googleConversionActionIdQualificado  String?  @map("google_conversion_action_id_qualificado")
+  // Mensagem personalizada enviada pelo lead ao clicar no botão WhatsApp rastreado
+  waMessageTemplate                    String?  @map("wa_message_template")
+  // URL do webhook n8n anterior — a plataforma encaminha o payload para cá após processar
+  n8nWebhookForwardUrl                 String?  @map("n8n_webhook_forward_url")
+
   contas          ClienteAtivo[]
   relatorios      RelatorioPublico[]
   crmWebhooks     ClienteCrmWebhook[]
@@ -245,4 +261,53 @@ model ConversaHandoff {
   reativadoEm     DateTime? @map("reativado_em") @db.Timestamptz()
 
   @@map("conversas_handoff")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CRM PRÓPRIO — Mensagens capturadas via Evolution API
+// Tabelas criadas via db/023_crm_mensagens.sql
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model GoogleAttribution {
+  id           BigInt    @id @default(autoincrement())
+  code         String    @unique
+  clientKey    String    @map("client_key")
+  gclid        String?
+  wbraid       String?
+  gbraid       String?
+  utmSource    String?   @map("utm_source")
+  utmMedium    String?   @map("utm_medium")
+  utmCampaign  String?   @map("utm_campaign")
+  utmContent   String?   @map("utm_content")
+  utmTerm      String?   @map("utm_term")
+  leadId       String?   @map("lead_id")
+  ip           String?
+  userAgent    String?   @map("user_agent")
+  criadoEm     DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
+  vinculadoEm  DateTime? @map("vinculado_em") @db.Timestamptz()
+
+  @@index([clientKey, criadoEm(sort: Desc)])
+  @@index([leadId])
+  @@map("google_attribution")
+}
+
+model CrmMensagem {
+  id             BigInt    @id @default(autoincrement())
+  // Telefone do lead no formato Evolution (ex: "556384823503") — serve como lead_id
+  leadId         String    @map("lead_id")
+  clientKey      String    @map("client_key")
+  // "lead" = recebida do WhatsApp | "atendente" = enviada pelo painel
+  de             String
+  // text | image | audio | video | document | sticker
+  tipo           String    @default("text")
+  conteudo       String?
+  mediaUrl       String?   @map("media_url")
+  // ID único da mensagem na Evolution API — evita duplicatas
+  evolutionMsgId String?   @unique @map("evolution_msg_id")
+  recebidaEm     DateTime  @default(now()) @map("recebida_em") @db.Timestamptz()
+  criadoEm       DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
+
+  @@index([leadId, recebidaEm(sort: Desc)])
+  @@index([clientKey, recebidaEm(sort: Desc)])
+  @@map("crm_mensagens")
 }

@@ -1,5 +1,6 @@
-import { InstanceGrid } from './_client';
+import { InstanceGrid, type ClienteInfo, type ClienteSemInstancia } from './_client';
 import { evoHeaders, EVOLUTION_API_URL } from '@/lib/whatsapp-sessions';
+import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -18,10 +19,67 @@ async function fetchInstances() {
   }
 }
 
+async function fetchWebhookUrl(instanceName: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `${EVOLUTION_API_URL}/webhook/find/${encodeURIComponent(instanceName)}`,
+      { headers: evoHeaders(), cache: 'no-store' }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.url ?? data?.webhook?.url ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function WhatsAppPage() {
-  const instances = await fetchInstances();
+  // Fetch tudo em paralelo
+  const [evolutionInstances, clientesComInstancia, clientesSemInstancia] = await Promise.all([
+    fetchInstances(),
+    db.cliente.findMany({
+      where:   { evolutionInstance: { not: null }, ativo: true },
+      select:  { id: true, nome: true, evolutionInstance: true },
+      orderBy: { nome: 'asc' },
+    }),
+    db.cliente.findMany({
+      where:   { evolutionInstance: null, ativo: true },
+      select:  { id: true, nome: true },
+      orderBy: { nome: 'asc' },
+    }),
+  ]);
+
+  // Mapa nome da instância → cliente
+  const clienteMap = new Map<string, ClienteInfo>();
+  for (const c of clientesComInstancia) {
+    if (c.evolutionInstance) {
+      clienteMap.set(c.evolutionInstance, {
+        id:   c.id,
+        nome: c.nome,
+      });
+    }
+  }
+
+  // Busca webhook URL de cada instância em paralelo
+  const webhookUrls = await Promise.all(
+    evolutionInstances.map(i => fetchWebhookUrl(i.name))
+  );
+
+  // Monta lista enriquecida
+  const instances = evolutionInstances.map((inst, idx) => ({
+    name:             inst.name,
+    connectionStatus: inst.connectionStatus,
+    webhookUrl:       webhookUrls[idx],
+    cliente:          clienteMap.get(inst.name) ?? null,
+  }));
+
   const total        = instances.length;
   const desconectadas = instances.filter(i => i.connectionStatus.toLowerCase() !== 'open').length;
+
+  const semInstancia: ClienteSemInstancia[] = clientesSemInstancia.map(c => ({
+    id:   c.id,
+    nome: c.nome,
+  }));
 
   return (
     <div className="space-y-6">
@@ -29,7 +87,7 @@ export default async function WhatsAppPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">WhatsApp</h1>
           <p className="text-sm text-neutral-500">
-            Gerencie as instâncias da Evolution API. Gere links de QR Code para clientes reconectarem.
+            Gerencie instâncias, configure webhooks e gere links de QR Code.
           </p>
         </div>
         <div className="flex items-center gap-3 text-sm text-neutral-500">
@@ -42,7 +100,7 @@ export default async function WhatsAppPage() {
         </div>
       </header>
 
-      <InstanceGrid instances={instances} />
+      <InstanceGrid instances={instances} clientesSemInstancia={semInstancia} />
     </div>
   );
 }

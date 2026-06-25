@@ -93,6 +93,12 @@ export default async function ClienteDetalhePage({ params }: Props) {
           >
             Editar cliente
           </Link>
+          <Link
+            href={`/clientes/${cliente.id}/crm`}
+            className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
+          >
+            CRM
+          </Link>
           {cliente.tipoServico === "panfletagem_digital" ? (
             <Link
               href={`/clientes/${cliente.id}/panfletagem`}

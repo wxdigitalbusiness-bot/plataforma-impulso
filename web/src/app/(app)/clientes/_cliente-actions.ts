@@ -6,18 +6,18 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { TIPOS_SERVICO_VALUES } from "./_servicos";
 
+const nullable = (v: unknown) =>
+  !v || String(v).trim() === "" ? null : String(v).trim();
+
 const clienteSchema = z.object({
   nome: z.string().trim().min(1, "Nome obrigatório"),
-  empresa: z.preprocess(
-    (v) => (!v || String(v).trim() === "" ? null : String(v).trim()),
-    z.string().nullable()
-  ),
+  empresa: z.preprocess(nullable, z.string().nullable()),
   whatsappAlerta: z.preprocess(
-    (v) => (!v || String(v).trim() === "" ? null : String(v).trim()),
+    nullable,
     z.string().regex(/^\d{12,13}$/, "WhatsApp com DDI 55 sem espaços").nullable()
   ),
   tipoServico: z.preprocess(
-    (v) => (!v || String(v).trim() === "" ? null : String(v).trim()),
+    nullable,
     z.enum(TIPOS_SERVICO_VALUES as unknown as [string, ...string[]]).nullable()
   ),
   n8nClientKey: z.preprocess(
@@ -25,6 +25,17 @@ const clienteSchema = z.object({
     z.string().nullable()
   ),
   ativo: z.coerce.boolean(),
+  // CRM / WhatsApp
+  evolutionInstance:        z.preprocess(nullable, z.string().nullable()),
+  waNumero:                 z.preprocess(nullable, z.string().nullable()),
+  waMessageTemplate:        z.preprocess(nullable, z.string().nullable()),
+  // Meta CAPI
+  pixelId:                  z.preprocess(nullable, z.string().nullable()),
+  capiToken:                z.preprocess(nullable, z.string().nullable()),
+  // Google Ads
+  googleAdsCustomerId:                   z.preprocess(nullable, z.string().nullable()),
+  googleConversionActionId:              z.preprocess(nullable, z.string().nullable()),
+  googleConversionActionIdQualificado:   z.preprocess(nullable, z.string().nullable()),
 });
 
 function parseForm(formData: FormData) {
@@ -35,6 +46,14 @@ function parseForm(formData: FormData) {
     tipoServico: formData.get("tipoServico"),
     n8nClientKey: formData.get("n8nClientKey"),
     ativo: formData.get("ativo") === "on",
+    evolutionInstance:        formData.get("evolutionInstance"),
+    waNumero:                 formData.get("waNumero"),
+    waMessageTemplate:        formData.get("waMessageTemplate"),
+    pixelId:                  formData.get("pixelId"),
+    capiToken:                formData.get("capiToken"),
+    googleAdsCustomerId:                   formData.get("googleAdsCustomerId"),
+    googleConversionActionId:              formData.get("googleConversionActionId"),
+    googleConversionActionIdQualificado:   formData.get("googleConversionActionIdQualificado"),
   });
 }
 
@@ -48,6 +67,14 @@ export async function criarCliente(formData: FormData) {
       tipoServico: data.tipoServico,
       n8nClientKey: data.n8nClientKey,
       ativo: data.ativo,
+      evolutionInstance:        data.evolutionInstance,
+      waNumero:                 data.waNumero,
+      waMessageTemplate:        data.waMessageTemplate,
+      pixelId:                  data.pixelId,
+      capiToken:                data.capiToken,
+      googleAdsCustomerId:                   data.googleAdsCustomerId,
+      googleConversionActionId:              data.googleConversionActionId,
+      googleConversionActionIdQualificado:   data.googleConversionActionIdQualificado,
     },
   });
   revalidatePath("/");
@@ -66,6 +93,14 @@ export async function atualizarCliente(id: number, formData: FormData) {
       tipoServico: data.tipoServico,
       n8nClientKey: data.n8nClientKey,
       ativo: data.ativo,
+      evolutionInstance:        data.evolutionInstance,
+      waNumero:                 data.waNumero,
+      waMessageTemplate:        data.waMessageTemplate,
+      pixelId:                  data.pixelId,
+      capiToken:                data.capiToken,
+      googleAdsCustomerId:                   data.googleAdsCustomerId,
+      googleConversionActionId:              data.googleConversionActionId,
+      googleConversionActionIdQualificado:   data.googleConversionActionIdQualificado,
     },
   });
 
