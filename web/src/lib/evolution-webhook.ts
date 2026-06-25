@@ -94,7 +94,12 @@ export function parseEvolutionWebhook(body: any): MensagemParsed | null {
   }
 
   // Atribuição CTWA (Meta)
-  const externalAdReply = contextInfo?.externalAdReply ?? null;
+  // Para mensagens do tipo "conversation" (texto simples), o WhatsApp coloca
+  // externalAdReply em data.contextInfo — não dentro de message.extendedTextMessage.
+  // Para outros tipos (extendedText, image, etc.) está em contextInfo da mensagem.
+  const dataContextInfo = data.contextInfo ?? null;
+  const externalAdReply =
+    contextInfo?.externalAdReply ?? dataContextInfo?.externalAdReply ?? null;
   const adId: string | null = externalAdReply?.sourceId ?? null;
   const ctwaClid: string | null = externalAdReply?.ctwaClid ?? null;
   const sourceApp: string | null = externalAdReply?.sourceApp ?? null;
