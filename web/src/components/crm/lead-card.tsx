@@ -13,6 +13,7 @@ export type Lead = {
   webhook_origem: string | null;
   data_criacao: string | null;
   primeira_msg_em: string | null;
+  reentradas: number;
   ultima_msg: string | null;
   ultima_msg_tipo: string | null;
   ultima_msg_em: string | null;

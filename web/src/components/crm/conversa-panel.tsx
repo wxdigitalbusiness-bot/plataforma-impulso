@@ -24,6 +24,15 @@ type Atribuicao = {
   gclid: string | null;
 };
 
+type Reentrada = {
+  id: string;
+  fase_anterior: string;
+  reentrada_em: string;
+  ad_id: string | null;
+  ctwa_clid: string | null;
+  source_app: string | null;
+};
+
 type MetaAdInfo = {
   adId: string;
   adNome: string | null;
@@ -97,6 +106,9 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
   const [atribuicao, setAtribuicao] = useState<Atribuicao | null>(null);
   const [metaAdInfo, setMetaAdInfo] = useState<MetaAdInfo | null | "loading" | "error">(null);
 
+  // Re-entradas
+  const [reentradas, setReentradas] = useState<Reentrada[] | null>(null);
+
   // ─── Fetch mensagens ───────────────────────────────────────────────────────
   const fetchMensagens = useCallback(async () => {
     try {
@@ -158,6 +170,16 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
         .catch(() => setMetaAdInfo("error"));
     }
   }, [aba, fetchDetalhes, fetchTodasTags, clienteId, lead.ad_id, lead.lead_id, metaAdInfo]);
+
+  // Fetch histórico de re-entradas (lazy, só quando detalhes aberto e lead tem reentradas)
+  useEffect(() => {
+    setReentradas(null);
+    if (aba !== "detalhes" || !lead.reentradas) return;
+    fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}/reentradas`)
+      .then((r) => r.json())
+      .then((d: { reentradas: Reentrada[] }) => setReentradas(d.reentradas ?? []))
+      .catch(() => setReentradas([]));
+  }, [aba, lead.lead_id, lead.reentradas, clienteId]);
 
   // Fecha dropdown de tag ao clicar fora
   useEffect(() => {
@@ -538,6 +560,40 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
               className="w-full resize-none rounded-xl border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/10"
             />
           </div>
+
+          {/* Histórico de re-entradas */}
+          {lead.reentradas > 0 && (
+            <div>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+                Histórico de retornos ({lead.reentradas})
+              </p>
+              {reentradas === null ? (
+                <p className="text-xs text-neutral-400 animate-pulse">Carregando…</p>
+              ) : (
+                <div className="space-y-2">
+                  {reentradas.map((r) => {
+                    const dt = new Date(r.reentrada_em);
+                    const data = dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric", timeZone: "America/Sao_Paulo" });
+                    const hora = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
+                    const origem = (r.ad_id || r.ctwa_clid)
+                      ? r.source_app === "instagram" ? "via Instagram Ads" : "via Meta Ads"
+                      : "orgânico";
+                    return (
+                      <div key={r.id} className="rounded-xl border border-neutral-100 bg-neutral-50 px-3 py-2.5">
+                        <p className="text-xs font-medium text-neutral-700">
+                          Voltou de{" "}
+                          <span className="text-violet-600">{r.fase_anterior}</span>
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-neutral-400">
+                          {data}, às {hora} · {origem}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           <button
             onClick={salvarDetalhes}
