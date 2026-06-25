@@ -39,7 +39,7 @@ export default async function WhatsAppPage() {
     fetchInstances(),
     db.cliente.findMany({
       where:   { evolutionInstance: { not: null }, ativo: true },
-      select:  { id: true, nome: true, evolutionInstance: true, n8nWebhookForwardUrl: true },
+      select:  { id: true, nome: true, evolutionInstance: true },
       orderBy: { nome: 'asc' },
     }),
     db.cliente.findMany({
@@ -54,9 +54,8 @@ export default async function WhatsAppPage() {
   for (const c of clientesComInstancia) {
     if (c.evolutionInstance) {
       clienteMap.set(c.evolutionInstance, {
-        id:                   c.id,
-        nome:                 c.nome,
-        n8nWebhookForwardUrl: c.n8nWebhookForwardUrl ?? null,
+        id:   c.id,
+        nome: c.nome,
       });
     }
   }

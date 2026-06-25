@@ -7,7 +7,6 @@ import { configurarWebhookInstancia, criarNovaInstancia } from './_actions';
 export type ClienteInfo = {
   id: number;
   nome: string;
-  n8nWebhookForwardUrl: string | null;
 };
 
 export type ClienteSemInstancia = {
@@ -46,20 +45,18 @@ function urlShort(url: string | null) {
 function InstanceCard({ instance }: { instance: Instance }) {
   const router = useRouter();
 
-  const [qrLoading, setQrLoading]   = useState(false);
-  const [qrLink, setQrLink]         = useState<string | null>(null);
-  const [qrError, setQrError]       = useState<string | null>(null);
-  const [qrCopied, setQrCopied]     = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrLink, setQrLink]       = useState<string | null>(null);
+  const [qrError, setQrError]     = useState<string | null>(null);
+  const [qrCopied, setQrCopied]   = useState(false);
 
-  const [whConfig, setWhConfig]     = useState(false);
-  const [n8nUrl, setN8nUrl]         = useState(instance.cliente?.n8nWebhookForwardUrl ?? '');
-  const [whLoading, setWhLoading]   = useState(false);
-  const [whResult, setWhResult]     = useState<{ ok: boolean; msg: string } | null>(null);
+  const [whConfig, setWhConfig]   = useState(false);
+  const [whLoading, setWhLoading] = useState(false);
+  const [whResult, setWhResult]   = useState<{ ok: boolean; msg: string } | null>(null);
 
-  const info             = statusInfo(instance.connectionStatus);
-  const isDisconnected   = instance.connectionStatus.toLowerCase() !== 'open';
-  const onPlataforma     = isPlatformUrl(instance.webhookUrl);
-  const forwardAtivo     = !!instance.cliente?.n8nWebhookForwardUrl;
+  const info           = statusInfo(instance.connectionStatus);
+  const isDisconnected = instance.connectionStatus.toLowerCase() !== 'open';
+  const onPlataforma   = isPlatformUrl(instance.webhookUrl);
 
   // ── QR Code ──────────────────────────────────────────────────────────────
 
@@ -89,16 +86,10 @@ function InstanceCard({ instance }: { instance: Instance }) {
 
   async function handleConfigurarWebhook() {
     setWhLoading(true); setWhResult(null);
-    const res = await configurarWebhookInstancia(
-      instance.name,
-      instance.cliente?.id ?? null,
-      n8nUrl || null
-    );
+    const res = await configurarWebhookInstancia(instance.name, instance.cliente?.id ?? null);
     setWhLoading(false);
     if (res.ok) {
-      setWhResult({ ok: true, msg: res.urlAnterior && !isPlatformUrl(res.urlAnterior)
-        ? `Webhook configurado. N8N salvo como forward: ${urlShort(res.urlAnterior)}`
-        : 'Webhook configurado para a plataforma.' });
+      setWhResult({ ok: true, msg: 'Webhook configurado para a plataforma.' });
       setWhConfig(false);
       router.refresh();
     } else {
@@ -134,44 +125,31 @@ function InstanceCard({ instance }: { instance: Instance }) {
           <div className="flex items-center gap-1.5 text-xs">
             <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${onPlataforma ? 'bg-violet-500' : 'bg-amber-400'}`} />
             {onPlataforma ? (
-              <span className="text-violet-700 font-medium">
-                Webhook → Plataforma
-                {forwardAtivo && <span className="text-neutral-400 font-normal"> + n8n</span>}
-              </span>
+              <span className="text-violet-700 font-medium">Webhook → Plataforma</span>
             ) : (
               <span className="text-amber-700 font-medium">
                 Webhook → {urlShort(instance.webhookUrl) ?? 'não configurado'}
               </span>
             )}
           </div>
-          <button
-            onClick={() => { setWhConfig(!whConfig); setWhResult(null); }}
-            className="shrink-0 text-xs text-violet-600 hover:underline"
-          >
-            {whConfig ? 'Cancelar' : 'Configurar'}
-          </button>
+          {!onPlataforma && (
+            <button
+              onClick={() => { setWhConfig(!whConfig); setWhResult(null); }}
+              className="shrink-0 text-xs text-violet-600 hover:underline"
+            >
+              {whConfig ? 'Cancelar' : 'Configurar'}
+            </button>
+          )}
         </div>
 
-        {/* Form de configuração inline */}
         {whConfig && (
-          <div className="space-y-2 pt-1 border-t border-neutral-200">
-            <label className="block">
-              <span className="text-[10px] font-medium text-neutral-500 uppercase tracking-wide">
-                URL n8n para encaminhar <span className="normal-case font-normal">(opcional)</span>
-              </span>
-              <input
-                value={n8nUrl}
-                onChange={e => setN8nUrl(e.target.value)}
-                placeholder="https://impulso-n8n.../webhook/..."
-                className="mt-1 w-full rounded-md border border-neutral-200 px-2 py-1.5 text-xs font-mono outline-none focus:border-violet-400"
-              />
-            </label>
+          <div className="pt-1 border-t border-neutral-200">
             <button
               onClick={handleConfigurarWebhook}
               disabled={whLoading}
               className="w-full rounded-md bg-violet-600 py-1.5 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
             >
-              {whLoading ? 'Configurando…' : 'Configurar webhook → plataforma'}
+              {whLoading ? 'Configurando…' : 'Apontar webhook → plataforma'}
             </button>
           </div>
         )}
@@ -230,18 +208,17 @@ function NovaInstanciaPanel({
 }) {
   const router = useRouter();
 
-  const [nome, setNome]         = useState('');
+  const [nome, setNome]           = useState('');
   const [clienteId, setClienteId] = useState<number | null>(null);
-  const [n8nUrl, setN8nUrl]     = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [erro, setErro]         = useState<string | null>(null);
-  const [criado, setCriado]     = useState(false);
-  const [qrLink, setQrLink]     = useState<string | null>(null);
+  const [loading, setLoading]     = useState(false);
+  const [erro, setErro]           = useState<string | null>(null);
+  const [criado, setCriado]       = useState(false);
+  const [qrLink, setQrLink]       = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
 
   async function handleCriar() {
     setLoading(true); setErro(null);
-    const res = await criarNovaInstancia(nome, clienteId, n8nUrl || null);
+    const res = await criarNovaInstancia(nome, clienteId);
     setLoading(false);
     if (res.ok) { setCriado(true); router.refresh(); }
     else { setErro(res.erro); }
@@ -326,19 +303,6 @@ function NovaInstanciaPanel({
         </label>
       </div>
 
-      <label className="block">
-        <span className="mb-1 block text-xs font-medium text-neutral-700">
-          URL webhook n8n existente{' '}
-          <span className="font-normal text-neutral-400">(opcional — para clientes com fluxo n8n ativo)</span>
-        </span>
-        <input
-          value={n8nUrl}
-          onChange={e => setN8nUrl(e.target.value)}
-          placeholder="https://impulso-n8n.drx3h6.easypanel.host/webhook/…"
-          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm font-mono outline-none focus:border-violet-500"
-        />
-      </label>
-
       {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">✗ {erro}</p>}
 
       <button
@@ -368,7 +332,6 @@ export function InstanceGrid({
 
   return (
     <div className="space-y-6">
-      {/* Botão nova instância */}
       <div className="flex justify-end">
         <button
           onClick={() => setShowNova(!showNova)}

@@ -5,8 +5,9 @@
       "name": "plataforma-impulso",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
+      "cwd": "web",
       "port": 3000,
-      "cwd": "web"
+      "autoPort": false
     }
   ]
 }
