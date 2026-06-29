@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
 export type WebhookEvent = {
@@ -128,17 +128,36 @@ export function LogsTable({
   total,
   page,
   perPage,
+  currentQ,
 }: {
   events: WebhookEvent[];
   instances: string[];
   total: number;
   page: number;
   perPage: number;
+  currentQ: string;
 }) {
   const router    = useRouter();
   const pathname  = usePathname();
   const sp        = useSearchParams();
   const [, start] = useTransition();
+
+  // Campo de busca com debounce para não navegar a cada tecla
+  const [searchInput, setSearchInput] = useState(currentQ);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const trimmed = searchInput.trim();
+      const current = sp.get("q") ?? "";
+      if (trimmed === current) return;
+      navigate({ q: trimmed || null, page: "1" });
+    }, 400);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput]);
+
+  // Sincroniza se a URL mudar externamente (ex: limpeza do filtro)
+  useEffect(() => { setSearchInput(currentQ); }, [currentQ]);
 
   function navigate(params: Record<string, string | null>) {
     const next = new URLSearchParams(sp.toString());
@@ -158,6 +177,28 @@ export function LogsTable({
       {/* Filtros */}
       <div className="flex shrink-0 items-center gap-3 border-b border-neutral-200 bg-white px-4 py-2.5">
         <span className="text-xs font-medium text-neutral-500">Filtrar:</span>
+
+        {/* Campo de pesquisa */}
+        <div className="relative">
+          <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Telefone, nome, mensagem…"
+            className="rounded-lg border border-neutral-200 bg-white pl-8 pr-3 py-1.5 text-xs text-neutral-700 outline-none focus:border-violet-400 w-52"
+          />
+          {searchInput && (
+            <button
+              onClick={() => setSearchInput("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+            >
+              ×
+            </button>
+          )}
+        </div>
 
         <select
           value={currentInstance}
