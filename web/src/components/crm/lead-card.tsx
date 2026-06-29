@@ -24,6 +24,8 @@ export type Lead = {
   ultima_msg: string | null;
   ultima_msg_tipo: string | null;
   ultima_msg_em: string | null;
+  capi_status: string | null;
+  capi_enviado_em: string | null;
 };
 
 type Props = {

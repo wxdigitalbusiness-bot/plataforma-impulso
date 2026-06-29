@@ -98,7 +98,9 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
   const [mensagens, setMensagens] = useState<MensagemCrm[]>([]);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const bottomRef       = useRef<HTMLDivElement>(null);
+  const scrollContainer = useRef<HTMLDivElement>(null);
+  const isFirstLoad     = useRef(true);
 
   // Fase
   const [movendo, setMovendo] = useState(false);
@@ -142,13 +144,26 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
   }, [clienteId, lead.lead_id]);
 
   useEffect(() => {
+    isFirstLoad.current = true;
     fetchMensagens();
     const iv = setInterval(fetchMensagens, 8000);
     return () => clearInterval(iv);
   }, [fetchMensagens]);
 
+  // Scroll inteligente: na primeira carga vai direto ao fundo; nas atualizações
+  // automáticas só rola se o usuário já estiver perto do final (≤ 120 px).
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = scrollContainer.current;
+    if (!container || mensagens.length === 0) return;
+    if (isFirstLoad.current) {
+      container.scrollTop = container.scrollHeight;
+      isFirstLoad.current = false;
+      return;
+    }
+    const distToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (distToBottom <= 120) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [mensagens]);
 
   // ─── Fetch detalhes / tags / atribuição ────────────────────────────────────
@@ -395,21 +410,55 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
       {/* ── Aba: Conversa ─────────────────────────────────────────────────── */}
       {aba === "conversa" && (
         <>
-          <div className="flex-1 space-y-2 overflow-y-auto bg-neutral-50 px-4 py-3">
+          <div ref={scrollContainer} className="flex-1 space-y-2 overflow-y-auto bg-neutral-50 px-4 py-3">
             {mensagens.length === 0 ? (
               <p className="py-8 text-center text-sm text-neutral-400">Nenhuma mensagem registrada</p>
-            ) : (
-              mensagens.map((m) => (
-                <MsgBubble
-                  key={m.id}
-                  de={m.de}
-                  tipo={m.tipo}
-                  conteudo={m.conteudo}
-                  mediaUrl={m.media_url}
-                  recebidaEm={new Date(m.recebida_em)}
-                />
-              ))
-            )}
+            ) : (() => {
+              const TZ = "America/Sao_Paulo";
+              let lastDayKey = "";
+              return mensagens.map((m) => {
+                const dayKey = new Date(m.recebida_em).toLocaleDateString("pt-BR", {
+                  timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+                });
+                const showSep = dayKey !== lastDayKey;
+                lastDayKey = dayKey;
+
+                let dayLabel: string;
+                const hoje     = new Date().toLocaleDateString("pt-BR", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
+                const ontemD   = new Date(Date.now() - 86_400_000);
+                const ontem    = ontemD.toLocaleDateString("pt-BR", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
+                if (dayKey === hoje)   dayLabel = "Hoje";
+                else if (dayKey === ontem) dayLabel = "Ontem";
+                else {
+                  const sameYear = new Date(m.recebida_em).getFullYear() === new Date().getFullYear();
+                  dayLabel = new Date(m.recebida_em).toLocaleDateString("pt-BR", {
+                    timeZone: TZ, day: "numeric", month: "long",
+                    ...(sameYear ? {} : { year: "numeric" }),
+                  });
+                }
+
+                return (
+                  <div key={m.id}>
+                    {showSep && (
+                      <div className="flex items-center gap-2 py-2">
+                        <div className="flex-1 border-t border-neutral-200" />
+                        <span className="shrink-0 rounded-full bg-neutral-200 px-3 py-0.5 text-[11px] font-medium text-neutral-500">
+                          {dayLabel}
+                        </span>
+                        <div className="flex-1 border-t border-neutral-200" />
+                      </div>
+                    )}
+                    <MsgBubble
+                      de={m.de}
+                      tipo={m.tipo}
+                      conteudo={m.conteudo}
+                      mediaUrl={m.media_url}
+                      recebidaEm={new Date(m.recebida_em)}
+                    />
+                  </div>
+                );
+              });
+            })()}
             <div ref={bottomRef} />
           </div>
           <form onSubmit={enviar} className="flex items-end gap-2 border-t border-neutral-200 p-3">
@@ -459,6 +508,33 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
                   return data;
                 })()}
               </p>
+            </div>
+          )}
+
+          {/* Status conversão Meta CAPI */}
+          {lead.capi_status && (
+            <div className={`rounded-xl border px-3 py-2.5 ${
+              lead.capi_status === "ok"
+                ? "border-green-100 bg-green-50"
+                : "border-red-100 bg-red-50"
+            }`}>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">
+                Conversão Meta Ads
+              </p>
+              <div className="mt-1 flex items-center gap-2">
+                <span className={`text-sm font-semibold ${lead.capi_status === "ok" ? "text-green-700" : "text-red-600"}`}>
+                  {lead.capi_status === "ok" ? "✓ Enviada com sucesso" : "✗ Falhou no envio"}
+                </span>
+              </div>
+              {lead.capi_enviado_em && (
+                <p className="mt-0.5 text-[11px] text-neutral-400">
+                  {new Date(lead.capi_enviado_em).toLocaleString("pt-BR", {
+                    timeZone: "America/Sao_Paulo",
+                    day: "2-digit", month: "short", year: "numeric",
+                    hour: "2-digit", minute: "2-digit",
+                  })}
+                </p>
+              )}
             </div>
           )}
 
