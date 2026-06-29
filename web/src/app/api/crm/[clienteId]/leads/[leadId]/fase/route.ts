@@ -71,6 +71,19 @@ export async function PATCH(
       AND lower(client_key) = lower(${clientKey})
   `;
 
+  // Fecha etapa anterior no histórico e abre a nova
+  await db.$executeRaw`
+    UPDATE crm_historico_etapas
+    SET saiu_em = NOW()
+    WHERE lead_id = ${leadId}
+      AND lower(client_key) = lower(${clientKey})
+      AND saiu_em IS NULL
+  `;
+  await db.$executeRaw`
+    INSERT INTO crm_historico_etapas (lead_id, client_key, etapa, tipo, entrou_em)
+    VALUES (${leadId}, ${clientKey}, ${faseLabel}, 'transicao', NOW())
+  `;
+
   const ehConcluido    = fase === "concluido"   || faseLabel.toLowerCase().includes("conclu");
   const ehQualificado  = fase === "qualificado" || faseLabel.toLowerCase().includes("qualific");
   const hasGoogleClick = lead.gclid || lead.wbraid || lead.gbraid;
