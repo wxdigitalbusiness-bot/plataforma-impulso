@@ -21,6 +21,8 @@ type LeadRow = {
   ultima_msg: string | null;
   ultima_msg_tipo: string | null;
   ultima_msg_em: Date | null;
+  capi_status: string | null;
+  capi_enviado_em: Date | null;
 };
 
 export async function GET(
@@ -57,9 +59,11 @@ export async function GET(
       fl.data_criacao,
       fl.reentradas,
       fm.recebida_em AS primeira_msg_em,
-      m.conteudo     AS ultima_msg,
-      m.tipo         AS ultima_msg_tipo,
-      m.recebida_em  AS ultima_msg_em
+      m.conteudo        AS ultima_msg,
+      m.tipo            AS ultima_msg_tipo,
+      m.recebida_em     AS ultima_msg_em,
+      fl.capi_status,
+      fl.capi_enviado_em
     FROM fb_leads fl
     LEFT JOIN LATERAL (
       SELECT recebida_em
