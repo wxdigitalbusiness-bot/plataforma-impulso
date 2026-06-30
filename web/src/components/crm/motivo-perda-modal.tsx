@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type Motivo = { id: string; label: string; padrao: boolean };
+type Motivo = { id: string; motivo: string; padrao: boolean };
 
 type Props = {
   clienteId: number;
@@ -21,7 +21,7 @@ export function MotivoPerdaModal({ clienteId, onConfirm, onCancel }: Props) {
   useEffect(() => {
     fetch(`/api/crm/${clienteId}/motivos-perda`)
       .then((r) => r.json())
-      .then((d: { motivos: Motivo[] }) => setMotivos(d.motivos))
+      .then((d: { motivos: Motivo[] }) => setMotivos(d.motivos ?? []))
       .catch(() => {/* ignora */});
   }, [clienteId]);
 
@@ -37,12 +37,12 @@ export function MotivoPerdaModal({ clienteId, onConfirm, onCancel }: Props) {
       const res = await fetch(`/api/crm/${clienteId}/motivos-perda`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label }),
+        body: JSON.stringify({ motivo: label }),
       });
       if (!res.ok) return;
       const { motivo } = await res.json() as { motivo: Motivo };
       setMotivos((prev) => [...prev, motivo]);
-      setSelecionado(motivo.label);
+      setSelecionado(motivo.motivo);
       setNovoMotivo("");
       setAdicionando(false);
     } finally { setSalvando(false); }
@@ -81,23 +81,23 @@ export function MotivoPerdaModal({ clienteId, onConfirm, onCancel }: Props) {
             motivos.map((m) => (
               <button
                 key={m.id}
-                onClick={() => setSelecionado(m.label)}
+                onClick={() => setSelecionado(m.motivo)}
                 className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
-                  selecionado === m.label
+                  selecionado === m.motivo
                     ? "bg-red-50 text-red-700"
                     : "text-neutral-700 hover:bg-neutral-50"
                 }`}
               >
                 <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                  selecionado === m.label
+                  selecionado === m.motivo
                     ? "border-red-500 bg-red-500"
                     : "border-neutral-300"
                 }`}>
-                  {selecionado === m.label && (
+                  {selecionado === m.motivo && (
                     <span className="h-1.5 w-1.5 rounded-full bg-white" />
                   )}
                 </span>
-                <span>{m.label}</span>
+                <span>{m.motivo}</span>
                 {!m.padrao && (
                   <span className="ml-auto text-[10px] text-neutral-400">personalizado</span>
                 )}
