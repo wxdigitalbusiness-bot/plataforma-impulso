@@ -26,8 +26,8 @@ export async function PATCH(
   const id = parseInt(clienteId, 10);
   if (isNaN(id)) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
-  const body = await req.json() as { fase: string; faseLabel: string };
-  const { fase, faseLabel } = body;
+  const body = await req.json() as { fase: string; faseLabel: string; motivoPerda?: string };
+  const { fase, faseLabel, motivoPerda } = body;
   if (!fase || !faseLabel) {
     return NextResponse.json({ error: "fase e faseLabel são obrigatórios" }, { status: 400 });
   }
@@ -66,7 +66,8 @@ export async function PATCH(
 
   await db.$executeRaw`
     UPDATE fb_leads
-    SET fase = ${faseLabel}
+    SET fase = ${faseLabel},
+        motivo_perda = CASE WHEN ${fase} = 'perdido' THEN ${motivoPerda ?? null} ELSE motivo_perda END
     WHERE lead_id = ${leadId}
       AND lower(client_key) = lower(${clientKey})
   `;

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { MsgBubble } from "./msg-bubble";
+import { MotivoPerdaModal } from "./motivo-perda-modal";
 import type { Lead } from "./lead-card";
 
 type MensagemCrm = {
@@ -84,6 +85,7 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
 
   // Fase
   const [movendo, setMovendo] = useState(false);
+  const [pendingPerdido, setPendingPerdido] = useState<Etapa | null>(null);
 
   // Exclusão
   const [excluindo, setExcluindo] = useState(false);
@@ -208,14 +210,18 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
     } finally { setEnviando(false); }
   }
 
-  async function mudarFase(etapa: Etapa) {
+  async function mudarFase(etapa: Etapa, motivoPerda?: string) {
     if (movendo || etapa.etapaLabel === lead.fase) return;
+    if (etapa.etapa === "perdido" && !motivoPerda) {
+      setPendingPerdido(etapa);
+      return;
+    }
     setMovendo(true);
     try {
       await fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}/fase`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fase: etapa.etapa, faseLabel: etapa.etapaLabel }),
+        body: JSON.stringify({ fase: etapa.etapa, faseLabel: etapa.etapaLabel, motivoPerda }),
       });
       onFaseChange(lead.lead_id, etapa.etapa, etapa.etapaLabel);
     } finally { setMovendo(false); }
@@ -727,6 +733,19 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
             <p className="text-sm text-neutral-400">Nenhuma atribuição registrada — lead orgânico (WhatsApp direto).</p>
           )}
         </div>
+      )}
+
+      {/* Modal de motivo de perda */}
+      {pendingPerdido && (
+        <MotivoPerdaModal
+          clienteId={clienteId}
+          onConfirm={(motivo) => {
+            const etapa = pendingPerdido;
+            setPendingPerdido(null);
+            mudarFase(etapa, motivo);
+          }}
+          onCancel={() => setPendingPerdido(null)}
+        />
       )}
     </div>
   );
