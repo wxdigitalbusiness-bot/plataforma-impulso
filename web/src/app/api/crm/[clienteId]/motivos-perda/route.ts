@@ -26,16 +26,16 @@ export async function GET(
   });
   if (!cliente?.n8nClientKey) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 });
 
-  type MotivoRow = { id: number; label: string };
+  type MotivoRow = { id: number; motivo: string };
   const custom = await db.$queryRaw<MotivoRow[]>`
-    SELECT id, label FROM crm_motivos_perda
+    SELECT id, motivo FROM crm_motivos_perda
     WHERE client_key = ${cliente.n8nClientKey} AND ativo = true
     ORDER BY criado_em ASC
   `;
 
   const motivos = [
-    ...MOTIVOS_PADRAO.map((label) => ({ id: `padrao:${label}`, label, padrao: true })),
-    ...custom.map((m) => ({ id: String(m.id), label: m.label, padrao: false })),
+    ...MOTIVOS_PADRAO.map((motivo) => ({ id: `padrao:${motivo}`, motivo, padrao: true })),
+    ...custom.map((m) => ({ id: String(m.id), motivo: m.motivo, padrao: false })),
   ];
 
   return NextResponse.json({ motivos });
@@ -55,17 +55,17 @@ export async function POST(
   });
   if (!cliente?.n8nClientKey) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 });
 
-  const body = await req.json() as { label: string };
-  const label = body.label?.trim();
-  if (!label) return NextResponse.json({ error: "label obrigatório" }, { status: 400 });
+  const body = await req.json() as { motivo: string };
+  const motivo = body.motivo?.trim();
+  if (!motivo) return NextResponse.json({ error: "motivo obrigatório" }, { status: 400 });
 
-  type MotivoRow = { id: number; label: string };
+  type MotivoRow = { id: number; motivo: string };
   const rows = await db.$queryRaw<MotivoRow[]>`
-    INSERT INTO crm_motivos_perda (client_key, label)
-    VALUES (${cliente.n8nClientKey}, ${label})
-    ON CONFLICT (client_key, label) DO UPDATE SET ativo = true
-    RETURNING id, label
+    INSERT INTO crm_motivos_perda (client_key, motivo)
+    VALUES (${cliente.n8nClientKey}, ${motivo})
+    ON CONFLICT (client_key, motivo) DO UPDATE SET ativo = true
+    RETURNING id, motivo
   `;
 
-  return NextResponse.json({ motivo: { id: String(rows[0].id), label: rows[0].label, padrao: false } });
+  return NextResponse.json({ motivo: { id: String(rows[0].id), motivo: rows[0].motivo, padrao: false } });
 }

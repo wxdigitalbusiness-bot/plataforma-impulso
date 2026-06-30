@@ -1,11 +1,11 @@
 -- Motivos de perda customizados por cliente
 CREATE TABLE IF NOT EXISTS crm_motivos_perda (
-  id         SERIAL PRIMARY KEY,
-  client_key TEXT    NOT NULL,
-  label      TEXT    NOT NULL,
-  ativo      BOOLEAN NOT NULL DEFAULT true,
+  id         BIGSERIAL PRIMARY KEY,
+  client_key TEXT        NOT NULL,
+  motivo     TEXT        NOT NULL,
+  ativo      BOOLEAN     NOT NULL DEFAULT true,
   criado_em  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (client_key, label)
+  UNIQUE (client_key, motivo)
 );
 
 CREATE INDEX IF NOT EXISTS idx_motivos_perda_client_key
