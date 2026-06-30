@@ -21,9 +21,17 @@ type LeadRow = {
   data_criacao: Date;
   primeira_msg_em: Date | null;
   reentradas: number;
+  ad_title: string | null;
+  ad_body: string | null;
+  ad_media_url: string | null;
+  ad_name: string | null;
+  adset_name: string | null;
+  campaign_name: string | null;
   ultima_msg: string | null;
   ultima_msg_tipo: string | null;
   ultima_msg_em: Date | null;
+  capi_status: string | null;
+  capi_enviado_em: Date | null;
 };
 
 export default async function CrmPage({ params }: Props) {
@@ -68,10 +76,18 @@ export default async function CrmPage({ params }: Props) {
           fl.webhook_origem,
           fl.data_criacao,
           fl.reentradas,
+          fl.ad_title,
+          fl.ad_body,
+          fl.ad_media_url,
+          fl.ad_name,
+          fl.adset_name,
+          fl.campaign_name,
           fm.recebida_em AS primeira_msg_em,
-          m.conteudo     AS ultima_msg,
-          m.tipo         AS ultima_msg_tipo,
-          m.recebida_em  AS ultima_msg_em
+          m.conteudo        AS ultima_msg,
+          m.tipo            AS ultima_msg_tipo,
+          m.recebida_em     AS ultima_msg_em,
+          fl.capi_status,
+          fl.capi_enviado_em
         FROM fb_leads fl
         LEFT JOIN LATERAL (
           SELECT recebida_em
@@ -97,9 +113,10 @@ export default async function CrmPage({ params }: Props) {
   // Serializa datas para passar ao componente cliente
   const leads = leadsRaw.map((l) => ({
     ...l,
-    data_criacao: l.data_criacao ? new Date(l.data_criacao).toISOString() : null,
-    primeira_msg_em: l.primeira_msg_em ? l.primeira_msg_em.toISOString() : null,
-    ultima_msg_em: l.ultima_msg_em ? l.ultima_msg_em.toISOString() : null,
+    data_criacao:    l.data_criacao    ? new Date(l.data_criacao).toISOString() : null,
+    primeira_msg_em: l.primeira_msg_em ? l.primeira_msg_em.toISOString()        : null,
+    ultima_msg_em:   l.ultima_msg_em   ? l.ultima_msg_em.toISOString()          : null,
+    capi_enviado_em: l.capi_enviado_em ? l.capi_enviado_em.toISOString()        : null,
   }));
 
   const semConfiguracao = !cliente.evolutionInstance;
