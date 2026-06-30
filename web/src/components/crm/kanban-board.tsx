@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LeadCard, type Lead } from "./lead-card";
 import { ConversaPanel } from "./conversa-panel";
+import { MotivoPerdaModal } from "./motivo-perda-modal";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type Etapa = { etapa: string; etapaLabel: string };
@@ -469,27 +470,38 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overEtapa, setOverEtapa]   = useState<string | null>(null);
 
+  // Pendente de confirmação de motivo de perda
+  const [pendingPerda, setPendingPerda] = useState<{ leadId: string; etapa: Etapa } | null>(null);
+
+  async function confirmarFase(leadId: string, etapa: Etapa, motivoPerda?: string) {
+    setLeads((prev) =>
+      prev.map((l) => l.lead_id === leadId ? { ...l, fase: etapa.etapaLabel } : l)
+    );
+    try {
+      await fetch(`/api/crm/${clienteId}/leads/${leadId}/fase`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fase: etapa.etapa, faseLabel: etapa.etapaLabel, motivoPerda }),
+      });
+    } catch {
+      await fetchLeads();
+    }
+  }
+
   async function handleDrop(etapa: Etapa) {
     if (!draggingId) return;
     const lead = leads.find((l) => l.lead_id === draggingId);
+    const leadId = draggingId;
     setDraggingId(null);
     setOverEtapa(null);
     if (!lead || lead.fase === etapa.etapaLabel) return;
 
-    // Optimistic update
-    setLeads((prev) =>
-      prev.map((l) => l.lead_id === draggingId ? { ...l, fase: etapa.etapaLabel } : l)
-    );
-
-    try {
-      await fetch(`/api/crm/${clienteId}/leads/${draggingId}/fase`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fase: etapa.etapa, faseLabel: etapa.etapaLabel }),
-      });
-    } catch {
-      await fetchLeads(); // reverte em caso de erro
+    if (etapa.etapa === "perdido") {
+      setPendingPerda({ leadId, etapa });
+      return;
     }
+
+    await confirmarFase(leadId, etapa);
   }
 
   // Filtros
@@ -762,6 +774,18 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
             onDelete={handleDelete}
           />
         </>
+      )}
+
+      {/* Modal de motivo de perda (drag & drop) */}
+      {pendingPerda && (
+        <MotivoPerdaModal
+          clienteId={clienteId}
+          onConfirm={(motivo) => {
+            confirmarFase(pendingPerda.leadId, pendingPerda.etapa, motivo);
+            setPendingPerda(null);
+          }}
+          onCancel={() => setPendingPerda(null)}
+        />
       )}
     </>
   );
