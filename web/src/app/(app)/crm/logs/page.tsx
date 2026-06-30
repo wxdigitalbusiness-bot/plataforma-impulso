@@ -9,6 +9,7 @@ type Props = {
   searchParams: Promise<{
     instance?: string;
     status?: string;
+    q?: string;
     page?: string;
   }>;
 };
@@ -43,6 +44,8 @@ export default async function CrmLogsPage({ searchParams }: Props) {
   const offset   = (page - 1) * PER_PAGE;
   const instance = sp.instance ?? null;
   const status   = sp.status   ?? null;
+  const q        = sp.q?.trim() || null;
+  const qLike    = q ? `%${q}%` : null;   // padrão para ILIKE
 
   const [events, countResult, instanceRows] = await Promise.all([
     db.$queryRaw<EventRow[]>`
@@ -54,6 +57,11 @@ export default async function CrmLogsPage({ searchParams }: Props) {
       WHERE
         (${instance}::text IS NULL OR instance = ${instance})
         AND (${status}::text IS NULL  OR status   = ${status})
+        AND (${qLike}::text IS NULL
+          OR phone     ILIKE ${qLike}
+          OR push_name ILIKE ${qLike}
+          OR conteudo  ILIKE ${qLike}
+          OR lead_id   ILIKE ${qLike})
       ORDER BY recebido_em DESC
       LIMIT ${PER_PAGE} OFFSET ${offset}
     `,
@@ -62,6 +70,11 @@ export default async function CrmLogsPage({ searchParams }: Props) {
       WHERE
         (${instance}::text IS NULL OR instance = ${instance})
         AND (${status}::text IS NULL  OR status   = ${status})
+        AND (${qLike}::text IS NULL
+          OR phone     ILIKE ${qLike}
+          OR push_name ILIKE ${qLike}
+          OR conteudo  ILIKE ${qLike}
+          OR lead_id   ILIKE ${qLike})
     `,
     db.$queryRaw<InstanceRow[]>`
       SELECT DISTINCT instance FROM webhook_events
@@ -112,6 +125,7 @@ export default async function CrmLogsPage({ searchParams }: Props) {
           total={total}
           page={page}
           perPage={PER_PAGE}
+          currentQ={q ?? ""}
         />
       </div>
     </div>

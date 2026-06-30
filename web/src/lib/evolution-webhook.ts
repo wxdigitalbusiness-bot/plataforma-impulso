@@ -22,6 +22,9 @@ export type MensagemParsed = {
   adId: string | null;       // externalAdReply.sourceId
   ctwaClid: string | null;   // externalAdReply.ctwaClid
   sourceApp: string | null;  // "instagram" | "facebook"
+  adTitle: string | null;    // externalAdReply.title
+  adBody: string | null;     // externalAdReply.body
+  adMediaUrl: string | null; // externalAdReply.mediaUrl
 
   // Atribuição Google (reservado — atribuição agora é por janela de tempo no webhook)
   googleCode: string | null;
@@ -94,10 +97,18 @@ export function parseEvolutionWebhook(body: any): MensagemParsed | null {
   }
 
   // Atribuição CTWA (Meta)
-  const externalAdReply = contextInfo?.externalAdReply ?? null;
-  const adId: string | null = externalAdReply?.sourceId ?? null;
-  const ctwaClid: string | null = externalAdReply?.ctwaClid ?? null;
+  // Para mensagens do tipo "conversation" (texto simples), o WhatsApp coloca
+  // externalAdReply em data.contextInfo — não dentro de message.extendedTextMessage.
+  // Para outros tipos (extendedText, image, etc.) está em contextInfo da mensagem.
+  const dataContextInfo = data.contextInfo ?? null;
+  const externalAdReply =
+    contextInfo?.externalAdReply ?? dataContextInfo?.externalAdReply ?? null;
+  const adId: string | null      = externalAdReply?.sourceId  ?? null;
+  const ctwaClid: string | null  = externalAdReply?.ctwaClid  ?? null;
   const sourceApp: string | null = externalAdReply?.sourceApp ?? null;
+  const adTitle: string | null   = externalAdReply?.title     ?? null;
+  const adBody: string | null    = externalAdReply?.body      ?? null;
+  const adMediaUrl: string | null = externalAdReply?.mediaUrl ?? null;
 
   // Atribuição Google: não lemos mais código da mensagem.
   // O vínculo é feito por janela de tempo no handler do webhook.
@@ -116,6 +127,9 @@ export function parseEvolutionWebhook(body: any): MensagemParsed | null {
     adId,
     ctwaClid,
     sourceApp,
+    adTitle,
+    adBody,
+    adMediaUrl,
     googleCode: googleCodeNorm,
     recebidaEm: new Date(messageTimestamp * 1000),
   };

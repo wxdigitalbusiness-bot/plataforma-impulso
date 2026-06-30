@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { MsgBubble } from "./msg-bubble";
+import { MotivoPerdaModal } from "./motivo-perda-modal";
 import type { Lead } from "./lead-card";
 
 type MensagemCrm = {
@@ -33,6 +34,26 @@ type Reentrada = {
   source_app: string | null;
 };
 
+type EventoHistorico = {
+  id: string;
+  etapa: string;
+  tipo: string;          // 'entrada' | 'transicao' | 'reentrada'
+  origem: string | null;
+  ad_id: string | null;
+  ctwa_clid: string | null;
+  fase_anterior: string | null;
+  entrou_em: string;
+  saiu_em: string | null;
+};
+
+type HistoricoLead = {
+  ad_name: string | null;
+  adset_name: string | null;
+  campaign_name: string | null;
+  ad_title: string | null;
+  source_app: string | null;
+};
+
 type MetaAdInfo = {
   adId: string;
   adNome: string | null;
@@ -59,11 +80,9 @@ type Props = {
 };
 
 function origemLabel(lead: Lead) {
-  if (lead.gclid) return { label: "Google Ads", cls: "bg-blue-50 text-blue-600" };
-  if (lead.source_app === "instagram") return { label: "Instagram", cls: "bg-pink-50 text-pink-600" };
-  if (lead.source_app === "facebook" || lead.ad_id || lead.ctwa_clid)
-    return { label: "Facebook", cls: "bg-blue-50 text-blue-500" };
-  if (lead.utm_source === "site") return { label: "Site", cls: "bg-emerald-50 text-emerald-600" };
+  if (lead.gclid)                      return { label: "Google Ads", cls: "bg-blue-50 text-blue-600" };
+  if (lead.ad_id || lead.ctwa_clid)    return { label: "Meta Ads",   cls: "bg-blue-50 text-blue-500" };
+  if (lead.utm_source === "site")      return { label: "Site",        cls: "bg-emerald-50 text-emerald-600" };
   return { label: "Orgânico", cls: "bg-neutral-100 text-neutral-500" };
 }
 
@@ -74,16 +93,19 @@ const COR_OPCOES = [
 ];
 
 export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, onDelete }: Props) {
-  const [aba, setAba] = useState<"conversa" | "detalhes" | "origem">("conversa");
+  const [aba, setAba] = useState<"conversa" | "detalhes" | "origem" | "historico">("conversa");
 
   // Conversa
   const [mensagens, setMensagens] = useState<MensagemCrm[]>([]);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const bottomRef       = useRef<HTMLDivElement>(null);
+  const scrollContainer = useRef<HTMLDivElement>(null);
+  const isFirstLoad     = useRef(true);
 
   // Fase
   const [movendo, setMovendo] = useState(false);
+  const [pendingPerdido, setPendingPerdido] = useState<Etapa | null>(null);
 
   // Exclusão
   const [excluindo, setExcluindo] = useState(false);
@@ -109,6 +131,10 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
   // Re-entradas
   const [reentradas, setReentradas] = useState<Reentrada[] | null>(null);
 
+  // Histórico de etapas
+  const [historicoEventos, setHistoricoEventos] = useState<EventoHistorico[] | null>(null);
+  const [historicoLead, setHistoricoLead]       = useState<HistoricoLead | null>(null);
+
   // ─── Fetch mensagens ───────────────────────────────────────────────────────
   const fetchMensagens = useCallback(async () => {
     try {
@@ -120,13 +146,26 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
   }, [clienteId, lead.lead_id]);
 
   useEffect(() => {
+    isFirstLoad.current = true;
     fetchMensagens();
     const iv = setInterval(fetchMensagens, 8000);
     return () => clearInterval(iv);
   }, [fetchMensagens]);
 
+  // Scroll inteligente: na primeira carga vai direto ao fundo; nas atualizações
+  // automáticas só rola se o usuário já estiver perto do final (≤ 120 px).
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = scrollContainer.current;
+    if (!container || mensagens.length === 0) return;
+    if (isFirstLoad.current) {
+      container.scrollTop = container.scrollHeight;
+      isFirstLoad.current = false;
+      return;
+    }
+    const distToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (distToBottom <= 120) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [mensagens]);
 
   // ─── Fetch detalhes / tags / atribuição ────────────────────────────────────
@@ -159,7 +198,8 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
       fetchDetalhes();
       fetchTodasTags();
     }
-    if (aba === "origem" && lead.ad_id && metaAdInfo === null) {
+    // Busca da API apenas como fallback para leads sem dados no banco (legados)
+    if (aba === "origem" && lead.ad_id && !lead.campaign_name && metaAdInfo === null) {
       setMetaAdInfo("loading");
       fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}/meta-attribution?adId=${encodeURIComponent(lead.ad_id)}`)
         .then((r) => r.json())
@@ -180,6 +220,19 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
       .then((d: { reentradas: Reentrada[] }) => setReentradas(d.reentradas ?? []))
       .catch(() => setReentradas([]));
   }, [aba, lead.lead_id, lead.reentradas, clienteId]);
+
+  // Fetch histórico de etapas (lazy, ao abrir a aba Histórico)
+  useEffect(() => {
+    if (aba !== "historico") return;
+    setHistoricoEventos(null);
+    fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}/historico`)
+      .then((r) => r.json())
+      .then((d: { eventos: EventoHistorico[]; lead: HistoricoLead | null }) => {
+        setHistoricoEventos(d.eventos ?? []);
+        setHistoricoLead(d.lead ?? null);
+      })
+      .catch(() => setHistoricoEventos([]));
+  }, [aba, clienteId, lead.lead_id]);
 
   // Fecha dropdown de tag ao clicar fora
   useEffect(() => {
@@ -208,14 +261,18 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
     } finally { setEnviando(false); }
   }
 
-  async function mudarFase(etapa: Etapa) {
+  async function mudarFase(etapa: Etapa, motivoPerda?: string) {
     if (movendo || etapa.etapaLabel === lead.fase) return;
+    if (etapa.etapa === "perdido" && !motivoPerda) {
+      setPendingPerdido(etapa);
+      return;
+    }
     setMovendo(true);
     try {
       await fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}/fase`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fase: etapa.etapa, faseLabel: etapa.etapaLabel }),
+        body: JSON.stringify({ fase: etapa.etapa, faseLabel: etapa.etapaLabel, motivoPerda }),
       });
       onFaseChange(lead.lead_id, etapa.etapa, etapa.etapaLabel);
     } finally { setMovendo(false); }
@@ -338,17 +395,20 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
 
       {/* Abas */}
       <div className="flex border-b border-neutral-100">
-        {(["conversa", "detalhes", "origem"] as const).map((tab) => (
+        {(["conversa", "detalhes", "origem", "historico"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setAba(tab)}
-            className={`flex-1 py-2.5 text-xs font-medium capitalize transition-colors ${
+            className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
               aba === tab
                 ? "border-b-2 border-violet-600 text-violet-600"
                 : "text-neutral-500 hover:text-neutral-700"
             }`}
           >
-            {tab === "conversa" ? "Conversa" : tab === "detalhes" ? "Detalhes" : "Origem"}
+            {tab === "conversa" ? "Conversa"
+              : tab === "detalhes" ? "Detalhes"
+              : tab === "origem"   ? "Origem"
+              : "Histórico"}
           </button>
         ))}
       </div>
@@ -356,21 +416,55 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
       {/* ── Aba: Conversa ─────────────────────────────────────────────────── */}
       {aba === "conversa" && (
         <>
-          <div className="flex-1 space-y-2 overflow-y-auto bg-neutral-50 px-4 py-3">
+          <div ref={scrollContainer} className="flex-1 space-y-2 overflow-y-auto bg-neutral-50 px-4 py-3">
             {mensagens.length === 0 ? (
               <p className="py-8 text-center text-sm text-neutral-400">Nenhuma mensagem registrada</p>
-            ) : (
-              mensagens.map((m) => (
-                <MsgBubble
-                  key={m.id}
-                  de={m.de}
-                  tipo={m.tipo}
-                  conteudo={m.conteudo}
-                  mediaUrl={m.media_url}
-                  recebidaEm={new Date(m.recebida_em)}
-                />
-              ))
-            )}
+            ) : (() => {
+              const TZ = "America/Sao_Paulo";
+              let lastDayKey = "";
+              return mensagens.map((m) => {
+                const dayKey = new Date(m.recebida_em).toLocaleDateString("pt-BR", {
+                  timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+                });
+                const showSep = dayKey !== lastDayKey;
+                lastDayKey = dayKey;
+
+                let dayLabel: string;
+                const hoje     = new Date().toLocaleDateString("pt-BR", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
+                const ontemD   = new Date(Date.now() - 86_400_000);
+                const ontem    = ontemD.toLocaleDateString("pt-BR", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
+                if (dayKey === hoje)   dayLabel = "Hoje";
+                else if (dayKey === ontem) dayLabel = "Ontem";
+                else {
+                  const sameYear = new Date(m.recebida_em).getFullYear() === new Date().getFullYear();
+                  dayLabel = new Date(m.recebida_em).toLocaleDateString("pt-BR", {
+                    timeZone: TZ, day: "numeric", month: "long",
+                    ...(sameYear ? {} : { year: "numeric" }),
+                  });
+                }
+
+                return (
+                  <div key={m.id}>
+                    {showSep && (
+                      <div className="flex items-center gap-2 py-2">
+                        <div className="flex-1 border-t border-neutral-200" />
+                        <span className="shrink-0 rounded-full bg-neutral-200 px-3 py-0.5 text-[11px] font-medium text-neutral-500">
+                          {dayLabel}
+                        </span>
+                        <div className="flex-1 border-t border-neutral-200" />
+                      </div>
+                    )}
+                    <MsgBubble
+                      de={m.de}
+                      tipo={m.tipo}
+                      conteudo={m.conteudo}
+                      mediaUrl={m.media_url}
+                      recebidaEm={new Date(m.recebida_em)}
+                    />
+                  </div>
+                );
+              });
+            })()}
             <div ref={bottomRef} />
           </div>
           <form onSubmit={enviar} className="flex items-end gap-2 border-t border-neutral-200 p-3">
@@ -420,6 +514,33 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
                   return data;
                 })()}
               </p>
+            </div>
+          )}
+
+          {/* Status conversão Meta CAPI */}
+          {lead.capi_status && (
+            <div className={`rounded-xl border px-3 py-2.5 ${
+              lead.capi_status === "ok"
+                ? "border-green-100 bg-green-50"
+                : "border-red-100 bg-red-50"
+            }`}>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">
+                Conversão Meta Ads
+              </p>
+              <div className="mt-1 flex items-center gap-2">
+                <span className={`text-sm font-semibold ${lead.capi_status === "ok" ? "text-green-700" : "text-red-600"}`}>
+                  {lead.capi_status === "ok" ? "✓ Enviada com sucesso" : "✗ Falhou no envio"}
+                </span>
+              </div>
+              {lead.capi_enviado_em && (
+                <p className="mt-0.5 text-[11px] text-neutral-400">
+                  {new Date(lead.capi_enviado_em).toLocaleString("pt-BR", {
+                    timeZone: "America/Sao_Paulo",
+                    day: "2-digit", month: "short", year: "numeric",
+                    hour: "2-digit", minute: "2-digit",
+                  })}
+                </p>
+              )}
             </div>
           )}
 
@@ -575,9 +696,7 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
                     const dt = new Date(r.reentrada_em);
                     const data = dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric", timeZone: "America/Sao_Paulo" });
                     const hora = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
-                    const origem = (r.ad_id || r.ctwa_clid)
-                      ? r.source_app === "instagram" ? "via Instagram Ads" : "via Meta Ads"
-                      : "orgânico";
+                    const origem = (r.ad_id || r.ctwa_clid) ? "via Meta Ads" : "orgânico";
                     return (
                       <div key={r.id} className="rounded-xl border border-neutral-100 bg-neutral-50 px-3 py-2.5">
                         <p className="text-xs font-medium text-neutral-700">
@@ -616,47 +735,78 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
             </span>
           </div>
 
-          {/* Meta Ads (Facebook / Instagram) */}
-          {(lead.ctwa_clid || lead.ad_id || lead.source_app === "facebook" || lead.source_app === "instagram") && (
+          {/* Meta Ads */}
+          {(lead.ctwa_clid || lead.ad_id) && (
             <div>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Meta Ads</p>
               <dl className="space-y-3">
-                {/* Plataforma */}
-                <div>
-                  <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Plataforma</dt>
-                  <dd className="mt-0.5 text-sm text-neutral-800">
-                    {lead.source_app === "instagram" ? "Instagram" : "Facebook"}
-                  </dd>
-                </div>
 
-                {/* Dados enriquecidos do anúncio via Graph API */}
-                {lead.ad_id && metaAdInfo === "loading" && (
+                {/* Plataforma onde o lead viu o anúncio */}
+                {lead.source_app && (
+                  <div>
+                    <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Plataforma</dt>
+                    <dd className="mt-0.5 text-sm text-neutral-800">
+                      {lead.source_app === "instagram" ? "Instagram" : "Facebook"}
+                    </dd>
+                  </div>
+                )}
+
+                {/* Criativo do anúncio (vindo do webhook) */}
+                {lead.ad_title && (
+                  <div>
+                    <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Título do anúncio</dt>
+                    <dd className="mt-0.5 text-sm font-medium text-neutral-800">{lead.ad_title}</dd>
+                  </div>
+                )}
+                {lead.ad_body && (
+                  <div>
+                    <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Texto do anúncio</dt>
+                    <dd className="mt-0.5 text-sm text-neutral-700 leading-relaxed">{lead.ad_body}</dd>
+                  </div>
+                )}
+                {lead.ad_media_url && (
+                  <div>
+                    <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Criativo</dt>
+                    <dd className="mt-0.5">
+                      <a
+                        href={lead.ad_media_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-violet-600 underline hover:text-violet-800"
+                      >
+                        Ver no {lead.source_app === "instagram" ? "Instagram" : "Facebook"} ↗
+                      </a>
+                    </dd>
+                  </div>
+                )}
+
+                {/* Hierarquia da campanha — DB primeiro, API como fallback para leads antigos */}
+                {lead.ad_id && !lead.campaign_name && metaAdInfo === "loading" && (
                   <div className="text-xs text-neutral-400 animate-pulse">Buscando dados do anúncio…</div>
                 )}
-                {lead.ad_id && metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null && (
-                  <>
-                    {metaAdInfo.campanhaNome && (
-                      <div>
-                        <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Campanha</dt>
-                        <dd className="mt-0.5 text-sm text-neutral-800">{metaAdInfo.campanhaNome}</dd>
-                      </div>
-                    )}
-                    {metaAdInfo.adSetNome && (
-                      <div>
-                        <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Conjunto de anúncios</dt>
-                        <dd className="mt-0.5 text-sm text-neutral-800">{metaAdInfo.adSetNome}</dd>
-                      </div>
-                    )}
-                    {metaAdInfo.adNome && (
-                      <div>
-                        <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Anúncio</dt>
-                        <dd className="mt-0.5 text-sm text-neutral-800">{metaAdInfo.adNome}</dd>
-                      </div>
-                    )}
-                  </>
+                {(lead.campaign_name ?? (metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null ? metaAdInfo.campanhaNome : null)) && (
+                  <div>
+                    <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Campanha</dt>
+                    <dd className="mt-0.5 text-sm text-neutral-800">
+                      {lead.campaign_name ?? (metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null ? metaAdInfo.campanhaNome : null)}
+                    </dd>
+                  </div>
                 )}
-                {lead.ad_id && metaAdInfo === "error" && (
-                  <div className="text-xs text-red-400">Não foi possível carregar os dados do anúncio.</div>
+                {(lead.adset_name ?? (metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null ? metaAdInfo.adSetNome : null)) && (
+                  <div>
+                    <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Conjunto de anúncios</dt>
+                    <dd className="mt-0.5 text-sm text-neutral-800">
+                      {lead.adset_name ?? (metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null ? metaAdInfo.adSetNome : null)}
+                    </dd>
+                  </div>
+                )}
+                {(lead.ad_name ?? (metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null ? metaAdInfo.adNome : null)) && (
+                  <div>
+                    <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Nome do anúncio</dt>
+                    <dd className="mt-0.5 text-sm text-neutral-800">
+                      {lead.ad_name ?? (metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null ? metaAdInfo.adNome : null)}
+                    </dd>
+                  </div>
                 )}
 
                 {/* IDs brutos */}
@@ -727,6 +877,121 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
             <p className="text-sm text-neutral-400">Nenhuma atribuição registrada — lead orgânico (WhatsApp direto).</p>
           )}
         </div>
+      )}
+
+      {/* ── Aba: Histórico ────────────────────────────────────────────── */}
+      {aba === "historico" && (
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          {historicoEventos === null ? (
+            <p className="py-8 text-center text-sm text-neutral-400 animate-pulse">Carregando…</p>
+          ) : historicoEventos.length === 0 ? (
+            <p className="py-8 text-center text-sm text-neutral-400">
+              Nenhum histórico registrado ainda.
+            </p>
+          ) : (
+            <ol className="relative border-l border-neutral-200 space-y-6 ml-3">
+              {historicoEventos.map((ev, idx) => {
+                const isLast   = idx === historicoEventos.length - 1;
+                const entrou   = new Date(ev.entrou_em);
+                const saiu     = ev.saiu_em ? new Date(ev.saiu_em) : null;
+                const dtEntrou = entrou.toLocaleDateString("pt-BR", {
+                  day: "2-digit", month: "short", year: "numeric",
+                  timeZone: "America/Sao_Paulo",
+                });
+                const hrEntrou = entrou.toLocaleTimeString("pt-BR", {
+                  hour: "2-digit", minute: "2-digit",
+                  timeZone: "America/Sao_Paulo",
+                });
+
+                // Duração na etapa
+                const durMs   = saiu ? saiu.getTime() - entrou.getTime() : Date.now() - entrou.getTime();
+                const durDias = Math.round(durMs / 86_400_000);
+                const durStr  = durDias === 0 ? "menos de 1 dia"
+                  : durDias === 1 ? "1 dia"
+                  : `${durDias} dias`;
+
+                const isEntrada   = ev.tipo === "entrada";
+                const isReentrada = ev.tipo === "reentrada";
+                const highlight   = isEntrada || isReentrada;
+
+                // Cor e ícone do ponto na linha do tempo
+                const dotCls = highlight
+                  ? "bg-violet-600 ring-2 ring-violet-200"
+                  : "bg-neutral-300";
+
+                return (
+                  <li key={ev.id} className="ml-6">
+                    {/* Ponto */}
+                    <span className={`absolute -left-[7px] flex h-3.5 w-3.5 items-center justify-center rounded-full ${dotCls}`} />
+
+                    <div className={`rounded-xl border px-3 py-2.5 ${highlight ? "border-violet-100 bg-violet-50" : "border-neutral-100 bg-neutral-50"}`}>
+                      {/* Tipo + etapa */}
+                      <p className="text-xs font-semibold text-neutral-800">
+                        {isEntrada   ? "Entrada inicial"
+                          : isReentrada ? "Re-entrada"
+                          : ev.etapa}
+                      </p>
+                      {(isEntrada || isReentrada) && (
+                        <p className="text-[11px] text-neutral-500">
+                          Fase: <span className="font-medium text-neutral-700">{ev.etapa}</span>
+                        </p>
+                      )}
+                      {isReentrada && ev.fase_anterior && (
+                        <p className="text-[11px] text-neutral-400">
+                          Vinha de: <span className="font-medium">{ev.fase_anterior}</span>
+                        </p>
+                      )}
+
+                      {/* Origem (para entrada e reentrada) */}
+                      {(isEntrada || isReentrada) && ev.origem && (
+                        <p className="mt-1 text-[11px]">
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold
+                            ${ev.origem === "Meta Ads"   ? "bg-blue-100 text-blue-700"
+                            : ev.origem === "Google Ads" ? "bg-green-100 text-green-700"
+                            : "bg-neutral-200 text-neutral-600"}`}>
+                            {ev.origem}
+                          </span>
+                          {/* Título do anúncio (se primeiro evento e tivermos os dados) */}
+                          {isEntrada && historicoLead?.ad_title && (
+                            <span className="ml-1.5 text-neutral-500">{historicoLead.ad_title}</span>
+                          )}
+                          {/* Campanha */}
+                          {isEntrada && historicoLead?.campaign_name && (
+                            <span className="ml-1.5 text-neutral-400">· {historicoLead.campaign_name}</span>
+                          )}
+                        </p>
+                      )}
+
+                      {/* Data + duração */}
+                      <p className="mt-1.5 text-[10px] text-neutral-400">
+                        {dtEntrou} às {hrEntrou}
+                        {!isLast && saiu && (
+                          <span className="ml-2 text-neutral-300">· ficou {durStr}</span>
+                        )}
+                        {isLast && (
+                          <span className="ml-2 text-violet-400">· etapa atual ({durStr})</span>
+                        )}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
+      )}
+
+      {/* Modal de motivo de perda */}
+      {pendingPerdido && (
+        <MotivoPerdaModal
+          clienteId={clienteId}
+          onConfirm={(motivo) => {
+            const etapa = pendingPerdido;
+            setPendingPerdido(null);
+            mudarFase(etapa, motivo);
+          }}
+          onCancel={() => setPendingPerdido(null)}
+        />
       )}
     </div>
   );
