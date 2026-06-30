@@ -98,6 +98,14 @@ export async function PATCH(
       ctwaClid:  lead.ctwa_clid,
     });
     capiResult = result.ok ? { ok: true } : { ok: false, detail: result.error };
+    // Persiste resultado para exibir no painel do lead
+    const capiStatusVal = result.ok ? "ok" : "erro";
+    await db.$executeRaw`
+      UPDATE fb_leads
+      SET capi_status = ${capiStatusVal}, capi_enviado_em = NOW()
+      WHERE lead_id = ${leadId}
+        AND lower(client_key) = lower(${clientKey})
+    `;
   }
 
   // ── Google Ads Offline Conversions ─────────────────────────────────────────
