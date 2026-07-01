@@ -25,10 +25,6 @@ const clienteSchema = z.object({
     z.string().nullable()
   ),
   ativo: z.coerce.boolean(),
-  // CRM / WhatsApp
-  evolutionInstance:        z.preprocess(nullable, z.string().nullable()),
-  waNumero:                 z.preprocess(nullable, z.string().nullable()),
-  waMessageTemplate:        z.preprocess(nullable, z.string().nullable()),
   // Meta CAPI
   pixelId:                  z.preprocess(nullable, z.string().nullable()),
   capiToken:                z.preprocess(nullable, z.string().nullable()),
@@ -46,9 +42,6 @@ function parseForm(formData: FormData) {
     tipoServico: formData.get("tipoServico"),
     n8nClientKey: formData.get("n8nClientKey"),
     ativo: formData.get("ativo") === "on",
-    evolutionInstance:        formData.get("evolutionInstance"),
-    waNumero:                 formData.get("waNumero"),
-    waMessageTemplate:        formData.get("waMessageTemplate"),
     pixelId:                  formData.get("pixelId"),
     capiToken:                formData.get("capiToken"),
     googleAdsCustomerId:                   formData.get("googleAdsCustomerId"),
@@ -67,9 +60,6 @@ export async function criarCliente(formData: FormData) {
       tipoServico: data.tipoServico,
       n8nClientKey: data.n8nClientKey,
       ativo: data.ativo,
-      evolutionInstance:        data.evolutionInstance,
-      waNumero:                 data.waNumero,
-      waMessageTemplate:        data.waMessageTemplate,
       pixelId:                  data.pixelId,
       capiToken:                data.capiToken,
       googleAdsCustomerId:                   data.googleAdsCustomerId,
@@ -93,9 +83,6 @@ export async function atualizarCliente(id: number, formData: FormData) {
       tipoServico: data.tipoServico,
       n8nClientKey: data.n8nClientKey,
       ativo: data.ativo,
-      evolutionInstance:        data.evolutionInstance,
-      waNumero:                 data.waNumero,
-      waMessageTemplate:        data.waMessageTemplate,
       pixelId:                  data.pixelId,
       capiToken:                data.capiToken,
       googleAdsCustomerId:                   data.googleAdsCustomerId,
@@ -104,9 +91,6 @@ export async function atualizarCliente(id: number, formData: FormData) {
     },
   });
 
-  // Backward-compat: propagar valores pras contas (workflows legados leem de
-  // clientes_ativos.empresa/whatsapp_alerta). Os workflows atualizados leem do
-  // parent via JOIN, mas mantemos a sincronia até a migração completa.
   await db.clienteAtivo.updateMany({
     where: { clienteId: id },
     data: {
@@ -122,7 +106,6 @@ export async function atualizarCliente(id: number, formData: FormData) {
 }
 
 export async function excluirCliente(id: number) {
-  // ON DELETE SET NULL na FK preserva as contas (cliente_id vira NULL)
   await db.cliente.delete({ where: { id } });
   revalidatePath("/");
   revalidatePath("/clientes");

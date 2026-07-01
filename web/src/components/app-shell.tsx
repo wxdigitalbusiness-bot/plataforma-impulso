@@ -141,6 +141,7 @@ function Sidebar({
                 { href: "/crm/leads",          label: "Leads" },
                 { href: "/crm/etapas",         label: "Etapas do Funil" },
                 { href: "/crm/motivos-perda",  label: "Motivo de Perda" },
+                { href: "/crm/whatsapp",       label: "WhatsApp" },
                 { href: "/crm/logs",           label: "Logs de Webhooks" },
               ].map(({ href, label }) => {
                 const active = pathname.startsWith(href);
