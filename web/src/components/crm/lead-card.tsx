@@ -65,9 +65,12 @@ function dataRelativa(isoStr: string | null): string {
   return local.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+// Trata string literal "null" (legado do n8n) como ausente
+const isReal = (v: string | null | undefined): boolean => !!v && v !== "null";
+
 function OrigemBadge({ lead }: { lead: Lead }) {
   const temGoogle = !!lead.gclid;
-  const temMeta   = !!(lead.ad_id || lead.ctwa_clid);
+  const temMeta   = isReal(lead.ad_id) || isReal(lead.ctwa_clid);
   const isSite    = lead.utm_source === "site" && !temGoogle && !temMeta;
 
   if (temGoogle) {
