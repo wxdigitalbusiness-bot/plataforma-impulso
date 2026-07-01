@@ -79,10 +79,13 @@ type Props = {
   onDelete: (leadId: string) => void;
 };
 
+// Trata string literal "null" (legado do n8n) como ausente
+const isReal = (v: string | null | undefined): boolean => !!v && v !== "null";
+
 function origemLabel(lead: Lead) {
-  if (lead.gclid)                      return { label: "Google Ads", cls: "bg-blue-50 text-blue-600" };
-  if (lead.ad_id || lead.ctwa_clid)    return { label: "Meta Ads",   cls: "bg-blue-50 text-blue-500" };
-  if (lead.utm_source === "site")      return { label: "Site",        cls: "bg-emerald-50 text-emerald-600" };
+  if (lead.gclid)                                    return { label: "Google Ads", cls: "bg-blue-50 text-blue-600" };
+  if (isReal(lead.ad_id) || isReal(lead.ctwa_clid)) return { label: "Meta Ads",   cls: "bg-blue-50 text-blue-500" };
+  if (lead.utm_source === "site")                    return { label: "Site",        cls: "bg-emerald-50 text-emerald-600" };
   return { label: "Orgânico", cls: "bg-neutral-100 text-neutral-500" };
 }
 
@@ -199,7 +202,7 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
       fetchTodasTags();
     }
     // Busca da API apenas como fallback para leads sem dados no banco (legados)
-    if (aba === "origem" && lead.ad_id && !lead.campaign_name && metaAdInfo === null) {
+    if (aba === "origem" && isReal(lead.ad_id) && !lead.campaign_name && metaAdInfo === null) {
       setMetaAdInfo("loading");
       fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}/meta-attribution?adId=${encodeURIComponent(lead.ad_id)}`)
         .then((r) => r.json())
@@ -736,7 +739,7 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
           </div>
 
           {/* Meta Ads */}
-          {(lead.ctwa_clid || lead.ad_id) && (
+          {(isReal(lead.ctwa_clid) || isReal(lead.ad_id)) && (
             <div>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Meta Ads</p>
               <dl className="space-y-3">
@@ -781,7 +784,7 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
                 )}
 
                 {/* Hierarquia da campanha — DB primeiro, API como fallback para leads antigos */}
-                {lead.ad_id && !lead.campaign_name && metaAdInfo === "loading" && (
+                {isReal(lead.ad_id) && !lead.campaign_name && metaAdInfo === "loading" && (
                   <div className="text-xs text-neutral-400 animate-pulse">Buscando dados do anúncio…</div>
                 )}
                 {(lead.campaign_name ?? (metaAdInfo !== "loading" && metaAdInfo !== "error" && metaAdInfo !== null ? metaAdInfo.campanhaNome : null)) && (
@@ -810,13 +813,13 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
                 )}
 
                 {/* IDs brutos */}
-                {lead.ad_id && (
+                {isReal(lead.ad_id) && (
                   <div>
                     <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Ad ID</dt>
                     <dd className="mt-0.5 break-all text-xs text-neutral-500">{lead.ad_id}</dd>
                   </div>
                 )}
-                {lead.ctwa_clid && (
+                {isReal(lead.ctwa_clid) && (
                   <div>
                     <dt className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">CTWA Click ID</dt>
                     <dd className="mt-0.5 break-all text-xs text-neutral-500">{lead.ctwa_clid}</dd>
@@ -850,7 +853,7 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
           )}
 
           {/* UTMs gerais (Site / outros) */}
-          {!lead.gclid && !lead.ctwa_clid && !lead.ad_id && atribuicao?.utm_source && (
+          {!lead.gclid && !isReal(lead.ctwa_clid) && !isReal(lead.ad_id) && atribuicao?.utm_source && (
             <div>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Rastreamento</p>
               <dl className="space-y-3">
@@ -873,7 +876,7 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
           )}
 
           {/* Orgânico — sem nenhuma atribuição */}
-          {!lead.gclid && !lead.ctwa_clid && !lead.ad_id && !atribuicao?.utm_source && (
+          {!lead.gclid && !isReal(lead.ctwa_clid) && !isReal(lead.ad_id) && !atribuicao?.utm_source && (
             <p className="text-sm text-neutral-400">Nenhuma atribuição registrada — lead orgânico (WhatsApp direto).</p>
           )}
         </div>
