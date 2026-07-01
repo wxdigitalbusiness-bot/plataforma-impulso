@@ -3,9 +3,6 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { ClienteForm, type ClienteFormData } from "../../_cliente-form";
 import { atualizarCliente, excluirCliente } from "../../_cliente-actions";
-import { CrmWebhooksSection, type WebhookExistente } from "./_crm-webhooks-section";
-import { EvolutionWebhookConfig } from "./_evolution-webhook-config";
-import { EvolutionCreateInstance } from "./_evolution-create-instance";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -16,24 +13,10 @@ export default async function EditarClientePage({ params }: Props) {
 
   const cliente = await db.cliente.findUnique({
     where: { id: clienteId },
-    include: {
-      _count:      { select: { contas: true } },
-      crmWebhooks: {
-        select: { id: true, etapa: true, etapaLabel: true, ehExtra: true, webhookUrl: true },
-        orderBy: [{ ehExtra: "asc" }, { criadoEm: "asc" }],
-      },
-    },
+    include: { _count: { select: { contas: true } } },
   });
 
   if (!cliente) notFound();
-
-  const webhooks: WebhookExistente[] = cliente.crmWebhooks.map((w) => ({
-    id:         Number(w.id),
-    etapa:      w.etapa,
-    etapaLabel: w.etapaLabel,
-    ehExtra:    w.ehExtra,
-    webhookUrl: w.webhookUrl,
-  }));
 
   const clienteData: ClienteFormData = {
     id: cliente.id,
@@ -43,9 +26,6 @@ export default async function EditarClientePage({ params }: Props) {
     tipoServico: cliente.tipoServico,
     n8nClientKey: cliente.n8nClientKey,
     ativo: cliente.ativo,
-    evolutionInstance:        cliente.evolutionInstance,
-    waNumero:                 cliente.waNumero,
-    waMessageTemplate:        cliente.waMessageTemplate,
     pixelId:                  cliente.pixelId,
     capiToken:                cliente.capiToken,
     googleAdsCustomerId:                   cliente.googleAdsCustomerId,
@@ -94,25 +74,13 @@ export default async function EditarClientePage({ params }: Props) {
         />
       </div>
 
-      {/* Seção Evolution: cria instância (se não tiver) ou mostra config de webhook (se já tiver) */}
-      {cliente.evolutionInstance ? (
-        <EvolutionWebhookConfig
-          clienteId={cliente.id}
-          instanceName={cliente.evolutionInstance}
-          forwardUrl={cliente.n8nWebhookForwardUrl ?? null}
-        />
-      ) : (
-        <EvolutionCreateInstance
-          clienteId={cliente.id}
-          clienteNome={cliente.nome}
-        />
-      )}
-
-      <CrmWebhooksSection
-        clienteId={cliente.id}
-        temClientKey={!!cliente.n8nClientKey && cliente.n8nClientKey.trim() !== ""}
-        webhooks={webhooks}
-      />
+      <div className="rounded-xl border border-neutral-100 bg-neutral-50 px-5 py-4 text-sm text-neutral-500">
+        Configurações de WhatsApp (links, instância, webhooks) foram movidas para{" "}
+        <a href={`/crm/whatsapp?cliente=${cliente.id}`} className="font-medium text-violet-600 hover:underline">
+          CRM → WhatsApp
+        </a>
+        .
+      </div>
     </div>
   );
 }
