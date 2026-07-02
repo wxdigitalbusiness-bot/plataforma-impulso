@@ -80,7 +80,7 @@ type Props = {
 };
 
 // Trata string literal "null" (legado do n8n) como ausente
-const isReal = (v: string | null | undefined): boolean => !!v && v !== "null";
+const isReal = (v: string | null | undefined): v is string => !!v && v !== "null";
 
 function origemLabel(lead: Lead) {
   if (lead.gclid)                                    return { label: "Google Ads", cls: "bg-blue-50 text-blue-600" };
