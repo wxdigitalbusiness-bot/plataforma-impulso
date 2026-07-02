@@ -22,13 +22,18 @@ function buildSnippet(origin: string, clientKey: string | null) {
   if(um)q+=(q?'&':'')+'utm_medium='+encodeURIComponent(um);
   if(uc)q+=(q?'&':'')+'utm_campaign='+encodeURIComponent(uc);
   if(ut)q+=(q?'&':'')+'utm_term='+encodeURIComponent(ut);
-  document.querySelectorAll('a[href*="wa.me"],a[href*="whatsapp"],a[href*="/r/wa/"],a[href*="/api/w/"]').forEach(function(el){
-    if(el.href.indexOf('/api/w/')>-1){
-      el.href=el.href+(el.href.indexOf('?')>-1?'&':'?')+q;
-    } else {
-      ${elseClause}
-    }
-  });
+  function inject(){
+    document.querySelectorAll('a[href*="wa.me"],a[href*="whatsapp"],a[href*="/r/wa/"],a[href*="/api/w/"]').forEach(function(el){
+      if(el.href.indexOf('?'+q)<0&&el.href.indexOf('&'+q)<0){
+        if(el.href.indexOf('/api/w/')>-1){
+          el.href=el.href+(el.href.indexOf('?')>-1?'&':'?')+q;
+        } else {
+          ${elseClause}
+        }
+      }
+    });
+  }
+  window.addEventListener('load',function(){ inject(); setTimeout(inject,1000); });
 })();
 <\/script>`;
 }
