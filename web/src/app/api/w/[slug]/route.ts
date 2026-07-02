@@ -30,41 +30,39 @@ export async function GET(
 
   const { wa_numero, mensagem, cliente_id } = rows[0];
 
-  // Atribuição Google Ads: quando o snippet injeta gclid/UTMs no link, salva o clique.
-  // O webhook Evolution vincula ao lead pelo mesmo client_key dentro de 30 min.
   const gclid       = q.get("gclid");
   const wbraid      = q.get("wbraid");
   const gbraid      = q.get("gbraid");
-  const utmSource   = q.get("utm_source");
+  const utmSource   = q.get("utm_source") ?? "site";
   const utmMedium   = q.get("utm_medium");
   const utmCampaign = q.get("utm_campaign");
   const utmContent  = q.get("utm_content");
   const utmTerm     = q.get("utm_term");
 
-  if (gclid || wbraid || gbraid || utmSource) {
-    const cliente = await db.cliente.findUnique({
-      where: { id: cliente_id },
-      select: { n8nClientKey: true },
-    });
+  // Sempre registra o clique: com gclid/UTMs se vier de anúncio,
+  // ou utm_source="site" se vier orgânico — badge WWW no CRM.
+  const cliente = await db.cliente.findUnique({
+    where: { id: cliente_id },
+    select: { n8nClientKey: true },
+  });
 
-    if (cliente?.n8nClientKey) {
-      const ip        = req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "";
-      const userAgent = req.headers.get("user-agent") ?? "";
+  if (cliente?.n8nClientKey) {
+    const ip        = req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "";
+    const userAgent = req.headers.get("user-agent") ?? "";
 
-      await db.$executeRaw`
-        INSERT INTO google_attribution (
-          code, client_key,
-          gclid, wbraid, gbraid,
-          utm_source, utm_medium, utm_campaign, utm_content, utm_term,
-          ip, user_agent
-        ) VALUES (
-          ${generateCode()}, ${cliente.n8nClientKey},
-          ${gclid}, ${wbraid}, ${gbraid},
-          ${utmSource ?? "site"}, ${utmMedium}, ${utmCampaign}, ${utmContent}, ${utmTerm},
-          ${ip}, ${userAgent}
-        )
-      `;
-    }
+    await db.$executeRaw`
+      INSERT INTO google_attribution (
+        code, client_key,
+        gclid, wbraid, gbraid,
+        utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+        ip, user_agent
+      ) VALUES (
+        ${generateCode()}, ${cliente.n8nClientKey},
+        ${gclid}, ${wbraid}, ${gbraid},
+        ${utmSource}, ${utmMedium}, ${utmCampaign}, ${utmContent}, ${utmTerm},
+        ${ip}, ${userAgent}
+      )
+    `;
   }
 
   const url = `https://wa.me/${wa_numero}${mensagem ? `?text=${encodeURIComponent(mensagem)}` : ""}`;
