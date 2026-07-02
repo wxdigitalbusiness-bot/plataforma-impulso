@@ -66,7 +66,7 @@ function dataRelativa(isoStr: string | null): string {
 }
 
 // Trata string literal "null" (legado do n8n) como ausente
-const isReal = (v: string | null | undefined): boolean => !!v && v !== "null";
+const isReal = (v: string | null | undefined): v is string => !!v && v !== "null";
 
 function OrigemBadge({ lead }: { lead: Lead }) {
   const temGoogle = !!lead.gclid;
