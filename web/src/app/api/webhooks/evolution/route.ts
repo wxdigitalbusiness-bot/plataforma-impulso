@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Mensagem do lead: upsert do lead + grava mensagem + atribuição Google
-    const { leadId: upsertedId } = await upsertCrmLead({
+    const { leadId: upsertedId, isNew } = await upsertCrmLead({
       phone: parsed.phone,
       clientKey,
       clientName: cliente.nome,
@@ -179,7 +179,12 @@ export async function POST(req: NextRequest) {
       ON CONFLICT (evolution_msg_id) DO NOTHING
     `;
 
-    // Atribuição Google por janela de 30 min
+    // Atribuição Google por janela de 30 min — só para leads novos (first-touch)
+    if (!isNew) {
+      log.status = "processado";
+      return NextResponse.json({ ok: true, leadId: upsertedId, clientKey });
+    }
+
     const atribuido = await db.$executeRaw`
       UPDATE google_attribution
       SET lead_id = ${upsertedId}, vinculado_em = NOW()
