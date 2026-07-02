@@ -2,19 +2,32 @@
 
 import { useEffect, useState } from "react";
 
-function buildSnippet(slug: string, origin: string) {
+function buildSnippet(origin: string, clientKey: string | null) {
+  const elseClause = clientKey
+    ? `el.href='${origin}/r/wa/${clientKey}?'+q;`
+    : `/* link wa.me sem client_key — adicione a chave n8n ao cliente */`;
+
   return `<!-- Rastreamento WhatsApp — CRM Impulso -->
 <script>
 (function(){
   var p=new URLSearchParams(location.search);
   var g=p.get('gclid'),w=p.get('wbraid'),b=p.get('gbraid');
-  if(!g&&!w&&!b)return;
+  var us=p.get('utm_source'),um=p.get('utm_medium'),uc=p.get('utm_campaign'),ut=p.get('utm_term');
+  if(!g&&!w&&!b&&!us)return;
   var q='';
-  if(g)q='gclid='+g;
-  if(w)q+=(q?'&':'')+'wbraid='+w;
-  if(b)q+=(q?'&':'')+'gbraid='+b;
-  document.querySelectorAll('a[href*="wa.me"],a[href*="whatsapp"],a[href*="/r/wa/"]').forEach(function(el){
-    el.href='${origin}/r/wa/${slug}?'+q;
+  if(g)q='gclid='+encodeURIComponent(g);
+  if(w)q+=(q?'&':'')+'wbraid='+encodeURIComponent(w);
+  if(b)q+=(q?'&':'')+'gbraid='+encodeURIComponent(b);
+  if(us)q+=(q?'&':'')+'utm_source='+encodeURIComponent(us);
+  if(um)q+=(q?'&':'')+'utm_medium='+encodeURIComponent(um);
+  if(uc)q+=(q?'&':'')+'utm_campaign='+encodeURIComponent(uc);
+  if(ut)q+=(q?'&':'')+'utm_term='+encodeURIComponent(ut);
+  document.querySelectorAll('a[href*="wa.me"],a[href*="whatsapp"],a[href*="/r/wa/"],a[href*="/api/w/"]').forEach(function(el){
+    if(el.href.indexOf('/api/w/')>-1){
+      el.href=el.href+(el.href.indexOf('?')>-1?'&':'?')+q;
+    } else {
+      ${elseClause}
+    }
   });
 })();
 <\/script>`;
@@ -22,14 +35,12 @@ function buildSnippet(slug: string, origin: string) {
 
 function CopyButton({ text, label = "Copiar" }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
-
   function copy() {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   }
-
   return (
     <button
       type="button"
@@ -41,31 +52,15 @@ function CopyButton({ text, label = "Copiar" }: { text: string; label?: string }
   );
 }
 
-export function RastreamentoSnippet({ slug }: { slug: string }) {
+export function RastreamentoSnippet({ clientKey }: { clientKey: string | null }) {
   const [origin, setOrigin] = useState("");
+  useEffect(() => { setOrigin(window.location.origin); }, []);
 
-  useEffect(() => {
-    setOrigin(window.location.origin);
-  }, []);
-
-  const link = origin ? `${origin}/r/wa/${slug}` : `/r/wa/${slug}`;
-  const snippet = buildSnippet(slug, origin || "https://plataforma.marketingimpulso.com");
+  const resolvedOrigin = origin || "https://plataforma.marketingimpulso.com";
+  const snippet = buildSnippet(resolvedOrigin, clientKey);
 
   return (
     <div className="space-y-4 pt-2">
-      {/* Link rastreado */}
-      <div>
-        <p className="mb-1 text-xs font-medium text-neutral-600">Link de rastreamento gerado</p>
-        <div className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
-          <code className="flex-1 truncate text-xs text-neutral-700">{link}</code>
-          <CopyButton text={link} label="copiar link" />
-        </div>
-        <p className="mt-1 text-xs text-neutral-400">
-          O snippet abaixo instala este link automaticamente em todos os botões de WhatsApp da página.
-        </p>
-      </div>
-
-      {/* Snippet head */}
       <div>
         <div className="mb-1 flex items-center justify-between">
           <p className="text-xs font-medium text-neutral-600">
@@ -79,7 +74,9 @@ export function RastreamentoSnippet({ slug }: { slug: string }) {
           <code>{snippet}</code>
         </pre>
         <p className="mt-1 text-xs text-neutral-400">
-          Cole no <code className="rounded bg-neutral-100 px-1">&lt;head&gt;</code> da landing page. Quando o visitante chega via Google Ads, o gclid é lido da URL e injetado no link do WhatsApp automaticamente.
+          Cole no <code className="rounded bg-neutral-100 px-1">&lt;head&gt;</code> da landing page.
+          Quando o visitante chega via Google Ads ou campanha com UTMs, os parâmetros são
+          injetados automaticamente nos links de WhatsApp da página e o lead é atribuído no CRM.
         </p>
       </div>
     </div>

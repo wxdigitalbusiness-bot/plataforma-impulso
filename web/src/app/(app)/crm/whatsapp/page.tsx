@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { ClienteSeletor } from "@/components/crm/cliente-seletor";
 import { LinksWhatsappClient } from "./_links-client";
+import { RastreamentoSnippet } from "../../clientes/_rastreamento-snippet";
 // ponytail: importa direto de [id]/editar — os componentes são client-side e as actions têm "use server", resolve bem
 import { EvolutionWebhookConfig } from "../../clientes/[id]/editar/_evolution-webhook-config";
 import { EvolutionCreateInstance } from "../../clientes/[id]/editar/_evolution-create-instance";
@@ -104,6 +105,18 @@ export default async function CrmWhatsappPage({ searchParams }: Props) {
           links={linksSerial}
           origin={origin}
         />
+      </section>
+
+      {/* Rastreamento Google Ads */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-semibold text-neutral-900">Rastreamento Google Ads</h2>
+          <p className="text-xs text-neutral-500">
+            Cole este snippet no &lt;head&gt; da landing page. Ele injeta automaticamente o gclid e UTMs
+            nos links de WhatsApp quando o visitante vem de uma campanha paga.
+          </p>
+        </div>
+        <RastreamentoSnippet clientKey={cliente.n8nClientKey} />
       </section>
 
       {/* Instância Evolution */}
