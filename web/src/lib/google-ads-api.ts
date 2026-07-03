@@ -3,7 +3,7 @@
 // Saldo real vem de AccountBudget: adjusted_spending_limit - amount_served × 1.10
 // (adjusted = approved + créditos promocionais; ×1.10 = tributos BR: ISS 5% + PIS/COFINS ~4%)
 
-const GADS_VERSION = "v20";
+const GADS_VERSION = "v21";
 const GADS_BASE = `https://googleads.googleapis.com/${GADS_VERSION}`;
 
 export type GoogleAdsResult = {
