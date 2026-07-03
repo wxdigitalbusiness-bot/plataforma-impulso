@@ -179,7 +179,7 @@ export async function POST(req: NextRequest) {
       ON CONFLICT (evolution_msg_id) DO NOTHING
     `;
 
-    // Atribuição Google por janela de 30 min — só para leads novos (first-touch)
+    // Atribuição Google por janela de 3h — só para leads novos (first-touch)
     if (!isNew) {
       log.status = "processado";
       return NextResponse.json({ ok: true, leadId: upsertedId, clientKey });
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
         SELECT id FROM google_attribution
         WHERE client_key = ${clientKey}
           AND lead_id IS NULL
-          AND criado_em > NOW() - INTERVAL '30 minutes'
+          AND criado_em > NOW() - INTERVAL '3 hours'
         ORDER BY criado_em DESC
         LIMIT 1
       )
