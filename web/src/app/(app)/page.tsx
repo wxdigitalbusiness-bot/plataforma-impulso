@@ -2,6 +2,7 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { sincronizarSaldosTodos } from "@/lib/sync-saldos";
+import { sincronizarMetricasGoogle } from "@/lib/google-ads-metrics-sync";
 import { obterPerformance, defaultRange } from "@/lib/performance";
 import { getCrmFunilDetalhadoMultiplos, type CrmFunilDetalhado } from "@/lib/db-insights";
 import { DateFilter } from "./_date-filter";
@@ -24,6 +25,14 @@ function tempoRelativo(data: Date | null) {
 async function atualizarSaldosAgora() {
   "use server";
   await sincronizarSaldosTodos();
+  revalidatePath("/");
+}
+
+async function sincronizarMetricasAgora(formData: FormData) {
+  "use server";
+  const from = formData.get("from") as string;
+  const to   = formData.get("to")   as string;
+  await sincronizarMetricasGoogle(from, to);
   revalidatePath("/");
 }
 
@@ -144,9 +153,20 @@ export default async function DashboardPage({ searchParams }: Props) {
             <button
               type="submit"
               className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-              title="Forçar sync agora (Meta + Google)"
+              title="Forçar sync de saldos agora (Meta + Google)"
             >
-              ↻ Atualizar agora
+              ↻ Saldos
+            </button>
+          </form>
+          <form action={sincronizarMetricasAgora}>
+            <input type="hidden" name="from" value={from} />
+            <input type="hidden" name="to"   value={to}   />
+            <button
+              type="submit"
+              className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100"
+              title="Buscar métricas de campanhas Google Ads para o período selecionado"
+            >
+              ↻ Métricas Google
             </button>
           </form>
           <Link
