@@ -194,6 +194,68 @@ export async function getInsightsGoogle(
   }
 }
 
+// ─── Métricas por campanha + dia (alimenta google_ads_insights) ──────────────
+
+export type MetricaCampanha = {
+  campaignId:   string;
+  campaignName: string;
+  campaignType: string;
+  date:         string; // YYYY-MM-DD
+  spend:        number;
+  impressions:  number;
+  clicks:       number;
+  conversions:  number;
+};
+
+export async function buscarMetricasCampanhas(
+  rawCustomerId: string,
+  from: string,
+  to: string,
+  rawMccId?: string | null,
+): Promise<MetricaCampanha[]> {
+  const customerId    = rawCustomerId.replace(/-/g, "");
+  const loginId       = rawMccId
+    ? rawMccId.replace(/-/g, "")
+    : (process.env.GOOGLE_ADS_MCC_ID ?? customerId).replace(/-/g, "");
+
+  const accessToken = await getAccessToken();
+
+  const rows = await gaqlSearch(
+    customerId,
+    `SELECT campaign.id,
+            campaign.name,
+            campaign.advertising_channel_type,
+            metrics.cost_micros,
+            metrics.impressions,
+            metrics.clicks,
+            metrics.conversions,
+            segments.date
+     FROM campaign
+     WHERE segments.date BETWEEN '${from}' AND '${to}'
+       AND campaign.status != 'REMOVED'
+     ORDER BY segments.date DESC`,
+    accessToken,
+    loginId,
+  );
+
+  type CRow = {
+    campaign?: { id?: string; name?: string; advertisingChannelType?: string };
+    metrics?:  { costMicros?: string | number; impressions?: string | number; clicks?: string | number; conversions?: string | number };
+    segments?: { date?: string };
+  };
+
+  return (rows as CRow[]).map((r) => ({
+    campaignId:   r.campaign?.id   ?? "",
+    campaignName: r.campaign?.name ?? "",
+    campaignType: r.campaign?.advertisingChannelType ?? "",
+    date:         r.segments?.date ?? "",
+    spend:        Number(r.metrics?.costMicros ?? 0) / 1_000_000,
+    impressions:  Number(r.metrics?.impressions ?? 0),
+    clicks:       Number(r.metrics?.clicks ?? 0),
+    conversions:  Number(r.metrics?.conversions ?? 0),
+  }));
+}
+
 // ─── Principal ───────────────────────────────────────────────────────────────
 
 export async function consultarSaldoGoogle(
