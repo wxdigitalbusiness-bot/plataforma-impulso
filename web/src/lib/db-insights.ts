@@ -917,6 +917,73 @@ export async function getGoogleInsightsDBPorCustomerIds(
   }
 }
 
+// ─── Google Ads: por campanha (página individual) ─────────────────────────────
+
+export type GoogleCampanhaDB = {
+  customerId: string;
+  campaignId: string;
+  campaignName: string;
+  campaignType: string;
+  spend: number;
+  impressoes: number;
+  cliques: number;
+  conversoes: number;
+};
+
+export async function getGoogleInsightsPorCampanhaDB(
+  customerIds: string[],
+  from: string,
+  to: string,
+): Promise<GoogleCampanhaDB[]> {
+  if (customerIds.length === 0) return [];
+
+  const cleanIds = customerIds.map((id) => id.replace(/-/g, ""));
+
+  type Row = {
+    customer_id: string;
+    campaign_id: string;
+    campaign_name: string;
+    campaign_type: string;
+    spend: number | string;
+    impressions: number | string;
+    clicks: number | string;
+    conversions: number | string;
+  };
+
+  try {
+    const rows = await db.$queryRaw<Row[]>`
+      SELECT
+        customer_id,
+        campaign_id,
+        campaign_name,
+        campaign_type,
+        COALESCE(SUM(spend), 0)       AS spend,
+        COALESCE(SUM(impressions), 0) AS impressions,
+        COALESCE(SUM(clicks), 0)      AS clicks,
+        COALESCE(SUM(conversions), 0) AS conversions
+      FROM google_ads_insights
+      WHERE customer_id = ANY(${cleanIds})
+        AND date::date BETWEEN ${from}::date AND ${to}::date
+      GROUP BY customer_id, campaign_id, campaign_name, campaign_type
+      ORDER BY SUM(spend) DESC
+    `;
+
+    return rows.map((r) => ({
+      customerId:   r.customer_id,
+      campaignId:   r.campaign_id,
+      campaignName: r.campaign_name,
+      campaignType: r.campaign_type,
+      spend:        toFloat(r.spend),
+      impressoes:   toFloat(r.impressions),
+      cliques:      toFloat(r.clicks),
+      conversoes:   toFloat(r.conversions),
+    }));
+  } catch (err) {
+    console.error("[DB] getGoogleInsightsPorCampanhaDB:", err);
+    return [];
+  }
+}
+
 // ─── Helpers internos ─────────────────────────────────────────────────────────
 
 type MetaRow = {
