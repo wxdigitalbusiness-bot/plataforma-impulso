@@ -16,10 +16,12 @@ import {
   getMetaAdsetsDB,
   getMetaAdsDB,
   getGoogleInsightsDBPorCustomerIds,
+  getGoogleInsightsPorCampanhaDB,
   type CrmFunilDetalhado,
   type LeadCampanha,
   type LeadAtribuicaoDetalhe,
   type MetaCampanhaDB,
+  type GoogleCampanhaDB,
 } from "@/lib/db-insights";
 import { MetaHierarquia } from "./_meta-hierarquia";
 import { LeadsAtribuicao } from "@/components/crm/leads-atribuicao";
@@ -121,7 +123,7 @@ export default async function PerformancePage({ params, searchParams }: Props) {
   );
 
   // Busca tudo em paralelo — tudo via banco
-  const [campanhasMeta, adsetsMeta, adsMeta, googleDbMap, crmFunil, leadsParaCampanha, leadsAtribuicao] =
+  const [campanhasMeta, adsetsMeta, adsMeta, googleDbMap, googleCampanhas, crmFunil, leadsParaCampanha, leadsAtribuicao] =
     await Promise.all([
       contasMeta.length > 0 || temCrm
         ? getMetaInsightsPorCampanhaDB(clientKey, from, to)
@@ -131,6 +133,7 @@ export default async function PerformancePage({ params, searchParams }: Props) {
       temCrm ? getMetaAdsDB(clientKey, from, to)    : Promise.resolve([]),
 
       getGoogleInsightsDBPorCustomerIds(googleCustomerIds, from, to),
+      getGoogleInsightsPorCampanhaDB(googleCustomerIds, from, to),
 
       temCrm
         ? getCrmFunilDetalhado(clientKey, from, to)
@@ -372,6 +375,48 @@ export default async function PerformancePage({ params, searchParams }: Props) {
               </table>
             </div>
           )}
+
+          {googleCampanhas.length > 0 && (
+            <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200 bg-white">
+              <table className="w-full text-sm">
+                <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
+                  <tr>
+                    <th className="px-4 py-3">Campanha</th>
+                    <th className="px-4 py-3 text-right">Gasto</th>
+                    <th className="px-4 py-3 text-right">Cliques</th>
+                    <th className="px-4 py-3 text-right">CTR</th>
+                    <th className="px-4 py-3 text-right">Conv.</th>
+                    <th className="px-4 py-3 text-right">Taxa Conv.</th>
+                    <th className="px-4 py-3 text-right">Custo/Conv.</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {googleCampanhas.map((c) => {
+                    const ctr  = c.impressoes > 0 ? round2((c.cliques / c.impressoes) * 100) : 0;
+                    const taxa = c.cliques > 0 ? round2((c.conversoes / c.cliques) * 100) : 0;
+                    return (
+                      <tr key={c.campaignId} className="hover:bg-neutral-50">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-neutral-900">{c.campaignName}</p>
+                          <TipoCampanhaBadge tipo={c.campaignType} />
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-neutral-900">{formatBRL(c.spend)}</td>
+                        <td className="px-4 py-3 text-right text-neutral-600">{formatInt(c.cliques)}</td>
+                        <td className="px-4 py-3 text-right text-neutral-600">{formatPct(ctr)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-neutral-900">{formatInt(c.conversoes)}</td>
+                        <td className={`px-4 py-3 text-right font-medium ${taxa > 0 ? "text-emerald-700" : "text-neutral-400"}`}>
+                          {formatPct(taxa)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-neutral-600">
+                          {c.conversoes > 0 ? formatBRL(round2(c.spend / c.conversoes)) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       )}
 
@@ -410,6 +455,24 @@ function SectionHeader({
       <h2 className="text-sm font-semibold text-neutral-700">{title}</h2>
       <span className="text-xs text-neutral-400">{sub}</span>
     </div>
+  );
+}
+
+const TIPO_CAMPANHA: Record<string, { label: string; className: string }> = {
+  SEARCH:          { label: "Search",          className: "bg-blue-50 text-blue-700" },
+  DISPLAY:         { label: "Display",         className: "bg-purple-50 text-purple-700" },
+  VIDEO:           { label: "Vídeo",           className: "bg-red-50 text-red-700" },
+  SHOPPING:        { label: "Shopping",        className: "bg-orange-50 text-orange-700" },
+  PERFORMANCE_MAX: { label: "Performance Max", className: "bg-green-50 text-green-700" },
+  SMART:           { label: "Smart",           className: "bg-teal-50 text-teal-700" },
+};
+
+function TipoCampanhaBadge({ tipo }: { tipo: string }) {
+  const t = TIPO_CAMPANHA[tipo] ?? { label: tipo, className: "bg-neutral-100 text-neutral-600" };
+  return (
+    <span className={`mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium ${t.className}`}>
+      {t.label}
+    </span>
   );
 }
 
