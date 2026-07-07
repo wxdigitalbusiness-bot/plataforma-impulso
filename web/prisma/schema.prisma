@@ -41,6 +41,8 @@ model Cliente {
   waMessageTemplate                    String?  @map("wa_message_template")
   // URL do webhook n8n anterior — a plataforma encaminha o payload para cá após processar
   n8nWebhookForwardUrl                 String?  @map("n8n_webhook_forward_url")
+  // true = kanban exibe somente leads com atribuição de tráfego pago (Meta ou Google)
+  crmSomentePago                       Boolean  @default(false) @map("crm_somente_pago")
 
   contas          ClienteAtivo[]
   relatorios      RelatorioPublico[]
