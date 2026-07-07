@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { KanbanBoard } from "@/components/crm/kanban-board";
 import { ClienteSeletor } from "@/components/crm/cliente-seletor";
+import { toggleSomentePago } from "./_actions";
 
 export const dynamic = "force-dynamic";
 
@@ -152,6 +153,18 @@ export default async function CrmLeadsPage({ searchParams }: Props) {
             {leads.length} {leads.length === 1 ? "lead" : "leads"} no funil
           </span>
         </div>
+        <form action={toggleSomentePago.bind(null, clienteId, cliente.crmSomentePago)}>
+          <button
+            type="submit"
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              cliente.crmSomentePago
+                ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                : "border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50"
+            }`}
+          >
+            {cliente.crmSomentePago ? "Só tráfego pago" : "Todos os leads"}
+          </button>
+        </form>
       </header>
 
       {etapas.length === 0 ? (

@@ -25,7 +25,6 @@ const clienteSchema = z.object({
     z.string().nullable()
   ),
   ativo: z.coerce.boolean(),
-  crmSomentePago: z.coerce.boolean(),
   // Meta CAPI
   pixelId:                  z.preprocess(nullable, z.string().nullable()),
   capiToken:                z.preprocess(nullable, z.string().nullable()),
@@ -43,7 +42,6 @@ function parseForm(formData: FormData) {
     tipoServico: formData.get("tipoServico"),
     n8nClientKey: formData.get("n8nClientKey"),
     ativo: formData.get("ativo") === "on",
-    crmSomentePago: formData.get("crmSomentePago") === "on",
     pixelId:                  formData.get("pixelId"),
     capiToken:                formData.get("capiToken"),
     googleAdsCustomerId:                   formData.get("googleAdsCustomerId"),
@@ -62,7 +60,6 @@ export async function criarCliente(formData: FormData) {
       tipoServico: data.tipoServico,
       n8nClientKey: data.n8nClientKey,
       ativo: data.ativo,
-      crmSomentePago: data.crmSomentePago,
       pixelId:                  data.pixelId,
       capiToken:                data.capiToken,
       googleAdsCustomerId:                   data.googleAdsCustomerId,
@@ -86,7 +83,6 @@ export async function atualizarCliente(id: number, formData: FormData) {
       tipoServico: data.tipoServico,
       n8nClientKey: data.n8nClientKey,
       ativo: data.ativo,
-      crmSomentePago: data.crmSomentePago,
       pixelId:                  data.pixelId,
       capiToken:                data.capiToken,
       googleAdsCustomerId:                   data.googleAdsCustomerId,
