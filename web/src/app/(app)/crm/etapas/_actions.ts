@@ -51,6 +51,25 @@ export async function adicionarEtapa(
   return { ok: true };
 }
 
+export async function salvarTipoConversao(
+  webhookId: number,
+  tipo: string,
+): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const session = await auth();
+  if (!session?.user?.email) return { ok: false, erro: "Não autenticado." };
+
+  const allowed = ["", "qualificado", "concluido"];
+  if (!allowed.includes(tipo)) return { ok: false, erro: "Tipo inválido." };
+
+  await db.clienteCrmWebhook.update({
+    where: { id: BigInt(webhookId) },
+    data:  { tipoConversao: tipo || null },
+  });
+
+  revalidatePath("/crm/etapas");
+  return { ok: true };
+}
+
 export async function removerEtapa(
   webhookId: number,
 ): Promise<{ ok: true } | { ok: false; erro: string }> {
