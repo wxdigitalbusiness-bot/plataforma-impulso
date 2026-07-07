@@ -26,6 +26,8 @@ export type Lead = {
   ultima_msg_em: string | null;
   capi_status: string | null;
   capi_enviado_em: string | null;
+  gconv_status: string | null;
+  gconv_enviado_em: string | null;
 };
 
 type Props = {

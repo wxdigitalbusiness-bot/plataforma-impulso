@@ -32,6 +32,8 @@ type LeadRow = {
   ultima_msg_em: Date | null;
   capi_status: string | null;
   capi_enviado_em: Date | null;
+  gconv_status: string | null;
+  gconv_enviado_em: Date | null;
 };
 
 export default async function CrmPage({ params }: Props) {
@@ -87,7 +89,9 @@ export default async function CrmPage({ params }: Props) {
           m.tipo            AS ultima_msg_tipo,
           m.recebida_em     AS ultima_msg_em,
           fl.capi_status,
-          fl.capi_enviado_em
+          fl.capi_enviado_em,
+          fl.gconv_status,
+          fl.gconv_enviado_em
         FROM fb_leads fl
         LEFT JOIN LATERAL (
           SELECT recebida_em
@@ -116,7 +120,8 @@ export default async function CrmPage({ params }: Props) {
     data_criacao:    l.data_criacao    ? new Date(l.data_criacao).toISOString() : null,
     primeira_msg_em: l.primeira_msg_em ? l.primeira_msg_em.toISOString()        : null,
     ultima_msg_em:   l.ultima_msg_em   ? l.ultima_msg_em.toISOString()          : null,
-    capi_enviado_em: l.capi_enviado_em ? l.capi_enviado_em.toISOString()        : null,
+    capi_enviado_em:  l.capi_enviado_em  ? l.capi_enviado_em.toISOString()  : null,
+    gconv_enviado_em: l.gconv_enviado_em ? l.gconv_enviado_em.toISOString() : null,
   }));
 
   const semConfiguracao = !cliente.evolutionInstance;

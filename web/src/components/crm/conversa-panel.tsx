@@ -520,6 +520,33 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
             </div>
           )}
 
+          {/* Status conversão Google Ads */}
+          {lead.gconv_status && (
+            <div className={`rounded-xl border px-3 py-2.5 ${
+              lead.gconv_status === "ok"
+                ? "border-green-100 bg-green-50"
+                : "border-red-100 bg-red-50"
+            }`}>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">
+                Conversão Google Ads
+              </p>
+              <div className="mt-1 flex items-center gap-2">
+                <span className={`text-sm font-semibold ${lead.gconv_status === "ok" ? "text-green-700" : "text-red-600"}`}>
+                  {lead.gconv_status === "ok" ? "✓ Enviada com sucesso" : "✗ Falhou no envio"}
+                </span>
+              </div>
+              {lead.gconv_enviado_em && (
+                <p className="mt-0.5 text-[11px] text-neutral-400">
+                  {new Date(lead.gconv_enviado_em).toLocaleString("pt-BR", {
+                    timeZone: "America/Sao_Paulo",
+                    day: "2-digit", month: "short", year: "numeric",
+                    hour: "2-digit", minute: "2-digit",
+                  })}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Status conversão Meta CAPI */}
           {lead.capi_status && (
             <div className={`rounded-xl border px-3 py-2.5 ${

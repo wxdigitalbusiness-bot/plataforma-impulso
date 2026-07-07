@@ -128,6 +128,13 @@ export async function PATCH(
         gbraid: lead.gbraid,
       });
       googleResult = result.ok ? { ok: true } : { ok: false, detail: result.error };
+      const gconvStatus = result.ok ? "ok" : "erro";
+      await db.$executeRaw`
+        UPDATE fb_leads
+        SET gconv_status = ${gconvStatus}, gconv_enviado_em = NOW()
+        WHERE lead_id = ${leadId}
+          AND lower(client_key) = lower(${clientKey})
+      `;
     }
   }
 
