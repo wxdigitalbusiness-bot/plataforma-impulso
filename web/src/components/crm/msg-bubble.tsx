@@ -6,54 +6,90 @@ type Props = {
   conteudo: string | null;
   mediaUrl: string | null;
   recebidaEm: Date;
+  clienteId: number;
+  msgId: string;
 };
 
 function formatHora(d: Date) {
   return new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(d));
 }
 
-export function MsgBubble({ de, tipo, conteudo, mediaUrl, recebidaEm }: Props) {
+export function MsgBubble({ de, tipo, conteudo, mediaUrl, recebidaEm, clienteId, msgId }: Props) {
   const isAtendente = de === "atendente";
+
+  const bubbleCls = `max-w-[75%] rounded-2xl px-3.5 py-2 text-sm shadow-sm ${
+    isAtendente
+      ? "rounded-br-sm bg-violet-600 text-white"
+      : "rounded-bl-sm bg-white text-neutral-800 border border-neutral-100"
+  }`;
+
+  const horaCls = `mt-1 text-right text-[10px] ${isAtendente ? "text-violet-300" : "text-neutral-400"}`;
 
   return (
     <div className={`flex ${isAtendente ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm shadow-sm ${
-          isAtendente
-            ? "rounded-br-sm bg-violet-600 text-white"
-            : "rounded-bl-sm bg-white text-neutral-800 border border-neutral-100"
-        }`}
-      >
+      <div className={bubbleCls}>
+
+        {/* Imagem */}
         {tipo === "image" && mediaUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={mediaUrl} alt="imagem" className="mb-1.5 max-h-48 rounded-lg object-cover" />
+          <a href={mediaUrl} target="_blank" rel="noopener noreferrer">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={mediaUrl} alt="imagem" className="mb-1.5 max-h-56 w-auto rounded-lg object-cover" />
+          </a>
         )}
 
+        {/* Vídeo */}
+        {tipo === "video" && mediaUrl && (
+          <video
+            controls
+            className="mb-1.5 max-h-56 w-full rounded-lg"
+            preload="metadata"
+          >
+            <source src={mediaUrl} />
+          </video>
+        )}
+
+        {/* Áudio — proxy descriptografa o .enc do WhatsApp */}
         {tipo === "audio" && (
-          <p className={`text-xs italic ${isAtendente ? "text-violet-200" : "text-neutral-400"}`}>
-            🎵 Mensagem de áudio
-          </p>
+          <audio
+            controls
+            className="mb-1 w-full min-w-[200px]"
+            preload="none"
+            src={`/api/crm/${clienteId}/media/${msgId}`}
+          />
         )}
 
+        {/* Documento */}
         {tipo === "document" && (
-          <p className={`text-xs ${isAtendente ? "text-violet-200" : "text-neutral-500"}`}>
-            📎 {conteudo ?? "Documento"}
-          </p>
+          <a
+            href={mediaUrl ?? undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex items-center gap-1.5 text-xs underline ${
+              isAtendente ? "text-violet-200 hover:text-white" : "text-neutral-600 hover:text-neutral-900"
+            } ${!mediaUrl ? "pointer-events-none opacity-60" : ""}`}
+          >
+            <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            </svg>
+            {conteudo ?? "Documento"}
+          </a>
         )}
 
-        {tipo === "sticker" && (
-          <p className={`text-xs italic ${isAtendente ? "text-violet-200" : "text-neutral-400"}`}>
-            🎭 Sticker
-          </p>
+        {/* Sticker */}
+        {tipo === "sticker" && mediaUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={mediaUrl} alt="sticker" className="mb-1 h-24 w-24 object-contain" />
+        )}
+        {tipo === "sticker" && !mediaUrl && (
+          <span className={`text-xs italic ${isAtendente ? "text-violet-200" : "text-neutral-400"}`}>🎭 Sticker</span>
         )}
 
-        {(tipo === "text" || tipo === "image" || tipo === "video") && conteudo && (
+        {/* Legenda / texto */}
+        {(tipo === "text" || (["image", "video"].includes(tipo) && conteudo)) && conteudo && (
           <p className="whitespace-pre-wrap leading-relaxed">{conteudo}</p>
         )}
 
-        <p className={`mt-1 text-right text-[10px] ${isAtendente ? "text-violet-300" : "text-neutral-400"}`}>
-          {formatHora(recebidaEm)}
-        </p>
+        <p className={horaCls}>{formatHora(recebidaEm)}</p>
       </div>
     </div>
   );
