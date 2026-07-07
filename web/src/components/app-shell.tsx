@@ -170,7 +170,9 @@ function Sidebar({
           <>
             <p className="text-[10px] uppercase tracking-wide text-neutral-400">Logado como</p>
             <p className="truncate text-sm font-medium text-neutral-800">{userName}</p>
-            <p className="mt-0.5 text-[10px] text-neutral-400">Plataforma Impulso v1.0.0 · #48</p>
+            <p className="mt-0.5 text-[10px] text-neutral-400">
+              Plataforma Impulso · {process.env.NEXT_PUBLIC_BUILD_PR || process.env.NEXT_PUBLIC_BUILD_SHA || "dev"}
+            </p>
           </>
         )}
         <form action={logoutAction} className={collapsed ? "" : "mt-2"}>
