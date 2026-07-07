@@ -10,7 +10,6 @@ export type ClienteFormData = {
   tipoServico: string | null;
   n8nClientKey: string | null;
   ativo: boolean;
-  crmSomentePago: boolean;
   // Meta CAPI
   pixelId: string | null;
   capiToken: string | null;
@@ -214,22 +213,6 @@ export function ClienteForm({
           </p>
         </label>
       </div>
-
-      <label className="flex cursor-pointer items-center justify-between rounded-lg border border-neutral-200 bg-white px-4 py-3">
-        <div>
-          <span className="text-sm font-medium text-neutral-700">CRM — somente tráfego pago</span>
-          <p className="mt-0.5 text-xs text-neutral-400">
-            Ativado: kanban exibe apenas leads com atribuição Meta Ads ou Google Ads.
-            Desativado: exibe todos os leads (orgânicos + pagos).
-          </p>
-        </div>
-        <input
-          type="checkbox"
-          name="crmSomentePago"
-          defaultChecked={cliente?.crmSomentePago ?? false}
-          className="h-5 w-5 shrink-0 rounded border-neutral-300 accent-neutral-900"
-        />
-      </label>
 
       <label className="flex cursor-pointer items-center justify-between rounded-lg border border-neutral-200 bg-white px-4 py-3">
         <span className="text-sm font-medium text-neutral-700">

@@ -26,7 +26,6 @@ export default async function EditarClientePage({ params }: Props) {
     tipoServico: cliente.tipoServico,
     n8nClientKey: cliente.n8nClientKey,
     ativo: cliente.ativo,
-    crmSomentePago: cliente.crmSomentePago,
     pixelId:                  cliente.pixelId,
     capiToken:                cliente.capiToken,
     googleAdsCustomerId:                   cliente.googleAdsCustomerId,
