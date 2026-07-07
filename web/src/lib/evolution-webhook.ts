@@ -80,6 +80,7 @@ export function parseEvolutionWebhook(body: any): MensagemParsed | null {
     contextInfo = msg.imageMessage.contextInfo ?? null;
   } else if (msg.audioMessage) {
     tipo = "audio";
+    mediaUrl = msg.audioMessage.url ?? null;
     contextInfo = msg.audioMessage.contextInfo ?? null;
   } else if (msg.videoMessage) {
     tipo = "video";

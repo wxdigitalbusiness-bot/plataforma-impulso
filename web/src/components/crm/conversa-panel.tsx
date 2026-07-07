@@ -463,6 +463,8 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
                       conteudo={m.conteudo}
                       mediaUrl={m.media_url}
                       recebidaEm={new Date(m.recebida_em)}
+                      clienteId={clienteId}
+                      msgId={m.id}
                     />
                   </div>
                 );
