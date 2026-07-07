@@ -66,6 +66,7 @@ model ClienteCrmWebhook {
   webhookPath     String    @map("webhook_path")
   webhookUrl      String    @map("webhook_url")
   n8nWorkflowId   String    @map("n8n_workflow_id")
+  tipoConversao   String?   @map("tipo_conversao")
   criadoEm        DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
   atualizadoEm    DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz()
 

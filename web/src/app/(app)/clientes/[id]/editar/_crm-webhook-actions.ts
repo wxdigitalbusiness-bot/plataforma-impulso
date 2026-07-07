@@ -456,6 +456,37 @@ export async function regenerarWebhooksBase(
   return { ok: true, criados: criados.length, webhooks: criados };
 }
 
+const tipoConversaoSchema = z.object({
+  webhookId: z.coerce.number().int().positive(),
+  tipo:      z.enum(["", "qualificado", "concluido"]),
+});
+
+/** Salva qual tipo de conversão Google Ads esta etapa representa. */
+export async function atualizarTipoConversao(
+  input: { webhookId: number; tipo: string },
+): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const parsed = tipoConversaoSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, erro: "Parâmetros inválidos." };
+
+  const session = await auth();
+  if (!session?.user?.email) return { ok: false, erro: "Não autenticado." };
+
+  const wh = await db.clienteCrmWebhook.findUnique({
+    where: { id: BigInt(parsed.data.webhookId) },
+    select: { clienteId: true },
+  });
+  if (!wh) return { ok: false, erro: "Webhook não encontrado." };
+
+  await db.clienteCrmWebhook.update({
+    where: { id: BigInt(parsed.data.webhookId) },
+    data:  { tipoConversao: parsed.data.tipo || null },
+  });
+
+  revalidatePath(`/clientes/${wh.clienteId}/editar`);
+  revalidatePath(`/crm/whatsapp`);
+  return { ok: true };
+}
+
 /** Exclui todos os webhooks CRM do cliente (do banco + do n8n). */
 export async function excluirCrmWebhooks(
   input: { clienteId: number },
