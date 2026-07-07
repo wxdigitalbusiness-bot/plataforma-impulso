@@ -43,7 +43,7 @@ export default async function CrmWhatsappPage({ searchParams }: Props) {
     where: { id: clienteId },
     include: {
       crmWebhooks: {
-        select: { id: true, etapa: true, etapaLabel: true, ehExtra: true, webhookUrl: true },
+        select: { id: true, etapa: true, etapaLabel: true, ehExtra: true, webhookUrl: true, tipoConversao: true },
         orderBy: [{ ehExtra: "asc" }, { criadoEm: "asc" }],
       },
     },
@@ -68,11 +68,12 @@ export default async function CrmWhatsappPage({ searchParams }: Props) {
   }));
 
   const webhooks: WebhookExistente[] = cliente.crmWebhooks.map((w) => ({
-    id:         Number(w.id),
-    etapa:      w.etapa,
-    etapaLabel: w.etapaLabel,
-    ehExtra:    w.ehExtra,
-    webhookUrl: w.webhookUrl,
+    id:            Number(w.id),
+    etapa:         w.etapa,
+    etapaLabel:    w.etapaLabel,
+    ehExtra:       w.ehExtra,
+    webhookUrl:    w.webhookUrl,
+    tipoConversao: w.tipoConversao,
   }));
 
   // Pega origin para montar a URL dos links

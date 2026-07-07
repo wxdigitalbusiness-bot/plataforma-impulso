@@ -7,6 +7,7 @@ import {
   adicionarEtapaExtra,
   removerEtapaWebhook,
   regenerarWebhooksBase,
+  atualizarTipoConversao,
 } from "./_crm-webhook-actions";
 import { LABEL_ETAPA } from "@/lib/crm-webhook-template";
 
@@ -16,6 +17,7 @@ export type WebhookExistente = {
   etapaLabel: string;
   ehExtra: boolean;
   webhookUrl: string;
+  tipoConversao: string | null;
 };
 
 type Props = {
@@ -96,6 +98,12 @@ export function CrmWebhooksSection({ clienteId, temClientKey, webhooks }: Props)
     });
   }
 
+  function salvarTipoConversao(id: number, tipo: string) {
+    startTransition(async () => {
+      await atualizarTipoConversao({ webhookId: id, tipo });
+    });
+  }
+
   async function copiar(id: number, url: string) {
     try {
       await navigator.clipboard.writeText(url);
@@ -171,6 +179,8 @@ export function CrmWebhooksSection({ clienteId, temClientKey, webhooks }: Props)
               url={w.webhookUrl}
               isCopied={copiado === w.id}
               onCopy={() => copiar(w.id, w.webhookUrl)}
+              tipoConversao={w.tipoConversao}
+              onTipoConversao={(tipo) => salvarTipoConversao(w.id, tipo)}
             />
           ))}
 
@@ -188,6 +198,8 @@ export function CrmWebhooksSection({ clienteId, temClientKey, webhooks }: Props)
                   isCopied={copiado === w.id}
                   onCopy={() => copiar(w.id, w.webhookUrl)}
                   onRemove={() => removerUma(w.id, w.etapaLabel)}
+                  tipoConversao={w.tipoConversao}
+                  onTipoConversao={(tipo) => salvarTipoConversao(w.id, tipo)}
                 />
               ))}
             </>
@@ -248,13 +260,15 @@ export function CrmWebhooksSection({ clienteId, temClientKey, webhooks }: Props)
 // ─── Sub-componente: linha de webhook ────────────────────────────────────────
 
 function WebhookRow({
-  label, url, isCopied, onCopy, onRemove,
+  label, url, isCopied, onCopy, onRemove, tipoConversao, onTipoConversao,
 }: {
   label: string;
   url: string;
   isCopied: boolean;
   onCopy: () => void;
   onRemove?: () => void;
+  tipoConversao?: string | null;
+  onTipoConversao?: (tipo: string) => void;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -265,6 +279,18 @@ function WebhookRow({
         onFocus={(e) => e.currentTarget.select()}
         className="flex-1 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-xs text-neutral-700 focus:border-neutral-400 focus:outline-none"
       />
+      {onTipoConversao && (
+        <select
+          value={tipoConversao ?? ""}
+          onChange={(e) => onTipoConversao(e.target.value)}
+          className="rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs text-neutral-700 focus:border-neutral-400 focus:outline-none"
+          title="Tipo de conversão Google Ads"
+        >
+          <option value="">Nenhum</option>
+          <option value="qualificado">Lead qualificado</option>
+          <option value="concluido">Negócio concluído</option>
+        </select>
+      )}
       <button
         type="button"
         onClick={onCopy}

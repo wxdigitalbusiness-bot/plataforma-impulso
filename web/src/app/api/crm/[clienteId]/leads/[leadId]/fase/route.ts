@@ -85,8 +85,12 @@ export async function PATCH(
     VALUES (${leadId}, ${clientKey}, ${faseLabel}, 'transicao', NOW())
   `;
 
-  const ehConcluido    = fase === "concluido"   || faseLabel.toLowerCase().includes("conclu");
-  const ehQualificado  = fase === "qualificado" || faseLabel.toLowerCase().includes("qualific");
+  const etapaConfig = await db.clienteCrmWebhook.findFirst({
+    where: { clienteId: id, etapa: fase },
+    select: { tipoConversao: true },
+  });
+  const ehConcluido   = etapaConfig?.tipoConversao === "concluido";
+  const ehQualificado = etapaConfig?.tipoConversao === "qualificado";
   const hasGoogleClick = lead.gclid || lead.wbraid || lead.gbraid;
 
   // ── Meta CAPI (só em concluído) ────────────────────────────────────────────
