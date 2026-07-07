@@ -48,6 +48,7 @@ export default async function CrmPage({ params }: Props) {
       nome: true,
       n8nClientKey: true,
       evolutionInstance: true,
+      crmSomentePago: true,
       crmWebhooks: {
         select: { etapa: true, etapaLabel: true, ehExtra: true },
         orderBy: [{ ehExtra: "asc" }, { criadoEm: "asc" }],
@@ -110,6 +111,9 @@ export default async function CrmPage({ params }: Props) {
           LIMIT 1
         ) m ON TRUE
         WHERE lower(fl.client_key) = lower(${cliente.n8nClientKey})
+          AND (NOT ${cliente.crmSomentePago} OR
+               fl.ad_id IS NOT NULL OR fl.ctwa_clid IS NOT NULL OR
+               fl.gclid IS NOT NULL OR fl.wbraid IS NOT NULL OR fl.gbraid IS NOT NULL)
         ORDER BY COALESCE(m.recebida_em, fl.data_criacao::timestamptz) DESC
       `
     : [];

@@ -41,7 +41,7 @@ export async function GET(
 
   const cliente = await db.cliente.findUnique({
     where: { id },
-    select: { n8nClientKey: true },
+    select: { n8nClientKey: true, crmSomentePago: true },
   });
 
   if (!cliente?.n8nClientKey) {
@@ -49,6 +49,7 @@ export async function GET(
   }
 
   const clientKey = cliente.n8nClientKey;
+  const somentePago = cliente.crmSomentePago;
 
   const leads = await db.$queryRaw<LeadRow[]>`
     SELECT
@@ -94,6 +95,9 @@ export async function GET(
       LIMIT 1
     ) m ON TRUE
     WHERE lower(fl.client_key) = lower(${clientKey})
+      AND (NOT ${somentePago} OR
+           fl.ad_id IS NOT NULL OR fl.ctwa_clid IS NOT NULL OR
+           fl.gclid IS NOT NULL OR fl.wbraid IS NOT NULL OR fl.gbraid IS NOT NULL)
     ORDER BY COALESCE(m.recebida_em, fl.data_criacao::timestamptz) DESC
   `;
 
