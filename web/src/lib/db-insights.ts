@@ -819,6 +819,89 @@ function derivarResultadoPrincipal(
   };
 }
 
+// ─── Google Ads: cliente único (relatório) ───────────────────────────────────
+
+export type GoogleCampanhaRelatorio = {
+  campaignId: string;
+  campaignName: string;
+  campaignType: string;
+  spend: number;
+  impressoes: number;
+  cliques: number;
+  conversoes: number;
+  ctr: number;
+  cpc: number;
+  custoPorConversao: number | null;
+};
+
+export async function getGoogleInsightsRelatorio(
+  clientKey: string,
+  from: string,
+  to: string,
+): Promise<{ totais: GoogleInsightsDB; campanhas: GoogleCampanhaRelatorio[] }> {
+  type Row = {
+    campaign_id: string;
+    campaign_name: string;
+    campaign_type: string;
+    spend: number | string;
+    impressions: number | string;
+    clicks: number | string;
+    conversions: number | string;
+  };
+
+  try {
+    const rows = await db.$queryRaw<Row[]>`
+      SELECT
+        campaign_id,
+        MAX(campaign_name)            AS campaign_name,
+        MAX(campaign_type)            AS campaign_type,
+        COALESCE(SUM(spend), 0)       AS spend,
+        COALESCE(SUM(impressions), 0) AS impressions,
+        COALESCE(SUM(clicks), 0)      AS clicks,
+        COALESCE(SUM(conversions), 0) AS conversions
+      FROM google_ads_insights
+      WHERE lower(client_key) = lower(${clientKey})
+        AND date::date BETWEEN ${from}::date AND ${to}::date
+      GROUP BY campaign_id
+      ORDER BY SUM(spend) DESC
+    `;
+
+    const campanhas: GoogleCampanhaRelatorio[] = rows.map((r) => {
+      const spend     = toFloat(r.spend);
+      const cliques   = toFloat(r.clicks);
+      const impressoes = toFloat(r.impressions);
+      const conversoes = toFloat(r.conversions);
+      return {
+        campaignId:        r.campaign_id,
+        campaignName:      r.campaign_name ?? r.campaign_id,
+        campaignType:      r.campaign_type ?? "",
+        spend,
+        impressoes,
+        cliques,
+        conversoes,
+        ctr:               impressoes > 0 ? round2((cliques / impressoes) * 100) : 0,
+        cpc:               cliques > 0 ? round2(spend / cliques) : 0,
+        custoPorConversao: conversoes > 0 ? round2(spend / conversoes) : null,
+      };
+    });
+
+    const totais: GoogleInsightsDB = {
+      spend:     campanhas.reduce((s, c) => s + c.spend, 0),
+      impressoes: campanhas.reduce((s, c) => s + c.impressoes, 0),
+      cliques:   campanhas.reduce((s, c) => s + c.cliques, 0),
+      conversoes: campanhas.reduce((s, c) => s + c.conversoes, 0),
+    };
+
+    return { totais, campanhas };
+  } catch (err) {
+    console.error("[DB] getGoogleInsightsRelatorio:", err);
+    return {
+      totais: { spend: 0, impressoes: 0, cliques: 0, conversoes: 0 },
+      campanhas: [],
+    };
+  }
+}
+
 // ─── Google Ads: batch (múltiplos clientes) ───────────────────────────────────
 
 export async function getGoogleInsightsDBMultiplos(

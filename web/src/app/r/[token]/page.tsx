@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { formatarPeriodoLabel, type TipoRelatorio } from "@/lib/relatorios";
-import { getCrmFunilDetalhado, getCrmLeadsAtribuicaoCompleta, getPanfletagemInsights } from "@/lib/db-insights";
+import { getCrmFunilDetalhado, getCrmLeadsAtribuicaoCompleta, getPanfletagemInsights, getGoogleInsightsRelatorio, type GoogleCampanhaRelatorio } from "@/lib/db-insights";
 import { PanfletagemResumo } from "@/components/panfletagem/resumo";
 import { EnviarRelatorioButton } from "./_enviar-relatorio-button";
 import type {
@@ -74,15 +74,16 @@ export default async function RelatorioPublicoPage({ params }: Props) {
   const clientKey     = relatorio.cliente.n8nClientKey;
   const ehPanfletagem = relatorio.cliente.tipoServico === "panfletagem_digital";
 
-  const [crmFunil, leadsAtribuicao, panfletagemData] = clientKey
+  const [crmFunil, leadsAtribuicao, panfletagemData, googleData] = clientKey
     ? await Promise.all([
         getCrmFunilDetalhado(clientKey, from, to),
         getCrmLeadsAtribuicaoCompleta(clientKey, from, to),
         ehPanfletagem
           ? getPanfletagemInsights(clientKey, from, to)
           : Promise.resolve(null),
+        getGoogleInsightsRelatorio(clientKey, from, to),
       ])
-    : [null, [] as Awaited<ReturnType<typeof getCrmLeadsAtribuicaoCompleta>>, null];
+    : [null, [] as Awaited<ReturnType<typeof getCrmLeadsAtribuicaoCompleta>>, null, null];
 
   const totalLeadsCampanha = leadsAtribuicao.reduce((s, l) => s + l.leads, 0);
 
@@ -304,6 +305,37 @@ export default async function RelatorioPublicoPage({ params }: Props) {
                 </div>
               </div>
             )}
+          </section>
+        )}
+
+        {/* ── Google Ads ────────────────────────────────────────────── */}
+        {googleData && googleData.totais.spend > 0 && (
+          <section className="mb-6">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-400" />
+              <h2 className="text-sm font-semibold text-neutral-700">Google Ads — Resumo</h2>
+            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                <KpiCard label="Investimento" value={fBRL(googleData.totais.spend)} highlight />
+                {googleData.totais.cliques > 0 && (
+                  <KpiCard label="Cliques" value={fInt(googleData.totais.cliques)} />
+                )}
+                {googleData.totais.impressoes > 0 && (
+                  <KpiCard label="Impressões" value={fInt(googleData.totais.impressoes)} />
+                )}
+                {googleData.totais.conversoes > 0 && (
+                  <KpiCard
+                    label="Conversões"
+                    value={fInt(googleData.totais.conversoes)}
+                    tone="ok"
+                  />
+                )}
+              </div>
+              {googleData.campanhas.length > 1 && (
+                <GoogleCampanhasTable campanhas={googleData.campanhas} />
+              )}
+            </div>
           </section>
         )}
 
@@ -611,6 +643,43 @@ function KpiCard({
     <div className={`rounded-xl border ${border} bg-white p-4`}>
       <p className="text-[10px] uppercase tracking-wide text-neutral-500">{label}</p>
       <p className={`mt-1 text-lg font-semibold ${tone === "ok" ? "text-emerald-700" : "text-neutral-900"}`}>{value}</p>
+    </div>
+  );
+}
+
+function GoogleCampanhasTable({ campanhas }: { campanhas: GoogleCampanhaRelatorio[] }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-neutral-100 text-left text-[10px] uppercase tracking-wide text-neutral-400">
+            <th className="px-4 py-2.5 font-medium">Campanha</th>
+            <th className="px-4 py-2.5 font-medium text-right">Invest.</th>
+            <th className="px-4 py-2.5 font-medium text-right">Cliques</th>
+            <th className="px-4 py-2.5 font-medium text-right">CTR</th>
+            <th className="px-4 py-2.5 font-medium text-right">CPC</th>
+            <th className="px-4 py-2.5 font-medium text-right">Conv.</th>
+            <th className="px-4 py-2.5 font-medium text-right">Custo/conv.</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-50">
+          {campanhas.map((c) => (
+            <tr key={c.campaignId} className="hover:bg-neutral-50">
+              <td className="max-w-[200px] truncate px-4 py-2.5 font-medium text-neutral-800" title={c.campaignName}>
+                {c.campaignName}
+              </td>
+              <td className="px-4 py-2.5 text-right text-neutral-700">{fBRL(c.spend)}</td>
+              <td className="px-4 py-2.5 text-right text-neutral-600">{fInt(c.cliques)}</td>
+              <td className="px-4 py-2.5 text-right text-neutral-600">{c.ctr > 0 ? `${c.ctr.toFixed(2)}%` : "—"}</td>
+              <td className="px-4 py-2.5 text-right text-neutral-600">{c.cpc > 0 ? fBRL(c.cpc) : "—"}</td>
+              <td className="px-4 py-2.5 text-right text-neutral-700">{c.conversoes > 0 ? fInt(c.conversoes) : "—"}</td>
+              <td className="px-4 py-2.5 text-right text-neutral-600">
+                {c.custoPorConversao !== null ? fBRL(c.custoPorConversao) : "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
