@@ -24,6 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       userName={session.user.name ?? session.user.email ?? ""}
       crmClientes={crmClientes}
       logoutAction={logout}
+      buildLabel={process.env.BUILD_LABEL ?? "dev"}
     >
       {children}
     </AppShell>

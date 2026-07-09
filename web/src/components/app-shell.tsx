@@ -12,6 +12,7 @@ type Props = {
   userName: string;
   crmClientes: Cliente[];
   logoutAction: () => void | Promise<void>;
+  buildLabel: string;
 };
 
 // ── Ícones SVG ────────────────────────────────────────────────────────────────
@@ -65,7 +66,7 @@ function NavItem({
 
 // ── Sidebar ────────────────────────────────────────────────────────────────────
 function Sidebar({
-  collapsed, onToggle, pathname, crmClientes, userName, logoutAction,
+  collapsed, onToggle, pathname, crmClientes, userName, logoutAction, buildLabel,
 }: {
   collapsed: boolean;
   onToggle: () => void;
@@ -73,6 +74,7 @@ function Sidebar({
   crmClientes: Cliente[];
   userName: string;
   logoutAction: () => void | Promise<void>;
+  buildLabel: string;
 }) {
   const [crmOpen, setCrmOpen] = useState(() => pathname.includes("/crm"));
 
@@ -171,7 +173,7 @@ function Sidebar({
             <p className="text-[10px] uppercase tracking-wide text-neutral-400">Logado como</p>
             <p className="truncate text-sm font-medium text-neutral-800">{userName}</p>
             <p className="mt-0.5 text-[10px] text-neutral-400">
-              Plataforma Impulso · {process.env.NEXT_PUBLIC_BUILD_LABEL || "dev"}
+              Plataforma Impulso · #{buildLabel}
             </p>
           </>
         )}
@@ -202,7 +204,7 @@ function Sidebar({
 }
 
 // ── AppShell (exportado) ───────────────────────────────────────────────────────
-export function AppShell({ children, userName, crmClientes, logoutAction }: Props) {
+export function AppShell({ children, userName, crmClientes, logoutAction, buildLabel }: Props) {
   const pathname = usePathname();
 
   // Persiste estado colapsado no localStorage
@@ -235,6 +237,7 @@ export function AppShell({ children, userName, crmClientes, logoutAction }: Prop
         crmClientes={crmClientes}
         userName={userName}
         logoutAction={logoutAction}
+        buildLabel={buildLabel}
       />
 
       <main className={`flex-1 ${isFullscreen ? "overflow-hidden" : "overflow-auto"}`}>
