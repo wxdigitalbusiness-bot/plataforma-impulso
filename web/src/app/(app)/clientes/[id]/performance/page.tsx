@@ -12,6 +12,7 @@ import {
   getCrmFunilDetalhado,
   getCrmLeadsPorCampanha,
   getCrmLeadsAtribuicaoCompleta,
+  getCrmLeadsAtribuicaoGoogle,
   getMetaInsightsPorCampanhaDB,
   getMetaAdsetsDB,
   getMetaAdsDB,
@@ -20,11 +21,13 @@ import {
   type CrmFunilDetalhado,
   type LeadCampanha,
   type LeadAtribuicaoDetalhe,
+  type GoogleLeadAtribuicao,
   type MetaCampanhaDB,
   type GoogleCampanhaDB,
 } from "@/lib/db-insights";
 import { MetaHierarquia } from "./_meta-hierarquia";
 import { LeadsAtribuicao } from "@/components/crm/leads-atribuicao";
+import { GoogleLeadsAtribuicao } from "@/components/crm/google-leads-atribuicao";
 import { GerarRelatorioButton } from "./_gerar-relatorio";
 import { listarMesesRecentes, mesAtualEmCurso } from "@/lib/relatorios";
 
@@ -123,7 +126,7 @@ export default async function PerformancePage({ params, searchParams }: Props) {
   );
 
   // Busca tudo em paralelo — tudo via banco
-  const [campanhasMeta, adsetsMeta, adsMeta, googleDbMap, googleCampanhas, crmFunil, leadsParaCampanha, leadsAtribuicao] =
+  const [campanhasMeta, adsetsMeta, adsMeta, googleDbMap, googleCampanhas, crmFunil, leadsParaCampanha, leadsAtribuicao, googleLeadsAtribuicao] =
     await Promise.all([
       contasMeta.length > 0 || temCrm
         ? getMetaInsightsPorCampanhaDB(clientKey, from, to)
@@ -146,6 +149,10 @@ export default async function PerformancePage({ params, searchParams }: Props) {
       temCrm
         ? getCrmLeadsAtribuicaoCompleta(clientKey, from, to)
         : Promise.resolve([] as LeadAtribuicaoDetalhe[]),
+
+      temCrm
+        ? getCrmLeadsAtribuicaoGoogle(clientKey, from, to)
+        : Promise.resolve([] as GoogleLeadAtribuicao[]),
     ]);
 
   // Mapa campanhaId → leads CRM
@@ -271,15 +278,29 @@ export default async function PerformancePage({ params, searchParams }: Props) {
             })}
           </div>
 
-          {leadsAtribuicao.length > 0 ? (
-            <LeadsAtribuicao
-              dados={leadsAtribuicao}
-              totalLeads={totalLeadsCampanha}
-              totalGeral={crmFunil.totalLeads}
-            />
-          ) : crmFunil.totalLeads > 0 && (
+          {leadsAtribuicao.length > 0 && (
+            <>
+              <p className="mt-4 mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-400">
+                Atribuição Meta Ads
+              </p>
+              <LeadsAtribuicao
+                dados={leadsAtribuicao}
+                totalLeads={totalLeadsCampanha}
+                totalGeral={crmFunil.totalLeads}
+              />
+            </>
+          )}
+          {googleLeadsAtribuicao.length > 0 && (
+            <>
+              <p className="mt-4 mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-400">
+                Atribuição Google Ads
+              </p>
+              <GoogleLeadsAtribuicao dados={googleLeadsAtribuicao} totalGeral={crmFunil.totalLeads} />
+            </>
+          )}
+          {leadsAtribuicao.length === 0 && googleLeadsAtribuicao.length === 0 && crmFunil.totalLeads > 0 && (
             <p className="mt-3 text-xs text-neutral-400">
-              💡 Nenhum lead deste período possui atribuição de anúncio — os leads podem ter vindo de tráfego orgânico, Google Ads ou formulários compartilhados sem rastreamento Meta ativo.
+              💡 Nenhum lead deste período possui atribuição de anúncio — os leads podem ter vindo de tráfego orgânico ou formulários sem rastreamento ativo.
             </p>
           )}
         </section>
