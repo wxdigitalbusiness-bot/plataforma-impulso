@@ -902,6 +902,75 @@ export async function getGoogleInsightsRelatorio(
   }
 }
 
+// ─── Google Ads: atribuição de leads CRM ─────────────────────────────────────
+
+export type GoogleLeadAtribuicao = {
+  campanhaId: string;
+  campanhaNome: string;
+  fase: string;
+  leads: number;
+};
+
+export async function getCrmLeadsAtribuicaoGoogle(
+  clientKey: string,
+  from: string,
+  to: string,
+): Promise<GoogleLeadAtribuicao[]> {
+  type Row = {
+    campaign_id: string;
+    campaign_name: string;
+    fase: string;
+    leads: number;
+  };
+
+  try {
+    const rows = await db.$queryRaw<Row[]>`
+      WITH google_leads AS (
+        -- Deduplica por telefone; pega fase e utm_campaign mais recentes
+        SELECT
+          COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id) AS chave,
+          (array_agg(
+            CASE WHEN fase IN ('Novo Lead', 'Não classificado', 'Nao classificado') THEN 'Leads'
+                 ELSE fase END
+            ORDER BY created_at DESC NULLS LAST
+          ))[1] AS fase_atual,
+          (array_agg(NULLIF(TRIM(utm_campaign), '') ORDER BY created_at DESC NULLS LAST))[1] AS camp_id
+        FROM fb_leads
+        WHERE lower(client_key) = lower(${clientKey})
+          AND data_criacao::date BETWEEN ${from}::date AND ${to}::date
+          AND (gclid IS NOT NULL OR wbraid IS NOT NULL OR gbraid IS NOT NULL)
+        GROUP BY COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id)
+      )
+      SELECT
+        COALESCE(gi.campaign_id, gl.camp_id, 'sem_campanha')          AS campaign_id,
+        COALESCE(gi.campaign_name, gl.camp_id, 'Sem atribuição')      AS campaign_name,
+        COALESCE(gl.fase_atual, 'Desconhecido')                        AS fase,
+        COUNT(*)::int                                                   AS leads
+      FROM google_leads gl
+      LEFT JOIN LATERAL (
+        SELECT campaign_id, MAX(campaign_name) AS campaign_name
+        FROM google_ads_insights
+        WHERE lower(client_key) = lower(${clientKey})
+          AND campaign_id = gl.camp_id
+        GROUP BY campaign_id
+        LIMIT 1
+      ) gi ON true
+      GROUP BY gi.campaign_id, gi.campaign_name, gl.camp_id, gl.fase_atual
+      ORDER BY COUNT(*) DESC
+    `;
+
+    return rows.map((r) => ({
+      campanhaId:   r.campaign_id,
+      campanhaNome: r.campaign_name,
+      fase:         r.fase,
+      leads:        Number(r.leads),
+    }));
+  } catch (err) {
+    console.error("[DB] getCrmLeadsAtribuicaoGoogle:", err);
+    return [];
+  }
+}
+
 // ─── Google Ads: batch (múltiplos clientes) ───────────────────────────────────
 
 export async function getGoogleInsightsDBMultiplos(
