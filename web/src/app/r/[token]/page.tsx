@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { formatarPeriodoLabel, type TipoRelatorio } from "@/lib/relatorios";
-import { getCrmFunilDetalhado, getCrmLeadsAtribuicaoCompleta, getPanfletagemInsights, getGoogleInsightsRelatorio, type GoogleCampanhaRelatorio } from "@/lib/db-insights";
+import { getCrmFunilDetalhado, getCrmLeadsAtribuicaoCompleta, getPanfletagemInsights, getGoogleInsightsRelatorio, getCrmLeadsAtribuicaoGoogle, type GoogleCampanhaRelatorio, type GoogleLeadAtribuicao } from "@/lib/db-insights";
 import { PanfletagemResumo } from "@/components/panfletagem/resumo";
 import { EnviarRelatorioButton } from "./_enviar-relatorio-button";
 import type {
@@ -74,7 +74,7 @@ export default async function RelatorioPublicoPage({ params }: Props) {
   const clientKey     = relatorio.cliente.n8nClientKey;
   const ehPanfletagem = relatorio.cliente.tipoServico === "panfletagem_digital";
 
-  const [crmFunil, leadsAtribuicao, panfletagemData, googleData] = clientKey
+  const [crmFunil, leadsAtribuicao, panfletagemData, googleData, googleLeads] = clientKey
     ? await Promise.all([
         getCrmFunilDetalhado(clientKey, from, to),
         getCrmLeadsAtribuicaoCompleta(clientKey, from, to),
@@ -82,8 +82,9 @@ export default async function RelatorioPublicoPage({ params }: Props) {
           ? getPanfletagemInsights(clientKey, from, to)
           : Promise.resolve(null),
         getGoogleInsightsRelatorio(clientKey, from, to),
+        getCrmLeadsAtribuicaoGoogle(clientKey, from, to),
       ])
-    : [null, [] as Awaited<ReturnType<typeof getCrmLeadsAtribuicaoCompleta>>, null, null];
+    : [null, [] as Awaited<ReturnType<typeof getCrmLeadsAtribuicaoCompleta>>, null, null, [] as GoogleLeadAtribuicao[]];
 
   const totalLeadsCampanha = leadsAtribuicao.reduce((s, l) => s + l.leads, 0);
 
@@ -422,15 +423,29 @@ export default async function RelatorioPublicoPage({ params }: Props) {
               })}
             </div>
 
-            {leadsAtribuicao.length > 0 ? (
-              <LeadsAtribuicao
-                dados={leadsAtribuicao}
-                totalLeads={totalLeadsCampanha}
-                totalGeral={crmFunil.totalLeads}
-              />
-            ) : (
+            {leadsAtribuicao.length > 0 && (
+              <>
+                <p className="mt-4 mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-400">
+                  Atribuição Meta Ads
+                </p>
+                <LeadsAtribuicao
+                  dados={leadsAtribuicao}
+                  totalLeads={totalLeadsCampanha}
+                  totalGeral={crmFunil.totalLeads}
+                />
+              </>
+            )}
+            {googleLeads && googleLeads.length > 0 && (
+              <>
+                <p className="mt-4 mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-400">
+                  Atribuição Google Ads
+                </p>
+                <GoogleLeadsAtribuicao dados={googleLeads} totalGeral={crmFunil.totalLeads} />
+              </>
+            )}
+            {leadsAtribuicao.length === 0 && (!googleLeads || googleLeads.length === 0) && (
               <p className="mt-3 text-xs text-neutral-400">
-                💡 Nenhum lead deste período possui atribuição de anúncio — os leads podem ter vindo de tráfego orgânico, Google Ads ou formulários sem rastreamento Meta ativo.
+                💡 Nenhum lead deste período possui atribuição de anúncio — podem ter vindo de tráfego orgânico ou formulários sem rastreamento ativo.
               </p>
             )}
           </section>
@@ -643,6 +658,72 @@ function KpiCard({
     <div className={`rounded-xl border ${border} bg-white p-4`}>
       <p className="text-[10px] uppercase tracking-wide text-neutral-500">{label}</p>
       <p className={`mt-1 text-lg font-semibold ${tone === "ok" ? "text-emerald-700" : "text-neutral-900"}`}>{value}</p>
+    </div>
+  );
+}
+
+function GoogleLeadsAtribuicao({ dados, totalGeral }: { dados: GoogleLeadAtribuicao[]; totalGeral: number }) {
+  // Agrupa por campanha
+  const campMap = new Map<string, { nome: string; leads: number; porFase: Array<{ fase: string; qtd: number }> }>();
+  for (const d of dados) {
+    const entry = campMap.get(d.campanhaId) ?? { nome: d.campanhaNome, leads: 0, porFase: [] };
+    entry.leads += d.leads;
+    const f = entry.porFase.find((x) => x.fase === d.fase);
+    if (f) f.qtd += d.leads; else entry.porFase.push({ fase: d.fase, qtd: d.leads });
+    campMap.set(d.campanhaId, entry);
+  }
+  const campanhas = [...campMap.entries()]
+    .map(([id, v]) => ({ id, ...v }))
+    .sort((a, b) => b.leads - a.leads);
+  const totalGoogle = campanhas.reduce((s, c) => s + c.leads, 0);
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
+      <table className="w-full text-sm">
+        <thead className="bg-neutral-50 text-left text-[10px] uppercase tracking-wide text-neutral-500">
+          <tr>
+            <th className="px-4 py-3 font-medium">Campanha</th>
+            <th className="px-4 py-3 text-right font-medium">Leads</th>
+            <th className="px-4 py-3 text-right font-medium">% total</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-100">
+          {campanhas.map((camp) => (
+            <tr key={camp.id} className="hover:bg-neutral-50">
+              <td className="px-4 py-3">
+                <p className="truncate font-semibold text-neutral-900" title={camp.nome}>{camp.nome}</p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {[...camp.porFase].sort((a, b) => b.qtd - a.qtd).map((f) => {
+                    const c = f.fase.toLowerCase().includes("qualif") || f.fase.toLowerCase().includes("conclu")
+                      ? "border-emerald-200 bg-emerald-50/60 text-emerald-700"
+                      : f.fase.toLowerCase().includes("perd")
+                      ? "border-red-200 bg-red-50/60 text-red-700"
+                      : "border-neutral-200 bg-neutral-50 text-neutral-600";
+                    return (
+                      <span key={f.fase} className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${c}`}>
+                        {f.fase} {f.qtd}
+                      </span>
+                    );
+                  })}
+                </div>
+              </td>
+              <td className="px-4 py-3 text-right font-semibold text-blue-700">{camp.leads}</td>
+              <td className="px-4 py-3 text-right text-neutral-500">
+                {totalGeral > 0 ? `${((camp.leads / totalGeral) * 100).toFixed(1)}%` : "—"}
+              </td>
+            </tr>
+          ))}
+          {totalGoogle < totalGeral && (
+            <tr className="border-t border-dashed border-neutral-200 bg-neutral-50/30">
+              <td className="px-4 py-2.5 text-xs italic text-neutral-400">Sem clique Google rastreado</td>
+              <td className="px-4 py-2.5 text-right text-xs text-neutral-400">{totalGeral - totalGoogle}</td>
+              <td className="px-4 py-2.5 text-right text-xs text-neutral-400">
+                {totalGeral > 0 ? `${(((totalGeral - totalGoogle) / totalGeral) * 100).toFixed(1)}%` : "—"}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
