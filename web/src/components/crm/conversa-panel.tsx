@@ -68,6 +68,14 @@ type Detalhes = {
   valor_negociacao: number | null;
 };
 
+type HistNeg = { id: number; valor: number; registrado_em: string };
+
+type TarefaLead = {
+  id: number; titulo: string; status: string; prioridade: string;
+  data_limite: string | null; visivel_portal: boolean;
+  microtarefas: { id: number; texto: string; concluida: boolean }[];
+};
+
 type Etapa = { etapa: string; etapaLabel: string };
 
 type Props = {
@@ -96,7 +104,7 @@ const COR_OPCOES = [
 ];
 
 export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, onDelete }: Props) {
-  const [aba, setAba] = useState<"conversa" | "detalhes" | "origem" | "historico">("conversa");
+  const [aba, setAba] = useState<"conversa" | "detalhes" | "origem" | "historico" | "tarefas">("conversa");
 
   // Conversa
   const [mensagens, setMensagens] = useState<MensagemCrm[]>([]);
@@ -137,6 +145,13 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
   // Histórico de etapas
   const [historicoEventos, setHistoricoEventos] = useState<EventoHistorico[] | null>(null);
   const [historicoLead, setHistoricoLead]       = useState<HistoricoLead | null>(null);
+
+  // Histórico de negociação + tarefas
+  const [historicoNeg, setHistoricoNeg]         = useState<HistNeg[]>([]);
+  const [totalClienteNeg, setTotalClienteNeg]   = useState<number>(0);
+  const [tarefasLead, setTarefasLead]           = useState<TarefaLead[] | null>(null);
+  const [novaTarefaTitulo, setNovaTarefaTitulo] = useState("");
+  const [criandoTarefa, setCriandoTarefa]       = useState(false);
 
   // ─── Fetch mensagens ───────────────────────────────────────────────────────
   const fetchMensagens = useCallback(async () => {
@@ -180,10 +195,14 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
         detalhes: Detalhes;
         tags: Tag[];
         atribuicao: Atribuicao | null;
+        historicoNegociacao: HistNeg[];
+        totalClienteNegociacao: number;
       };
       setDetalhes(data.detalhes);
       setTagsLead(data.tags);
       setAtribuicao(data.atribuicao);
+      setHistoricoNeg(data.historicoNegociacao ?? []);
+      setTotalClienteNeg(data.totalClienteNegociacao ?? 0);
     } catch { /* ignora */ }
   }, [clienteId, lead.lead_id]);
 
@@ -223,6 +242,16 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
       .then((d: { reentradas: Reentrada[] }) => setReentradas(d.reentradas ?? []))
       .catch(() => setReentradas([]));
   }, [aba, lead.lead_id, lead.reentradas, clienteId]);
+
+  // Fetch tarefas do lead (lazy, ao abrir a aba Tarefas)
+  useEffect(() => {
+    if (aba !== "tarefas") return;
+    setTarefasLead(null);
+    fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}/tarefas`)
+      .then((r) => r.json())
+      .then((d: TarefaLead[]) => setTarefasLead(d ?? []))
+      .catch(() => setTarefasLead([]));
+  }, [aba, clienteId, lead.lead_id]);
 
   // Fetch histórico de etapas (lazy, ao abrir a aba Histórico)
   useEffect(() => {
@@ -302,9 +331,40 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
           valor_negociacao: detalhes.valor_negociacao ?? null,
         }),
       });
+      // Atualiza histórico de negociação após salvar
+      await fetchDetalhes();
       setSalvoOk(true);
       setTimeout(() => setSalvoOk(false), 2000);
     } finally { setSalvando(false); }
+  }
+
+  async function criarTarefaLead() {
+    const titulo = novaTarefaTitulo.trim();
+    if (!titulo) return;
+    setCriandoTarefa(true);
+    try {
+      const res = await fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}/tarefas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ titulo }),
+      });
+      const { id } = await res.json() as { id: number };
+      setTarefasLead((prev) => [
+        { id, titulo, status: "a_fazer", prioridade: "media", data_limite: null, visivel_portal: false, microtarefas: [] },
+        ...(prev ?? []),
+      ]);
+      setNovaTarefaTitulo("");
+    } finally { setCriandoTarefa(false); }
+  }
+
+  async function toggleTarefaStatus(t: TarefaLead) {
+    const novoStatus = t.status === "concluido" ? "a_fazer" : "concluido";
+    setTarefasLead((prev) => prev?.map((x) => x.id === t.id ? { ...x, status: novoStatus } : x) ?? null);
+    await fetch(`/api/tarefas/tarefas/${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: novoStatus }),
+    });
   }
 
   async function adicionarTag(tag: Tag) {
@@ -398,7 +458,7 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
 
       {/* Abas */}
       <div className="flex border-b border-neutral-100">
-        {(["conversa", "detalhes", "origem", "historico"] as const).map((tab) => (
+        {(["conversa", "detalhes", "tarefas", "origem", "historico"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setAba(tab)}
@@ -408,8 +468,9 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
                 : "text-neutral-500 hover:text-neutral-700"
             }`}
           >
-            {tab === "conversa" ? "Conversa"
+            {tab === "conversa"  ? "Conversa"
               : tab === "detalhes" ? "Detalhes"
+              : tab === "tarefas"  ? "Tarefas"
               : tab === "origem"   ? "Origem"
               : "Histórico"}
           </button>
@@ -592,6 +653,40 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
               />
             </div>
           </div>
+
+          {/* Histórico de negociação */}
+          {(historicoNeg.length > 0 || totalClienteNeg > 0) && (
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                  Total acumulado do cliente
+                </p>
+                <span className="text-sm font-bold text-emerald-700">
+                  {totalClienteNeg.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                </span>
+              </div>
+              {historicoNeg.length > 0 && (
+                <div className="space-y-1 pt-1 border-t border-emerald-100">
+                  <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-wide">
+                    Histórico deste lead
+                  </p>
+                  {historicoNeg.map((h) => (
+                    <div key={h.id} className="flex items-center justify-between text-xs">
+                      <span className="text-neutral-500">
+                        {new Date(h.registrado_em).toLocaleString("pt-BR", {
+                          day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                          timeZone: "America/Sao_Paulo",
+                        })}
+                      </span>
+                      <span className="font-semibold text-neutral-800">
+                        {h.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Tags */}
           <div>
@@ -1010,6 +1105,103 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
               })}
             </ol>
           )}
+        </div>
+      )}
+
+      {/* ── Aba: Tarefas ─────────────────────────────────────────────────── */}
+      {aba === "tarefas" && (
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Campo rápido de nova tarefa */}
+          <div className="flex gap-2 border-b border-neutral-100 px-4 py-3">
+            <input
+              value={novaTarefaTitulo}
+              onChange={(e) => setNovaTarefaTitulo(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); criarTarefaLead(); } }}
+              placeholder="Nova tarefa para este lead…"
+              className="flex-1 rounded-xl border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/10"
+            />
+            <button
+              onClick={criarTarefaLead}
+              disabled={!novaTarefaTitulo.trim() || criandoTarefa}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Lista de tarefas */}
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+            {tarefasLead === null ? (
+              <p className="py-8 text-center text-sm text-neutral-400 animate-pulse">Carregando…</p>
+            ) : tarefasLead.length === 0 ? (
+              <p className="py-8 text-center text-sm text-neutral-400">
+                Nenhuma tarefa vinculada a este lead.
+              </p>
+            ) : (
+              tarefasLead.map((t) => {
+                const done  = t.microtarefas.filter((m) => m.concluida).length;
+                const total = t.microtarefas.length;
+                const concluido = t.status === "concluido";
+                const prioMap: Record<string, string> = {
+                  baixa: "bg-neutral-100 text-neutral-500",
+                  media: "bg-blue-100 text-blue-700",
+                  alta:  "bg-amber-100 text-amber-700",
+                  urgente: "bg-red-100 text-red-700",
+                };
+                const prioLabel: Record<string, string> = {
+                  baixa: "Baixa", media: "Média", alta: "Alta", urgente: "Urgente",
+                };
+                return (
+                  <div
+                    key={t.id}
+                    className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 transition ${
+                      concluido ? "border-neutral-100 bg-neutral-50" : "border-neutral-200 bg-white"
+                    }`}
+                  >
+                    {/* Checkbox de conclusão */}
+                    <button
+                      onClick={() => toggleTarefaStatus(t)}
+                      className={`mt-0.5 h-4 w-4 shrink-0 rounded border transition ${
+                        concluido
+                          ? "border-emerald-500 bg-emerald-500 text-white"
+                          : "border-neutral-300 bg-white hover:border-violet-400"
+                      }`}
+                    >
+                      {concluido && (
+                        <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium leading-snug ${concluido ? "line-through text-neutral-400" : "text-neutral-800"}`}>
+                        {t.titulo}
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${prioMap[t.prioridade] ?? ""}`}>
+                          {prioLabel[t.prioridade] ?? t.prioridade}
+                        </span>
+                        {t.data_limite && (
+                          <span className={`text-[11px] ${new Date(t.data_limite + "T23:59:59") < new Date() && !concluido ? "text-red-500 font-medium" : "text-neutral-400"}`}>
+                            {(() => { const [y,m,d] = t.data_limite.split("-"); return `${d}/${m}/${y}`; })()}
+                          </span>
+                        )}
+                        {total > 0 && (
+                          <span className="text-[11px] text-neutral-400">{done}/{total} sub</span>
+                        )}
+                        {t.visivel_portal && (
+                          <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700">Portal</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       )}
 
