@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { MsgBubble } from "./msg-bubble";
 import { MotivoPerdaModal } from "./motivo-perda-modal";
+import { TarefaDetalhe, type Tarefa } from "@/components/tarefas/tarefa-detalhe";
 import type { Lead } from "./lead-card";
 
 type MensagemCrm = {
@@ -70,11 +71,7 @@ type Detalhes = {
 
 type HistNeg = { id: number; valor: number; registrado_em: string };
 
-type TarefaLead = {
-  id: number; titulo: string; status: string; prioridade: string;
-  data_limite: string | null; visivel_portal: boolean;
-  microtarefas: { id: number; texto: string; concluida: boolean }[];
-};
+type TarefaLead = Tarefa;
 
 type Etapa = { etapa: string; etapaLabel: string };
 
@@ -152,6 +149,7 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
   const [tarefasLead, setTarefasLead]           = useState<TarefaLead[] | null>(null);
   const [novaTarefaTitulo, setNovaTarefaTitulo] = useState("");
   const [criandoTarefa, setCriandoTarefa]       = useState(false);
+  const [tarefaAberta, setTarefaAberta]         = useState<TarefaLead | null>(null);
 
   // ─── Fetch mensagens ───────────────────────────────────────────────────────
   const fetchMensagens = useCallback(async () => {
@@ -350,7 +348,12 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
       });
       const { id } = await res.json() as { id: number };
       setTarefasLead((prev) => [
-        { id, titulo, status: "a_fazer", prioridade: "media", data_limite: null, visivel_portal: false, microtarefas: [] },
+        {
+          id, titulo, status: "a_fazer", prioridade: "media",
+          data_limite: null, visivel_portal: false, microtarefas: [],
+          descricao: null, responsavel: null, projeto_id: null,
+          cliente_id: clienteId, lead_id: lead.lead_id,
+        },
         ...(prev ?? []),
       ]);
       setNovaTarefaTitulo("");
@@ -1156,13 +1159,14 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
                 return (
                   <div
                     key={t.id}
-                    className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 transition ${
+                    onClick={() => setTarefaAberta(t)}
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 transition hover:border-violet-200 hover:shadow-sm ${
                       concluido ? "border-neutral-100 bg-neutral-50" : "border-neutral-200 bg-white"
                     }`}
                   >
                     {/* Checkbox de conclusão */}
                     <button
-                      onClick={() => toggleTarefaStatus(t)}
+                      onClick={(e) => { e.stopPropagation(); toggleTarefaStatus(t); }}
                       className={`mt-0.5 h-4 w-4 shrink-0 rounded border transition ${
                         concluido
                           ? "border-emerald-500 bg-emerald-500 text-white"
@@ -1216,6 +1220,25 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
           }}
           onCancel={() => setPendingPerdido(null)}
         />
+      )}
+
+      {/* Painel de detalhe de tarefa */}
+      {tarefaAberta && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-black/30" onClick={() => setTarefaAberta(null)} />
+          <TarefaDetalhe
+            tarefa={tarefaAberta}
+            onClose={() => setTarefaAberta(null)}
+            onUpdate={(t) => {
+              setTarefasLead((prev) => prev?.map((x) => x.id === t.id ? t : x) ?? null);
+              setTarefaAberta(t);
+            }}
+            onDelete={(id) => {
+              setTarefasLead((prev) => prev?.filter((x) => x.id !== id) ?? null);
+              setTarefaAberta(null);
+            }}
+          />
+        </div>
       )}
     </div>
   );
