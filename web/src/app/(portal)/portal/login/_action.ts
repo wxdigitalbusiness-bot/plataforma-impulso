@@ -24,7 +24,7 @@ export async function loginPortal(formData: FormData) {
   const email = (formData.get("email") as string)?.trim().toLowerCase();
   const senha = formData.get("senha") as string;
 
-  if (!email || !senha) return { erro: "Preencha email e senha." };
+  if (!email || !senha) redirect("/portal/login?e=1");
 
   const rows = await db.$queryRaw<PortalUserRow[]>`
     SELECT id, nome, email, senha_hash, cliente_id, role, ativo
@@ -34,10 +34,10 @@ export async function loginPortal(formData: FormData) {
   `;
   const user = rows[0];
 
-  if (!user || !user.ativo) return { erro: "Credenciais inválidas." };
+  if (!user || !user.ativo) redirect("/portal/login?e=1");
 
   const ok = await compare(senha, user.senha_hash);
-  if (!ok) return { erro: "Credenciais inválidas." };
+  if (!ok) redirect("/portal/login?e=1");
 
   const clientes = await db.$queryRaw<ClienteRow[]>`
     SELECT nome, n8n_client_key FROM clientes WHERE id = ${user.cliente_id} LIMIT 1
