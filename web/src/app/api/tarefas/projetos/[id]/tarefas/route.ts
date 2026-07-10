@@ -8,7 +8,7 @@ type TarefaRow = {
   titulo: string; descricao: string | null;
   status: string; prioridade: string;
   data_limite: string | null; responsavel: string | null;
-  lead_id: string | null; visivel_portal: boolean;
+  lead_id: string | null; lead_nome: string | null; visivel_portal: boolean;
   posicao: number; criado_em: Date;
 };
 
@@ -19,10 +19,13 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   const projetoId = Number(id);
 
   const tarefas = await db.$queryRaw<TarefaRow[]>`
-    SELECT id, projeto_id, cliente_id, titulo, descricao, status, prioridade,
-           data_limite::text, responsavel, lead_id, visivel_portal, posicao, criado_em
-    FROM crm_tarefas WHERE projeto_id = ${projetoId}
-    ORDER BY posicao ASC, id ASC`;
+    SELECT ct.id, ct.projeto_id, ct.cliente_id, ct.titulo, ct.descricao, ct.status, ct.prioridade,
+           ct.data_limite::text, ct.responsavel, ct.lead_id, ct.visivel_portal, ct.posicao, ct.criado_em,
+           fl.lead_nome
+    FROM crm_tarefas ct
+    LEFT JOIN fb_leads fl ON fl.lead_id = ct.lead_id
+    WHERE ct.projeto_id = ${projetoId}
+    ORDER BY ct.posicao ASC, ct.id ASC`;
 
   const micros = tarefas.length > 0
     ? await db.$queryRaw<MicroRow[]>`
