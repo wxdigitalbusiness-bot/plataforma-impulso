@@ -13,7 +13,7 @@ export type Tarefa = {
   titulo: string; descricao: string | null;
   status: StatusKey; prioridade: PrioKey;
   data_limite: string | null; responsavel: string | null;
-  lead_id: string | null; visivel_portal: boolean;
+  lead_id: string | null; lead_nome?: string | null; visivel_portal: boolean;
   microtarefas: Micro[];
 };
 
@@ -191,6 +191,17 @@ export function TarefaDetalhe({
             />
           </div>
         </div>
+
+        {/* Lead vinculado */}
+        {tarefa.lead_nome && (
+          <div className="flex items-center gap-2 rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-700">
+            <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" />
+            </svg>
+            <span className="font-medium">Lead:</span>
+            <span className="truncate">{tarefa.lead_nome}</span>
+          </div>
+        )}
 
         {/* Projeto (vincular) — só mostra se houver projetos disponíveis */}
         {projetosReais.length > 0 && (

@@ -8,22 +8,30 @@ export default async function PortalLayout({ children }: { children: React.React
   const session = await getPortalSession();
   if (!session) redirect("/portal/login");
 
-  const cliente = await db.cliente.findUnique({
-    where: { id: session.clienteId },
-    select: {
-      contas: { select: { metaAdAccountId: true, googleAdCustomerId: true } },
-      crmWebhooks: { select: { id: true }, take: 1 },
-    },
-  });
+  const [cliente, tarefasCount] = await Promise.all([
+    db.cliente.findUnique({
+      where: { id: session.clienteId },
+      select: {
+        contas: { select: { metaAdAccountId: true, googleAdCustomerId: true } },
+        crmWebhooks: { select: { id: true }, take: 1 },
+      },
+    }),
+    db.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*) AS count FROM crm_tarefas
+      WHERE cliente_id = ${session.clienteId} AND visivel_portal = true
+    `,
+  ]);
 
-  const hasMeta   = cliente?.contas.some((c) => c.metaAdAccountId) ?? false;
-  const hasGoogle = cliente?.contas.some((c) => c.googleAdCustomerId) ?? false;
-  const hasCrm    = (cliente?.crmWebhooks.length ?? 0) > 0;
+  const hasMeta      = cliente?.contas.some((c) => c.metaAdAccountId) ?? false;
+  const hasGoogle    = cliente?.contas.some((c) => c.googleAdCustomerId) ?? false;
+  const hasCrm       = (cliente?.crmWebhooks.length ?? 0) > 0;
+  const hasTarefas   = (tarefasCount[0]?.count ?? 0n) > 0n;
 
   const NAV = [
-    hasMeta   && { href: "/portal/meta",       label: "Meta Ads" },
-    hasGoogle && { href: "/portal/google",     label: "Google Ads" },
-    hasCrm    && { href: "/portal/leads",      label: "Leads" },
+    hasMeta    && { href: "/portal/meta",      label: "Meta Ads" },
+    hasGoogle  && { href: "/portal/google",    label: "Google Ads" },
+    hasCrm     && { href: "/portal/leads",     label: "Leads" },
+    hasTarefas && { href: "/portal/tarefas",   label: "Tarefas" },
                   { href: "/portal/relatorios", label: "Relatórios" },
   ].filter(Boolean) as { href: string; label: string }[];
 

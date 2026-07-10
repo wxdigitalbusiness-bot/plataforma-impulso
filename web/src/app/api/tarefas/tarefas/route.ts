@@ -6,7 +6,7 @@ type TarefaRow = {
   titulo: string; descricao: string | null;
   status: string; prioridade: string;
   data_limite: string | null; responsavel: string | null;
-  lead_id: string | null; visivel_portal: boolean; posicao: number;
+  lead_id: string | null; lead_nome: string | null; visivel_portal: boolean; posicao: number;
 };
 type MicroRow = { id: number; tarefa_id: number; texto: string; concluida: boolean; ordem: number };
 
@@ -17,15 +17,21 @@ export async function GET(req: NextRequest) {
 
   const tarefas = semCliente
     ? await db.$queryRaw<TarefaRow[]>`
-        SELECT id, projeto_id, cliente_id, titulo, descricao, status, prioridade,
-               data_limite::text, responsavel, lead_id, visivel_portal, posicao
-        FROM crm_tarefas WHERE projeto_id IS NULL AND cliente_id IS NULL
-        ORDER BY posicao ASC, id ASC`
+        SELECT ct.id, ct.projeto_id, ct.cliente_id, ct.titulo, ct.descricao, ct.status, ct.prioridade,
+               ct.data_limite::text, ct.responsavel, ct.lead_id, ct.visivel_portal, ct.posicao,
+               fl.lead_nome
+        FROM crm_tarefas ct
+        LEFT JOIN fb_leads fl ON fl.lead_id = ct.lead_id
+        WHERE ct.projeto_id IS NULL AND ct.cliente_id IS NULL
+        ORDER BY ct.posicao ASC, ct.id ASC`
     : await db.$queryRaw<TarefaRow[]>`
-        SELECT id, projeto_id, cliente_id, titulo, descricao, status, prioridade,
-               data_limite::text, responsavel, lead_id, visivel_portal, posicao
-        FROM crm_tarefas WHERE projeto_id IS NULL AND cliente_id = ${Number(param)}
-        ORDER BY posicao ASC, id ASC`;
+        SELECT ct.id, ct.projeto_id, ct.cliente_id, ct.titulo, ct.descricao, ct.status, ct.prioridade,
+               ct.data_limite::text, ct.responsavel, ct.lead_id, ct.visivel_portal, ct.posicao,
+               fl.lead_nome
+        FROM crm_tarefas ct
+        LEFT JOIN fb_leads fl ON fl.lead_id = ct.lead_id
+        WHERE ct.projeto_id IS NULL AND ct.cliente_id = ${Number(param)}
+        ORDER BY ct.posicao ASC, ct.id ASC`;
 
   const micros = tarefas.length > 0
     ? await db.$queryRaw<MicroRow[]>`

@@ -353,6 +353,7 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
           data_limite: null, visivel_portal: false, microtarefas: [],
           descricao: null, responsavel: null, projeto_id: null,
           cliente_id: clienteId, lead_id: lead.lead_id,
+          lead_nome: lead.lead_nome || lead.lead_whatsapp,
         },
         ...(prev ?? []),
       ]);
