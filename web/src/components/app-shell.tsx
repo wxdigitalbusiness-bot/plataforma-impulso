@@ -33,6 +33,7 @@ const D = {
   bot:       "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
   phone:     "M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z",
   crm:       "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01",
+  tasks:     "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 8l2 2 4-4",
   chevL:     "M15 19l-7-7 7-7",
   chevR:     "M9 5l7 7-7 7",
   chevD:     "M19 9l-7 7-7-7",
@@ -112,6 +113,7 @@ function Sidebar({
         <NavItem href="/alertas"   label="Histórico de alertas"  icon={D.bell}     collapsed={collapsed} pathname={pathname} />
         <NavItem href="/bot"       label="Bot Marketing Impulso" icon={D.bot}      collapsed={collapsed} pathname={pathname} />
         <NavItem href="/whatsapp"  label="WhatsApp"              icon={D.phone}    collapsed={collapsed} pathname={pathname} />
+        <NavItem href="/tarefas"   label="Tarefas"               icon={D.tasks}    collapsed={collapsed} pathname={pathname} />
 
         {/* ── CRM com dropdown ── */}
         <div>
@@ -225,7 +227,7 @@ export function AppShell({ children, userName, crmClientes, logoutAction, buildL
   }
 
   // CRM usa fullscreen (sem max-width nem padding)
-  const isFullscreen = pathname.includes("/crm");
+  const isFullscreen = pathname.includes("/crm") || pathname.startsWith("/tarefas");
 
   return (
     <div className="flex min-h-screen">
