@@ -4,18 +4,24 @@ import { verifyPortalToken, PORTAL_COOKIE } from "@/lib/portal-auth";
 
 export const runtime = "nodejs";
 
-// NextAuth v5 renomeou o cookie de next-auth.session-token para authjs.session-token
-const SESSION_COOKIE =
-  process.env.NODE_ENV === "production"
-    ? "__Secure-authjs.session-token"
-    : "authjs.session-token";
+// NextAuth v5 usa o cookie name como salt na criptografia do JWT.
+// Em produção com HTTPS nativo o prefixo é __Secure-; com TLS no proxy (EasyPanel)
+// o app roda em HTTP internamente e o prefixo não é adicionado.
+// Tentamos os dois para não depender de como AUTH_URL está configurado.
+const SESSION_COOKIE_CANDIDATES = [
+  "__Secure-authjs.session-token",
+  "authjs.session-token",
+];
 
 async function agencyToken(req: NextRequest) {
-  return getToken({
-    req,
-    secret: process.env.AUTH_SECRET,
-    cookieName: SESSION_COOKIE,
-  });
+  for (const cookieName of SESSION_COOKIE_CANDIDATES) {
+    if (!req.cookies.has(cookieName)) continue;
+    try {
+      const t = await getToken({ req, secret: process.env.AUTH_SECRET, cookieName });
+      if (t) return t;
+    } catch {}
+  }
+  return null;
 }
 
 export async function middleware(req: NextRequest) {
