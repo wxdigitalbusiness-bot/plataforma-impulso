@@ -8,19 +8,14 @@ async function loginAction(formData: FormData) {
   const senha = String(formData.get("senha") ?? "");
 
   try {
-    await signIn("credentials", {
-      email,
-      senha,
-      redirect: false,
-    });
+    await signIn("credentials", { email, senha, redirectTo: "/" });
   } catch (err) {
     if (err instanceof AuthError) {
       redirect(`/login?erro=${encodeURIComponent("Email ou senha invalidos")}`);
     }
+    // next/navigation redirect lança um erro especial — precisa ser re-lançado
     throw err;
   }
-
-  redirect("/");
 }
 
 type Props = { searchParams: Promise<{ erro?: string }> };
