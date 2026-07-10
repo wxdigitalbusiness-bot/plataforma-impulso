@@ -5,6 +5,69 @@
 import { db } from "@/lib/db";
 import { consultarSaldoMeta } from "@/lib/meta-api";
 import { consultarSaldoGoogle } from "@/lib/google-ads-api";
+import { EVOLUTION_API_URL, evoHeaders } from "@/lib/whatsapp-sessions";
+
+// Instância Evolution usada para enviar alertas de saldo (número da agência)
+const ALERT_INSTANCE = process.env.ALERT_EVOLUTION_INSTANCE ?? "IMPULSO";
+
+// ─── Envio de alerta via WhatsApp ────────────────────────────────────────────
+
+async function enviarAlerta(opts: {
+  contaId: number;
+  saldo: number;
+  limite: number;
+  whatsapp: string;
+  plataforma: "Meta Ads" | "Google Ads";
+  nomeConta: string;
+}) {
+  const { contaId, saldo, limite, whatsapp, plataforma, nomeConta } = opts;
+
+  // Cooldown: não envia mais de 1 alerta por conta por plataforma nas últimas 20h
+  const recente = await db.$queryRaw<{ total: bigint }[]>`
+    SELECT COUNT(*)::bigint as total FROM alertas_saldo_log
+    WHERE cliente_id = ${contaId}
+      AND enviado_em > NOW() - INTERVAL '20 hours'
+  `;
+  if (Number(recente[0]?.total ?? 0) > 0) return;
+
+  const saldoFmt = saldo.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const limiteFmt = limite.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const texto =
+    `⚠️ *Alerta de saldo baixo*\n\n` +
+    `Conta: *${nomeConta}*\n` +
+    `Plataforma: ${plataforma}\n` +
+    `Saldo atual: *${saldoFmt}*\n` +
+    `Limite mínimo: ${limiteFmt}\n\n` +
+    `Por favor, recarregue o saldo para evitar interrupção das campanhas.`;
+
+  const jid = whatsapp.includes("@") ? whatsapp : `${whatsapp}@s.whatsapp.net`;
+  let status = "enviado";
+  let erro: string | null = null;
+
+  try {
+    const res = await fetch(
+      `${EVOLUTION_API_URL}/message/sendText/${encodeURIComponent(ALERT_INSTANCE)}`,
+      {
+        method: "POST",
+        headers: { ...evoHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ number: jid, text: texto }),
+      }
+    );
+    if (!res.ok) {
+      const body = await res.text();
+      status = "falhou";
+      erro = `HTTP ${res.status}: ${body.slice(0, 200)}`;
+    }
+  } catch (err) {
+    status = "falhou";
+    erro = String(err);
+  }
+
+  await db.$executeRaw`
+    INSERT INTO alertas_saldo_log (cliente_id, saldo_no_momento, limite_no_momento, whatsapp_destino, status, erro)
+    VALUES (${contaId}, ${saldo}, ${limite}, ${whatsapp}, ${status}, ${erro})
+  `;
+}
 
 export type SyncResult = {
   plataforma: "meta" | "google" | "todas";
@@ -25,8 +88,11 @@ export async function sincronizarSaldosMeta(): Promise<SyncResult> {
     where: { ativo: true, metaAdAccountId: { not: null } },
     select: {
       id: true,
+      nome: true,
       metaAdAccountId: true,
       receberAlertaSaldo: true,
+      limiteMinimo: true,
+      whatsappAlerta: true,
     },
   });
 
@@ -67,6 +133,24 @@ export async function sincronizarSaldosMeta(): Promise<SyncResult> {
         console.error(`[META] Falha ao gravar cliente ${cliente.id}:`, err);
         falhou++;
       }
+
+      // Alerta de saldo baixo (só pré-paga, sem erro, abaixo do limite)
+      if (
+        !saldo.erro &&
+        saldo.tipoConta !== "pos_paga" &&
+        saldo.saldoRestante !== null &&
+        saldo.saldoRestante < Number(cliente.limiteMinimo) &&
+        cliente.whatsappAlerta
+      ) {
+        enviarAlerta({
+          contaId: cliente.id,
+          saldo: saldo.saldoRestante,
+          limite: Number(cliente.limiteMinimo),
+          whatsapp: cliente.whatsappAlerta,
+          plataforma: "Meta Ads",
+          nomeConta: cliente.nome,
+        }).catch((e) => console.error(`[META-ALERTA] ${cliente.id}:`, e));
+      }
     }
   }
 
@@ -90,9 +174,12 @@ export async function sincronizarSaldosGoogle(): Promise<SyncResult> {
     where: { ativo: true, googleAdCustomerId: { not: null } },
     select: {
       id: true,
+      nome: true,
       googleAdCustomerId: true,
       googleAdsMccId: true,
       receberAlertaGoogle: true,
+      limiteMinimoGoogle: true,
+      whatsappAlerta: true,
     },
   });
 
@@ -131,6 +218,24 @@ export async function sincronizarSaldosGoogle(): Promise<SyncResult> {
       } catch (err) {
         console.error(`[GOOGLE] Falha ao gravar cliente ${cliente.id}:`, err);
         falhou++;
+      }
+
+      // Alerta de saldo baixo Google
+      if (
+        !saldo.erro &&
+        saldo.tipoConta !== "pos_paga" &&
+        saldo.saldoRestante !== null &&
+        saldo.saldoRestante < Number(cliente.limiteMinimoGoogle) &&
+        cliente.whatsappAlerta
+      ) {
+        enviarAlerta({
+          contaId: cliente.id,
+          saldo: saldo.saldoRestante,
+          limite: Number(cliente.limiteMinimoGoogle),
+          whatsapp: cliente.whatsappAlerta,
+          plataforma: "Google Ads",
+          nomeConta: cliente.nome,
+        }).catch((e) => console.error(`[GOOGLE-ALERTA] ${cliente.id}:`, e));
       }
     }
   }

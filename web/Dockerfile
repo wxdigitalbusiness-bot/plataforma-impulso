@@ -37,6 +37,10 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# Número do PR/merge para exibir na sidebar. Passe via: --build-arg BUILD_LABEL=<n>
+ARG BUILD_LABEL
+ENV BUILD_LABEL=$BUILD_LABEL
+
 RUN npm run build
 
 # ────────────────────────── Stage 3: runner ──────────────────────

@@ -10,12 +10,12 @@ const GRAPH_API_VERSION = "v19.0";
 export type CapiEventInput = {
   pixelId: string;
   capiToken: string;
-  phone: string;       // somente dígitos, será hasheado em SHA-256
-  ctwaClid: string;
-  eventName?: string;  // default: "Purchase"
-  currency?: string;   // default: "BRL"
-  value?: number;      // default: 0
-  eventTime?: number;  // Unix timestamp — default: now
+  phone: string;        // somente dígitos, será hasheado em SHA-256
+  ctwaClid?: string;    // opcional — melhora atribuição mas não é obrigatório
+  eventName?: string;   // default: "Purchase"
+  currency?: string;    // default: "BRL"
+  value?: number;       // default: 0
+  eventTime?: number;   // Unix timestamp — default: now
 };
 
 export type CapiEventResult =
@@ -56,7 +56,7 @@ export async function fireCapiEvent(input: CapiEventInput): Promise<CapiEventRes
         action_source: "other",
         user_data: {
           ph: [sha256(normalizePhone(phone))],
-          ctwa_clid: ctwaClid,
+          ...(ctwaClid ? { ctwa_clid: ctwaClid } : {}),
         },
         custom_data: {
           currency,

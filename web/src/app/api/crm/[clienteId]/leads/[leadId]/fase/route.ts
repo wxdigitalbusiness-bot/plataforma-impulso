@@ -95,12 +95,12 @@ export async function PATCH(
 
   // ── Meta CAPI (só em concluído) ────────────────────────────────────────────
   let capiResult: { ok: boolean; detail?: string } | null = null;
-  if (ehConcluido && lead.ctwa_clid && cliente.pixelId && cliente.capiToken) {
+  if (ehConcluido && cliente.pixelId && cliente.capiToken) {
     const result = await fireCapiEvent({
       pixelId:   cliente.pixelId,
       capiToken: cliente.capiToken,
       phone:     lead.lead_whatsapp,
-      ctwaClid:  lead.ctwa_clid,
+      ctwaClid:  lead.ctwa_clid ?? undefined,
     });
     capiResult = result.ok ? { ok: true } : { ok: false, detail: result.error };
     // Persiste resultado para exibir no painel do lead
