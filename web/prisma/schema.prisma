@@ -47,7 +47,6 @@ model Cliente {
   contas          ClienteAtivo[]
   relatorios      RelatorioPublico[]
   crmWebhooks     ClienteCrmWebhook[]
-  portalUsuarios  PortalUsuario[]
 
   @@map("clientes")
 }
@@ -293,27 +292,6 @@ model GoogleAttribution {
   @@index([clientKey, criadoEm(sort: Desc)])
   @@index([leadId])
   @@map("google_attribution")
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// PORTAL DE CLIENTES — Usuários com acesso ao kanban/tarefas do próprio cliente
-// ═══════════════════════════════════════════════════════════════════════════════
-
-model PortalUsuario {
-  id        Int      @id @default(autoincrement())
-  nome      String
-  email     String   @unique
-  senhaHash String   @map("senha_hash")
-  clienteId Int      @map("cliente_id")
-  // admin | operador | visualizador
-  role      String   @default("operador")
-  ativo     Boolean  @default(true)
-  criadoEm  DateTime @default(now()) @map("criado_em") @db.Timestamptz()
-
-  cliente   Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-
-  @@index([clienteId])
-  @@map("portal_usuarios")
 }
 
 model CrmMensagem {
