@@ -115,6 +115,12 @@ export default async function ClienteDetalhePage({ params }: Props) {
             </Link>
           )}
           <Link
+            href={`/clientes/${cliente.id}/portal`}
+            className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+          >
+            Área do Cliente
+          </Link>
+          <Link
             href={`/clientes/${cliente.id}/contas/novo`}
             className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
           >
