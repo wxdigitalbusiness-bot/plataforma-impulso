@@ -2,7 +2,12 @@ import { loginPortal } from "./_action";
 
 export const metadata = { title: "Área do Cliente — Login" };
 
-export default function PortalLoginPage() {
+type Props = { searchParams: Promise<{ e?: string }> };
+
+export default async function PortalLoginPage({ searchParams }: Props) {
+  const sp = await searchParams;
+  const erro = sp.e ? "Email ou senha incorretos." : null;
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
       <div className="w-full max-w-sm">
@@ -16,6 +21,12 @@ export default function PortalLoginPage() {
         </div>
 
         <form action={loginPortal} className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
+          {erro && (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-center text-sm text-red-600">
+              {erro}
+            </p>
+          )}
+
           <div>
             <label htmlFor="email" className="mb-1 block text-sm font-medium text-neutral-700">
               Email
