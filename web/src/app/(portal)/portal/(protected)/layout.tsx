@@ -25,7 +25,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const hasMeta      = cliente?.contas.some((c) => c.metaAdAccountId) ?? false;
   const hasGoogle    = cliente?.contas.some((c) => c.googleAdCustomerId) ?? false;
   const hasCrm       = (cliente?.crmWebhooks.length ?? 0) > 0;
-  const hasTarefas   = (tarefasCount[0]?.count ?? 0n) > 0n;
+  const hasTarefas   = Number(tarefasCount[0]?.count ?? 0) > 0;
 
   const NAV = [
     hasMeta    && { href: "/portal/meta",      label: "Meta Ads" },
