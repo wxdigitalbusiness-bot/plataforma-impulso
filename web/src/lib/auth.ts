@@ -38,12 +38,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    authorized({ auth, request }) {
-      const logado = !!auth?.user;
-      const rotaLogin = request.nextUrl.pathname === "/login";
-      if (rotaLogin) return logado ? Response.redirect(new URL("/", request.url)) : true;
-      return logado;
-    },
-  },
 });
