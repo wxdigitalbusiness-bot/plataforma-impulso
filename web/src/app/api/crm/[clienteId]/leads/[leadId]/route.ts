@@ -10,7 +10,7 @@ async function resolveClientKey(clienteId: string) {
   return c?.n8nClientKey ?? null;
 }
 
-// GET — detalhes completos do lead (observações, valor, tags, atribuição)
+// GET — detalhes completos do lead (observações, valor, histórico negociação, tags, atribuição)
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<Params> }
@@ -19,7 +19,7 @@ export async function GET(
   const clientKey = await resolveClientKey(clienteId);
   if (!clientKey) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 });
 
-  const [leads, tags, atribuicao] = await Promise.all([
+  const [leads, tags, atribuicao, historicoNeg, totalCliente] = await Promise.all([
     db.$queryRaw<Array<{
       observacoes: string | null;
       valor_negociacao: number | null;
@@ -50,6 +50,21 @@ export async function GET(
       ORDER BY vinculado_em DESC
       LIMIT 1
     `,
+
+    // Histórico de valores de negociação deste lead
+    db.$queryRaw<Array<{ id: number; valor: number; registrado_em: Date }>>`
+      SELECT id, valor::float AS valor, registrado_em
+      FROM crm_historico_negociacao
+      WHERE lead_id = ${leadId} AND lower(client_key) = lower(${clientKey})
+      ORDER BY registrado_em DESC
+    `,
+
+    // Total acumulado do cliente (todos os leads)
+    db.$queryRaw<Array<{ total: number | null }>>`
+      SELECT SUM(valor)::float AS total
+      FROM crm_historico_negociacao
+      WHERE lower(client_key) = lower(${clientKey})
+    `,
   ]);
 
   if (!leads.length) return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
@@ -58,10 +73,12 @@ export async function GET(
     detalhes: leads[0],
     tags: tags.map((t) => ({ ...t, id: t.id.toString() })),
     atribuicao: atribuicao[0] ?? null,
+    historicoNegociacao: historicoNeg,
+    totalClienteNegociacao: totalCliente[0]?.total ?? 0,
   });
 }
 
-// PATCH — atualiza observações e valor de negociação
+// PATCH — atualiza observações e valor de negociação (registra histórico)
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<Params> }
@@ -79,6 +96,14 @@ export async function PATCH(
       valor_negociacao = ${body.valor_negociacao ?? null}
     WHERE lead_id = ${leadId} AND lower(client_key) = lower(${clientKey})
   `;
+
+  // Registra histórico quando um valor for informado
+  if (body.valor_negociacao != null && body.valor_negociacao > 0) {
+    await db.$executeRaw`
+      INSERT INTO crm_historico_negociacao (lead_id, client_key, valor)
+      VALUES (${leadId}, ${clientKey}, ${body.valor_negociacao})
+    `;
+  }
 
   return NextResponse.json({ ok: true });
 }
