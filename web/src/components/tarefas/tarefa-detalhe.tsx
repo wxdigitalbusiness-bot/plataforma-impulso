@@ -62,8 +62,16 @@ export function TarefaDetalhe({
   const [local, setLocal]         = useState<Tarefa>(tarefa);
   const [novoMicro, setNovoMicro] = useState("");
   const [saving, setSaving]       = useState(false);
+  const [responsaveis, setResp]   = useState<{ admins: {nome:string}[]; clientes: {nome:string}[] } | null>(null);
 
   useEffect(() => { setLocal(tarefa); }, [tarefa]);
+
+  useEffect(() => {
+    fetch("/api/tarefas/responsaveis")
+      .then((r) => r.json())
+      .then(setResp)
+      .catch(() => {});
+  }, []);
 
   const patch = useCallback(async (fields: Partial<Tarefa & { projeto_id: number | null }>) => {
     const merged = { ...local, ...fields };
@@ -181,14 +189,32 @@ export function TarefaDetalhe({
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-500">Responsável</label>
-            <input
-              key={tarefa.id + "-resp"}
-              type="text"
-              defaultValue={local.responsavel ?? ""}
-              onBlur={(e) => patch({ responsavel: e.target.value || null })}
-              placeholder="Nome"
+            <select
+              value={local.responsavel ?? ""}
+              onChange={(e) => patch({ responsavel: e.target.value || null })}
               className="w-full rounded-lg border border-neutral-200 px-2 py-1.5 text-sm outline-none focus:border-violet-400"
-            />
+            >
+              <option value="">Sem responsável</option>
+              {responsaveis && responsaveis.admins.length > 0 && (
+                <optgroup label="Equipe">
+                  {responsaveis.admins.map((a) => (
+                    <option key={a.nome} value={a.nome}>{a.nome}</option>
+                  ))}
+                </optgroup>
+              )}
+              {responsaveis && responsaveis.clientes.length > 0 && (
+                <optgroup label="Clientes">
+                  {responsaveis.clientes.map((c) => (
+                    <option key={c.nome} value={c.nome}>{c.nome}</option>
+                  ))}
+                </optgroup>
+              )}
+              {/* Mantém valor existente mesmo sem carregar a lista ainda */}
+              {local.responsavel && responsaveis !== null &&
+                ![...responsaveis.admins, ...responsaveis.clientes].some((x) => x.nome === local.responsavel) && (
+                <option value={local.responsavel}>{local.responsavel}</option>
+              )}
+            </select>
           </div>
         </div>
 

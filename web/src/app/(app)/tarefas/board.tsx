@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { TarefaDetalhe, PRIO, type Tarefa, type StatusKey, type PrioKey, type Projeto } from "@/components/tarefas/tarefa-detalhe";
+import { DashboardView } from "./dashboard-view";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Cliente  = { id: number; nome: string };
@@ -382,6 +383,8 @@ function NovoProjetoModal({
 
 // ── TarefasBoard (componente principal) ────────────────────────────────────────
 export function TarefasBoard({ clientes }: { clientes: Cliente[] }) {
+  const [modoView, setModoView]   = useState<"board" | "dashboard">("board");
+
   // null = "Sem cliente"
   const [clienteId, setClienteId] = useState<number | null>(clientes[0]?.id ?? null);
   const [projetos, setProjetos]   = useState<Projeto[]>([]);
@@ -452,7 +455,23 @@ export function TarefasBoard({ clientes }: { clientes: Cliente[] }) {
           <span className="text-sm font-semibold text-neutral-900">Tarefas</span>
         </div>
 
-        {/* Seletor de cliente */}
+        {/* Toggle Board / Dashboard */}
+        <div className="flex shrink-0 rounded-lg border border-neutral-200 bg-neutral-50 p-0.5">
+          {(["board", "dashboard"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setModoView(v)}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                modoView === v ? "bg-white shadow text-neutral-900" : "text-neutral-500 hover:text-neutral-700"
+              }`}
+            >
+              {v === "board" ? "Projetos" : "Dashboard"}
+            </button>
+          ))}
+        </div>
+
+        {/* Seletor de cliente — só no modo board */}
+        {modoView === "board" && (<>
         <select
           value={clienteId ?? ""}
           onChange={(e) => setClienteId(e.target.value === "" ? null : Number(e.target.value))}
@@ -488,10 +507,14 @@ export function TarefasBoard({ clientes }: { clientes: Cliente[] }) {
             Projeto
           </button>
         </div>
+        </>)}
       </div>
 
+      {/* ── Dashboard ── */}
+      {modoView === "dashboard" && <DashboardView clientes={clientes} />}
+
       {/* ── Board ── */}
-      <div className="flex flex-1 overflow-hidden">
+      {modoView === "board" && <div className="flex flex-1 overflow-hidden">
         {/* Kanban */}
         <div className="flex flex-1 gap-4 overflow-x-auto px-6 py-5">
           {projetoId === null ? (
@@ -547,7 +570,7 @@ export function TarefasBoard({ clientes }: { clientes: Cliente[] }) {
             onDelete={handleDelete}
           />
         )}
-      </div>
+      </div>}
 
       {/* ── Modals ── */}
       {novaTarefaStatus && projetoId !== null && (
