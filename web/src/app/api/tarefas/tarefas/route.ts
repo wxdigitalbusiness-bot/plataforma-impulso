@@ -10,9 +10,11 @@ type TarefaRow = {
 };
 type MicroRow = { id: number; tarefa_id: number; texto: string; concluida: boolean; ordem: number };
 
-// GET /api/tarefas/tarefas?clienteId=X  → tarefas sem projeto do cliente (ou sem cliente se sem param)
+// GET /api/tarefas/tarefas?clienteId=X[&all=true]
+// sem all: tarefas sem projeto; com all=true: todas as tarefas do cliente (incl. com projeto)
 export async function GET(req: NextRequest) {
   const param = req.nextUrl.searchParams.get("clienteId");
+  const all   = req.nextUrl.searchParams.get("all") === "true";
   const semCliente = !param || param === "";
 
   const tarefas = semCliente
@@ -23,6 +25,15 @@ export async function GET(req: NextRequest) {
         FROM crm_tarefas ct
         LEFT JOIN fb_leads fl ON fl.lead_id = ct.lead_id
         WHERE ct.projeto_id IS NULL AND ct.cliente_id IS NULL
+        ORDER BY ct.posicao ASC, ct.id ASC`
+    : all
+    ? await db.$queryRaw<TarefaRow[]>`
+        SELECT ct.id, ct.projeto_id, ct.cliente_id, ct.titulo, ct.descricao, ct.status, ct.prioridade,
+               ct.data_limite::text, ct.responsavel, ct.lead_id, ct.visivel_portal, ct.posicao,
+               fl.lead_nome
+        FROM crm_tarefas ct
+        LEFT JOIN fb_leads fl ON fl.lead_id = ct.lead_id
+        WHERE ct.cliente_id = ${Number(param)}
         ORDER BY ct.posicao ASC, ct.id ASC`
     : await db.$queryRaw<TarefaRow[]>`
         SELECT ct.id, ct.projeto_id, ct.cliente_id, ct.titulo, ct.descricao, ct.status, ct.prioridade,
