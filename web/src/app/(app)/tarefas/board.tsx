@@ -253,8 +253,8 @@ function ProjetoCard({
       {/* Tasks (expanded) */}
       {expanded && (
         <div className="bg-white">
-          {/* Stage drop strip */}
-          <div className="flex border-b border-violet-100">
+          {/* Stage drop strip — só aparece durante drag */}
+          <div className={`flex border-b border-violet-100 transition-all overflow-hidden ${draggingId !== null ? "max-h-8" : "max-h-0 border-0"}`}>
             {COLUNAS.map((c) => (
               <div
                 key={c.id}
