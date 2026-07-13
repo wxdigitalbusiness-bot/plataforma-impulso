@@ -17,6 +17,14 @@ const COLUNAS: { id: StatusKey; label: string; hdr: string; dot: string }[] = [
   { id: "concluido",           label: "Concluído",           hdr: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" },
 ];
 
+const STATUS_BORDER: Record<StatusKey, string> = {
+  a_fazer:             "border-l-neutral-300",
+  em_andamento:        "border-l-blue-400",
+  aguardando_resposta: "border-l-orange-400",
+  em_revisao:          "border-l-amber-500",
+  concluido:           "border-l-emerald-400",
+};
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function isOverdue(dl: string | null) {
   if (!dl) return false;
@@ -52,7 +60,7 @@ const ICONS = {
 // ── TarefaCard ─────────────────────────────────────────────────────────────────
 function TarefaCard({
   tarefa, onClick, onDragStart, onDragEnd, isDragging,
-  expanded, onToggleExpand, onToggleMicro, compact = false, onStatusChange,
+  expanded, onToggleExpand, onToggleMicro, compact = false,
 }: {
   tarefa: Tarefa;
   onClick: () => void;
@@ -63,7 +71,6 @@ function TarefaCard({
   onToggleExpand?: () => void;
   onToggleMicro?: (microId: number, concluida: boolean) => void;
   compact?: boolean;
-  onStatusChange?: (s: StatusKey) => void;
 }) {
   const done      = tarefa.microtarefas.filter((m) => m.concluida).length;
   const total     = tarefa.microtarefas.length;
@@ -77,7 +84,7 @@ function TarefaCard({
       onDragEnd={onDragEnd}
       className={
         compact
-          ? `bg-white border-b border-violet-50 px-3 py-2 last:border-0 cursor-grab active:cursor-grabbing transition-opacity ${isDragging ? "opacity-40" : ""}`
+          ? `bg-white border-b border-violet-50 border-l-[3px] ${STATUS_BORDER[tarefa.status]} px-3 py-2 last:border-0 cursor-grab active:cursor-grabbing transition-opacity ${isDragging ? "opacity-40" : ""}`
           : `cursor-grab active:cursor-grabbing rounded-xl border bg-white p-3 shadow-sm hover:border-neutral-300 hover:shadow transition-all space-y-2
              ${isDragging ? "opacity-40 scale-95" : ""}
              ${concluido ? "border-emerald-200" : "border-neutral-200"}`
@@ -97,17 +104,6 @@ function TarefaCard({
         >
           {tarefa.titulo}
         </p>
-        {compact && onStatusChange && (
-          <div onClick={(e) => e.stopPropagation()}>
-            <select
-              value={tarefa.status}
-              onChange={(e) => { e.stopPropagation(); onStatusChange(e.target.value as StatusKey); }}
-              className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[10px] text-neutral-500 outline-none cursor-pointer"
-            >
-              {COLUNAS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-            </select>
-          </div>
-        )}
         {total > 0 && onToggleExpand && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
@@ -200,6 +196,8 @@ function ProjetoCard({
   onTaskClick: (t: Tarefa) => void;
   onTaskStatusChange: (tarefaId: number, status: StatusKey) => void;
 }) {
+  const [hoverStrip, setHoverStrip] = useState<StatusKey | null>(null);
+
   return (
     <div
       draggable
@@ -245,6 +243,26 @@ function ProjetoCard({
       {/* Tasks (expanded) */}
       {expanded && (
         <div className="bg-white">
+          {/* Stage drop strip */}
+          <div className="flex border-b border-violet-100">
+            {COLUNAS.map((c) => (
+              <div
+                key={c.id}
+                title={c.label}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setHoverStrip(c.id); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setHoverStrip(null); }}
+                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setHoverStrip(null); if (draggingId) onTaskStatusChange(draggingId, c.id); }}
+                className={`flex flex-1 items-center justify-center gap-1 py-1.5 transition
+                  ${hoverStrip === c.id ? `${c.hdr} font-medium` : "hover:bg-neutral-50"}`}
+              >
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${c.dot}`} />
+                {hoverStrip === c.id && (
+                  <span className="text-[9px] leading-none whitespace-nowrap">{c.label}</span>
+                )}
+              </div>
+            ))}
+          </div>
+
           {tasks.length === 0 ? (
             <button
               onClick={onAddTask}
@@ -265,7 +283,6 @@ function ProjetoCard({
                 expanded={expandedTasks.has(t.id)}
                 onToggleExpand={() => onToggleTask(t.id)}
                 onToggleMicro={(mId, c) => onToggleMicro(t.id, mId, c)}
-                onStatusChange={(s) => onTaskStatusChange(t.id, s)}
               />
             ))
           )}
