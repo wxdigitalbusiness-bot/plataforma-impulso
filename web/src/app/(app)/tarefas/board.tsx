@@ -271,7 +271,8 @@ function ProjetoDetalhe({
   onTaskClick: (t: Tarefa) => void;
   onUpdate?: (p: Projeto) => void;
 }) {
-  const [descricao, setDescricao] = useState(projeto.descricao ?? "");
+  const [descricao, setDescricao]       = useState(projeto.descricao ?? "");
+  const [visivelPortal, setVisivelPortal] = useState(projeto.visivel_portal ?? false);
 
   const projTasks = tarefas.filter((t) => t.projeto_id === projeto.id);
   const total     = projTasks.length;
@@ -281,14 +282,19 @@ function ProjetoDetalhe({
     .map((c) => ({ ...c, tasks: projTasks.filter((t) => t.status === c.id) }))
     .filter((c) => c.tasks.length > 0);
 
-  async function saveDescricao() {
-    const val = descricao.trim() || null;
+  async function patch(fields: Record<string, unknown>) {
     await fetch(`/api/tarefas/projetos/${projeto.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ descricao: val }),
+      body: JSON.stringify(fields),
     });
-    onUpdate?.({ ...projeto, descricao: val });
+    onUpdate?.({ ...projeto, descricao: descricao.trim() || null, visivel_portal: visivelPortal, ...fields });
+  }
+
+  async function togglePortal() {
+    const next = !visivelPortal;
+    setVisivelPortal(next);
+    await patch({ visivel_portal: next });
   }
 
   return (
@@ -325,12 +331,23 @@ function ProjetoDetalhe({
           <textarea
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
-            onBlur={saveDescricao}
+            onBlur={() => patch({ descricao: descricao.trim() || null })}
             rows={3}
             placeholder="Adicione uma descrição ao projeto..."
             className="w-full resize-none rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-violet-400"
           />
         </div>
+
+        {/* Toggle portal */}
+        <label className="flex cursor-pointer items-center gap-3">
+          <div
+            onClick={togglePortal}
+            className={`relative h-5 w-9 rounded-full transition-colors ${visivelPortal ? "bg-violet-600" : "bg-neutral-200"}`}
+          >
+            <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${visivelPortal ? "left-4" : "left-0.5"}`} />
+          </div>
+          <span className="text-sm text-neutral-700">Visível no portal do cliente</span>
+        </label>
 
         {/* Tasks by status */}
         {grouped.length === 0 ? (
@@ -344,24 +361,46 @@ function ProjetoDetalhe({
             </div>
             <div className="space-y-1">
               {g.tasks.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => onTaskClick(t)}
-                  className="w-full text-left flex items-center gap-2 rounded-lg border border-neutral-100 px-3 py-2 hover:border-neutral-200 hover:bg-neutral-50 transition"
-                >
-                  <div className={`h-3.5 w-3.5 shrink-0 rounded border flex items-center justify-center
-                    ${t.status === "concluido" ? "border-emerald-500 bg-emerald-500" : "border-neutral-300"}`}>
-                    {t.status === "concluido" && <Ico d={ICONS.check} className="h-2.5 w-2.5 text-white" />}
-                  </div>
-                  <span className={`flex-1 text-sm ${t.status === "concluido" ? "line-through text-neutral-400" : "text-neutral-700"}`}>
-                    {t.titulo}
-                  </span>
-                  {t.microtarefas.length > 0 && (
-                    <span className="text-[10px] text-neutral-400 shrink-0">
-                      {t.microtarefas.filter((m) => m.concluida).length}/{t.microtarefas.length}
+                <div key={t.id} className="rounded-lg border border-neutral-100 overflow-hidden">
+                  {/* Task row */}
+                  <button
+                    onClick={() => onTaskClick(t)}
+                    className="w-full text-left flex items-center gap-2 px-3 py-2 hover:bg-neutral-50 transition"
+                  >
+                    <div className={`h-3.5 w-3.5 shrink-0 rounded border flex items-center justify-center
+                      ${t.status === "concluido" ? "border-emerald-500 bg-emerald-500" : "border-neutral-300"}`}>
+                      {t.status === "concluido" && <Ico d={ICONS.check} className="h-2.5 w-2.5 text-white" />}
+                    </div>
+                    <span className={`flex-1 text-sm ${t.status === "concluido" ? "line-through text-neutral-400" : "text-neutral-700"}`}>
+                      {t.titulo}
                     </span>
+                    {t.microtarefas.length > 0 && (
+                      <span className="text-[10px] text-neutral-400 shrink-0">
+                        {t.microtarefas.filter((m) => m.concluida).length}/{t.microtarefas.length}
+                      </span>
+                    )}
+                  </button>
+                  {/* Subtasks */}
+                  {t.microtarefas.length > 0 && (
+                    <div className="border-t border-neutral-50 divide-y divide-neutral-50">
+                      {t.microtarefas.map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => onTaskClick(t)}
+                          className="w-full text-left flex items-center gap-2 pl-7 pr-3 py-1.5 bg-neutral-50/50 hover:bg-neutral-100/60 transition"
+                        >
+                          <div className={`h-3 w-3 shrink-0 rounded border flex items-center justify-center
+                            ${m.concluida ? "border-emerald-400 bg-emerald-400" : "border-neutral-300"}`}>
+                            {m.concluida && <Ico d={ICONS.check} className="h-2 w-2 text-white" />}
+                          </div>
+                          <span className={`text-xs ${m.concluida ? "line-through text-neutral-400" : "text-neutral-500"}`}>
+                            {m.texto}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   )}
-                </button>
+                </div>
               ))}
             </div>
           </div>
