@@ -104,11 +104,12 @@ function TarefaCard({ tarefa, onClick }: { tarefa: Tarefa; onClick: () => void }
 
 // ── NovaTarefaModal ────────────────────────────────────────────────────────────
 function NovaTarefaModal({
-  projetoId, clienteId, todosProjetos, statusInicial, onClose, onCreate,
+  projetoId, clienteId, todosProjetos, responsaveis, statusInicial, onClose, onCreate,
 }: {
   projetoId: number | null;  // null = sem projeto
   clienteId: number | null;
   todosProjetos: Projeto[];
+  responsaveis?: Responsaveis;
   statusInicial: StatusKey;
   onClose: () => void;
   onCreate: (t: Tarefa) => void;
@@ -256,13 +257,27 @@ function NovaTarefaModal({
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-neutral-700">Responsável</label>
-              <input
-                type="text"
+              <select
                 value={form.responsavel}
                 onChange={(e) => setForm((f) => ({ ...f, responsavel: e.target.value }))}
-                placeholder="Nome"
                 className="w-full rounded-lg border border-neutral-300 px-2 py-2 text-sm outline-none focus:border-violet-500"
-              />
+              >
+                <option value="">Sem responsável</option>
+                {responsaveis && responsaveis.admins.length > 0 && (
+                  <optgroup label="Equipe">
+                    {responsaveis.admins.map((a) => (
+                      <option key={a.nome} value={a.nome}>{a.nome}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {responsaveis && responsaveis.clientes.length > 0 && (
+                  <optgroup label="Clientes">
+                    {responsaveis.clientes.map((c) => (
+                      <option key={c.nome} value={c.nome}>{c.nome}</option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
             </div>
           </div>
 
@@ -583,6 +598,7 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
           projetoId={projetoId === -1 ? null : projetoId}
           clienteId={clienteId}
           todosProjetos={projetos}
+          responsaveis={responsaveis}
           statusInicial={novaTarefaStatus}
           onClose={() => setNovaTarefaStatus(null)}
           onCreate={handleCreate}
