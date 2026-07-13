@@ -52,7 +52,7 @@ const ICONS = {
 // ── TarefaCard ─────────────────────────────────────────────────────────────────
 function TarefaCard({
   tarefa, onClick, onDragStart, onDragEnd, isDragging,
-  expanded, onToggleExpand, onToggleMicro, compact = false,
+  expanded, onToggleExpand, onToggleMicro, compact = false, onStatusChange,
 }: {
   tarefa: Tarefa;
   onClick: () => void;
@@ -63,6 +63,7 @@ function TarefaCard({
   onToggleExpand?: () => void;
   onToggleMicro?: (microId: number, concluida: boolean) => void;
   compact?: boolean;
+  onStatusChange?: (s: StatusKey) => void;
 }) {
   const done      = tarefa.microtarefas.filter((m) => m.concluida).length;
   const total     = tarefa.microtarefas.length;
@@ -96,6 +97,17 @@ function TarefaCard({
         >
           {tarefa.titulo}
         </p>
+        {compact && onStatusChange && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <select
+              value={tarefa.status}
+              onChange={(e) => { e.stopPropagation(); onStatusChange(e.target.value as StatusKey); }}
+              className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[10px] text-neutral-500 outline-none cursor-pointer"
+            >
+              {COLUNAS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+          </div>
+        )}
         {total > 0 && onToggleExpand && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
@@ -168,7 +180,7 @@ function ProjetoCard({
   projeto, tasks, expanded, onToggle, onOpenDetail, onAddTask,
   draggingId, onDragStart, onDragEnd,
   isDragging, onProjDragStart, onProjDragEnd,
-  expandedTasks, onToggleTask, onToggleMicro, onTaskClick,
+  expandedTasks, onToggleTask, onToggleMicro, onTaskClick, onTaskStatusChange,
 }: {
   projeto: Projeto;
   tasks: Tarefa[];
@@ -186,6 +198,7 @@ function ProjetoCard({
   onToggleTask: (id: number) => void;
   onToggleMicro: (tarefaId: number, microId: number, concluida: boolean) => void;
   onTaskClick: (t: Tarefa) => void;
+  onTaskStatusChange: (tarefaId: number, status: StatusKey) => void;
 }) {
   return (
     <div
@@ -252,6 +265,7 @@ function ProjetoCard({
                 expanded={expandedTasks.has(t.id)}
                 onToggleExpand={() => onToggleTask(t.id)}
                 onToggleMicro={(mId, c) => onToggleMicro(t.id, mId, c)}
+                onStatusChange={(s) => onTaskStatusChange(t.id, s)}
               />
             ))
           )}
@@ -627,7 +641,7 @@ function NovoProjetoModal({
       body: JSON.stringify({ clienteId: selCliente, nome: nome.trim(), cor }),
     });
     const { id } = await res.json() as { id: number };
-    onCreate({ id, nome: nome.trim(), cor, status: "ativo", cliente_id: selCliente });
+    onCreate({ id, nome: nome.trim(), cor, status: "ativo", cliente_id: selCliente, coluna: "a_fazer" as StatusKey });
     onClose();
   }
 
@@ -741,12 +755,42 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
     });
   }
 
+  async function cascadeProject(projId: number, currentTarefas: Tarefa[]) {
+    const projTasks = currentTarefas.filter((t) => t.projeto_id === projId);
+    if (projTasks.length > 0 && projTasks.every((t) => t.status === "concluido")) {
+      setProjetos((prev) => prev.map((p) => p.id === projId ? { ...p, coluna: "concluido" as StatusKey } : p));
+      await fetch(`/api/tarefas/projetos/${projId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coluna: "concluido" }),
+      });
+    }
+  }
+
+  async function handleTaskStatusChange(tarefaId: number, newStatus: StatusKey) {
+    const tarefa = tarefas.find((t) => t.id === tarefaId);
+    if (!tarefa || tarefa.status === newStatus) return;
+    const updated = { ...tarefa, status: newStatus };
+    const withUpdated = tarefas.map((t) => t.id === tarefaId ? updated : t);
+    setTarefas(withUpdated);
+    if (detalhe?.id === tarefaId) setDetalhe(updated);
+    await fetch(`/api/tarefas/tarefas/${tarefaId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (newStatus === "concluido" && tarefa.projeto_id) {
+      await cascadeProject(tarefa.projeto_id, withUpdated);
+    }
+  }
+
   async function toggleMicro(tarefaId: number, microId: number, concluida: boolean) {
-    setTarefas((prev) => prev.map((t) =>
+    const withMicro = tarefas.map((t) =>
       t.id === tarefaId
         ? { ...t, microtarefas: t.microtarefas.map((m) => m.id === microId ? { ...m, concluida } : m) }
         : t
-    ));
+    );
+    setTarefas(withMicro);
     if (detalhe?.id === tarefaId) {
       setDetalhe((prev) => prev
         ? { ...prev, microtarefas: prev.microtarefas.map((m) => m.id === microId ? { ...m, concluida } : m) }
@@ -758,6 +802,21 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ concluida }),
     });
+    // Cascade: all micros concluída → mark task concluído
+    if (concluida) {
+      const tarefa = withMicro.find((t) => t.id === tarefaId);
+      if (tarefa && tarefa.microtarefas.every((m) => m.concluida) && tarefa.status !== "concluido") {
+        const withStatus = withMicro.map((t) => t.id === tarefaId ? { ...t, status: "concluido" as StatusKey } : t);
+        setTarefas(withStatus);
+        if (detalhe?.id === tarefaId) setDetalhe((prev) => prev ? { ...prev, status: "concluido" } : null);
+        await fetch(`/api/tarefas/tarefas/${tarefaId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "concluido" }),
+        });
+        if (tarefa.projeto_id) await cascadeProject(tarefa.projeto_id, withStatus);
+      }
+    }
   }
 
   function handleUpdate(t: Tarefa) {
@@ -781,31 +840,30 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
     setOverCol(null);
     if (!tarefa || tarefa.status === newStatus) return;
     const updated = { ...tarefa, status: newStatus };
-    setTarefas((prev) => prev.map((t) => t.id === draggingId ? updated : t));
+    const withUpdated = tarefas.map((t) => t.id === draggingId ? updated : t);
+    setTarefas(withUpdated);
     if (detalhe?.id === draggingId) setDetalhe(updated);
     await fetch(`/api/tarefas/tarefas/${draggingId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     });
+    if (newStatus === "concluido" && tarefa.projeto_id) {
+      await cascadeProject(tarefa.projeto_id, withUpdated);
+    }
   }
 
-  async function handleDropProject(newStatus: StatusKey) {
+  async function handleDropProject(newColuna: StatusKey) {
     if (!draggingProjId) return;
     const projId = draggingProjId;
     setDraggingProjId(null);
     setOverCol(null);
-    const projTasks = tarefas.filter((t) => t.projeto_id === projId && t.status !== newStatus);
-    if (projTasks.length === 0) return;
-    setTarefas((prev) => prev.map((t) => t.projeto_id === projId ? { ...t, status: newStatus } : t));
-    if (detalhe?.projeto_id === projId) setDetalhe((prev) => prev ? { ...prev, status: newStatus } : null);
-    await Promise.all(projTasks.map((t) =>
-      fetch(`/api/tarefas/tarefas/${t.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      })
-    ));
+    setProjetos((prev) => prev.map((p) => p.id === projId ? { ...p, coluna: newColuna } : p));
+    await fetch(`/api/tarefas/projetos/${projId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ coluna: newColuna }),
+    });
   }
 
   function openNovaTarefa(status: StatusKey, projetoId: number | null = null) {
@@ -874,9 +932,9 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
             ) : (
               COLUNAS.map((col) => {
                 const colTasks       = tarefas.filter((t) => t.status === col.id);
-                const projetosNaCol  = projetos.filter((p) => colTasks.some((t) => t.projeto_id === p.id));
+                const projetosNaCol  = projetos.filter((p) => (p.coluna ?? "a_fazer") === col.id);
                 const semProj        = colTasks.filter((t) => t.projeto_id === null);
-                const isOver         = overCol === col.id && draggingId !== null;
+                const isOver         = overCol === col.id && (draggingId !== null || draggingProjId !== null);
 
                 return (
                   <div key={col.id} className="flex w-72 shrink-0 flex-col gap-3">
@@ -908,7 +966,7 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
                         <ProjetoCard
                           key={proj.id}
                           projeto={proj}
-                          tasks={colTasks.filter((t) => t.projeto_id === proj.id)}
+                          tasks={tarefas.filter((t) => t.projeto_id === proj.id)}
                           expanded={expandedProjects.has(proj.id)}
                           onToggle={() => toggleProject(proj.id)}
                           onOpenDetail={() => { setDetalheProj(proj); setDetalhe(null); }}
@@ -923,6 +981,7 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
                           onToggleTask={toggleTask}
                           onToggleMicro={toggleMicro}
                           onTaskClick={(t) => { setDetalhe(t); setDetalheProj(null); }}
+                          onTaskStatusChange={handleTaskStatusChange}
                         />
                       ))}
 
@@ -942,7 +1001,7 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
                       ))}
 
                       {/* Empty state */}
-                      {colTasks.length === 0 && !isOver && (
+                      {projetosNaCol.length === 0 && semProj.length === 0 && !isOver && (
                         <button
                           onClick={() => openNovaTarefa(col.id)}
                           className="rounded-xl border-2 border-dashed border-neutral-200 py-4 text-center text-xs text-neutral-400 hover:border-violet-300 hover:text-violet-500 transition"

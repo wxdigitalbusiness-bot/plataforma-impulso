@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 export type Micro     = { id: number; texto: string; concluida: boolean; ordem: number };
 export type StatusKey = "a_fazer" | "em_andamento" | "em_revisao" | "aguardando_resposta" | "concluido";
 export type PrioKey   = "baixa" | "media" | "alta" | "urgente";
-export type Projeto   = { id: number; nome: string; cor: string; status: string; cliente_id: number | null; descricao?: string | null; visivel_portal?: boolean };
+export type Projeto   = { id: number; nome: string; cor: string; status: string; cliente_id: number | null; descricao?: string | null; visivel_portal?: boolean; coluna?: StatusKey };
 
 export type Tarefa = {
   id: number; projeto_id: number | null; cliente_id: number | null;
