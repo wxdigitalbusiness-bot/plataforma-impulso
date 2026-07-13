@@ -128,60 +128,62 @@ function NovaTarefaModal({
     e.preventDefault();
     if (!form.titulo.trim()) return;
     setSaving(true);
+    try {
+      let id: number;
+      if (form.projeto_id !== null && form.projeto_id !== -1) {
+        const res = await fetch(`/api/tarefas/projetos/${form.projeto_id}/tarefas`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clienteId, titulo: form.titulo.trim(),
+            descricao: form.descricao || undefined,
+            prioridade: form.prioridade,
+            data_limite: form.data_limite || undefined,
+            responsavel: form.responsavel || undefined,
+          }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        ({ id } = await res.json() as { id: number });
+      } else {
+        const res = await fetch("/api/tarefas/tarefas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clienteId, titulo: form.titulo.trim(),
+            descricao: form.descricao || undefined,
+            prioridade: form.prioridade,
+            data_limite: form.data_limite || undefined,
+            responsavel: form.responsavel || undefined,
+            status: form.status,
+          }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        ({ id } = await res.json() as { id: number });
+      }
 
-    let id: number;
-    if (form.projeto_id !== null && form.projeto_id !== -1) {
-      // com projeto
-      const res = await fetch(`/api/tarefas/projetos/${form.projeto_id}/tarefas`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clienteId, titulo: form.titulo.trim(),
-          descricao: form.descricao || undefined,
-          prioridade: form.prioridade,
-          data_limite: form.data_limite || undefined,
-          responsavel: form.responsavel || undefined,
-        }),
-      });
-      ({ id } = await res.json() as { id: number });
-    } else {
-      // sem projeto
-      const res = await fetch("/api/tarefas/tarefas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clienteId, titulo: form.titulo.trim(),
-          descricao: form.descricao || undefined,
-          prioridade: form.prioridade,
-          data_limite: form.data_limite || undefined,
-          responsavel: form.responsavel || undefined,
-          status: form.status,
-        }),
-      });
-      ({ id } = await res.json() as { id: number });
-    }
+      if (form.projeto_id !== null && form.projeto_id !== -1 && form.status !== "a_fazer") {
+        await fetch(`/api/tarefas/tarefas/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: form.status }),
+        });
+      }
 
-    // Patch status se não for padrão e veio de projeto
-    if (form.projeto_id !== null && form.projeto_id !== -1 && form.status !== "a_fazer") {
-      await fetch(`/api/tarefas/tarefas/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: form.status }),
-      });
+      const projetoIdReal = form.projeto_id === -1 ? null : form.projeto_id;
+      if (projetoIdReal === projetoId || (projetoId === -1 && projetoIdReal === null)) {
+        onCreate({
+          id, projeto_id: projetoIdReal, cliente_id: clienteId,
+          titulo: form.titulo.trim(), descricao: form.descricao || null,
+          status: form.status, prioridade: form.prioridade,
+          data_limite: form.data_limite || null, responsavel: form.responsavel || null,
+          lead_id: null, visivel_portal: false, microtarefas: [],
+        });
+      }
+      onClose();
+    } catch (err) {
+      console.error("Erro ao criar tarefa:", err);
+      setSaving(false);
     }
-
-    // Só aparece no board atual se o projeto bater
-    const projetoIdReal = form.projeto_id === -1 ? null : form.projeto_id;
-    if (projetoIdReal === projetoId || (projetoId === -1 && projetoIdReal === null)) {
-      onCreate({
-        id, projeto_id: projetoIdReal, cliente_id: clienteId,
-        titulo: form.titulo.trim(), descricao: form.descricao || null,
-        status: form.status, prioridade: form.prioridade,
-        data_limite: form.data_limite || null, responsavel: form.responsavel || null,
-        lead_id: null, visivel_portal: false, microtarefas: [],
-      });
-    }
-    onClose();
   }
 
   return (
