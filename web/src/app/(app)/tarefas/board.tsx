@@ -167,6 +167,7 @@ function TarefaCard({
 function ProjetoCard({
   projeto, tasks, expanded, onToggle, onOpenDetail, onAddTask,
   draggingId, onDragStart, onDragEnd,
+  isDragging, onProjDragStart, onProjDragEnd,
   expandedTasks, onToggleTask, onToggleMicro, onTaskClick,
 }: {
   projeto: Projeto;
@@ -178,6 +179,9 @@ function ProjetoCard({
   draggingId: number | null;
   onDragStart: (id: number) => void;
   onDragEnd: () => void;
+  isDragging?: boolean;
+  onProjDragStart?: () => void;
+  onProjDragEnd?: () => void;
   expandedTasks: Set<number>;
   onToggleTask: (id: number) => void;
   onToggleMicro: (tarefaId: number, microId: number, concluida: boolean) => void;
@@ -185,19 +189,30 @@ function ProjetoCard({
 }) {
   return (
     <div
-      className={`rounded-xl overflow-hidden shadow-sm transition-all
+      draggable
+      onDragStart={(e) => { e.stopPropagation(); onProjDragStart?.(); }}
+      onDragEnd={onProjDragEnd}
+      className={`rounded-xl overflow-hidden shadow-sm transition-all cursor-grab active:cursor-grabbing
+        ${isDragging ? "opacity-40 scale-95" : ""}
         ${expanded ? "border-2 border-violet-300" : "border border-violet-200 hover:border-violet-300"}`}
       style={{ borderLeftWidth: expanded ? "4px" : "3px", borderLeftColor: projeto.cor }}
     >
       {/* Header */}
       <div className="flex items-center gap-2 bg-violet-50 px-3 py-2.5">
         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: projeto.cor }} />
-        <span
-          className="flex-1 text-sm font-semibold text-violet-900 truncate cursor-pointer hover:underline"
-          onClick={onOpenDetail}
-        >
-          {projeto.nome}
-        </span>
+        <div className="flex-1 min-w-0">
+          <span
+            className="block text-sm font-semibold text-violet-900 truncate cursor-pointer hover:underline"
+            onClick={(e) => { e.stopPropagation(); onOpenDetail(); }}
+          >
+            {projeto.nome}
+          </span>
+          {projeto.descricao && (
+            <span className="block text-[11px] text-violet-500/80 truncate leading-tight">
+              {projeto.descricao}
+            </span>
+          )}
+        </div>
         <span className="text-xs font-medium text-violet-400 shrink-0">{tasks.length}</span>
         <button
           onClick={(e) => { e.stopPropagation(); onAddTask(); }}
@@ -248,13 +263,16 @@ function ProjetoCard({
 
 // ── ProjetoDetalhe ─────────────────────────────────────────────────────────────
 function ProjetoDetalhe({
-  projeto, tarefas, onClose, onTaskClick,
+  projeto, tarefas, onClose, onTaskClick, onUpdate,
 }: {
   projeto: Projeto;
   tarefas: Tarefa[];
   onClose: () => void;
   onTaskClick: (t: Tarefa) => void;
+  onUpdate?: (p: Projeto) => void;
 }) {
+  const [descricao, setDescricao] = useState(projeto.descricao ?? "");
+
   const projTasks = tarefas.filter((t) => t.projeto_id === projeto.id);
   const total     = projTasks.length;
   const done      = projTasks.filter((t) => t.status === "concluido").length;
@@ -262,6 +280,16 @@ function ProjetoDetalhe({
   const grouped = COLUNAS
     .map((c) => ({ ...c, tasks: projTasks.filter((t) => t.status === c.id) }))
     .filter((c) => c.tasks.length > 0);
+
+  async function saveDescricao() {
+    const val = descricao.trim() || null;
+    await fetch(`/api/tarefas/projetos/${projeto.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ descricao: val }),
+    });
+    onUpdate?.({ ...projeto, descricao: val });
+  }
 
   return (
     <div className="flex flex-col h-full w-96 shrink-0 border-l border-neutral-200 bg-white overflow-y-auto">
@@ -290,10 +318,23 @@ function ProjetoDetalhe({
         </div>
       )}
 
-      {/* Tasks by status */}
       <div className="flex-1 px-5 py-4 space-y-5">
+        {/* Descrição */}
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-500">Descrição</label>
+          <textarea
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            onBlur={saveDescricao}
+            rows={3}
+            placeholder="Adicione uma descrição ao projeto..."
+            className="w-full resize-none rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-violet-400"
+          />
+        </div>
+
+        {/* Tasks by status */}
         {grouped.length === 0 ? (
-          <p className="text-sm text-neutral-400 text-center py-8">Nenhuma tarefa neste projeto</p>
+          <p className="text-sm text-neutral-400 text-center py-4">Nenhuma tarefa neste projeto</p>
         ) : grouped.map((g) => (
           <div key={g.id}>
             <div className="flex items-center gap-1.5 mb-2">
@@ -626,8 +667,9 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
   const [novaTarefaProjetoId, setNovaTarefaProjetoId] = useState<number | null>(null);
   const [showNovoProjeto, setShowNovoProjeto]         = useState(false);
 
-  const [draggingId, setDraggingId] = useState<number | null>(null);
-  const [overCol, setOverCol]       = useState<StatusKey | null>(null);
+  const [draggingId, setDraggingId]       = useState<number | null>(null);
+  const [draggingProjId, setDraggingProjId] = useState<number | null>(null);
+  const [overCol, setOverCol]             = useState<StatusKey | null>(null);
 
   // Busca projetos + todas as tarefas do cliente
   useEffect(() => {
@@ -707,6 +749,24 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     });
+  }
+
+  async function handleDropProject(newStatus: StatusKey) {
+    if (!draggingProjId) return;
+    const projId = draggingProjId;
+    setDraggingProjId(null);
+    setOverCol(null);
+    const projTasks = tarefas.filter((t) => t.projeto_id === projId && t.status !== newStatus);
+    if (projTasks.length === 0) return;
+    setTarefas((prev) => prev.map((t) => t.projeto_id === projId ? { ...t, status: newStatus } : t));
+    if (detalhe?.projeto_id === projId) setDetalhe((prev) => prev ? { ...prev, status: newStatus } : null);
+    await Promise.all(projTasks.map((t) =>
+      fetch(`/api/tarefas/tarefas/${t.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
+    ));
   }
 
   function openNovaTarefa(status: StatusKey, projetoId: number | null = null) {
@@ -802,7 +862,7 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
                         ${isOver ? "bg-violet-50 ring-2 ring-violet-200 ring-inset" : ""}`}
                       onDragOver={(e) => { e.preventDefault(); if (overCol !== col.id) setOverCol(col.id); }}
                       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }}
-                      onDrop={(e) => { e.preventDefault(); handleDropStatus(col.id); }}
+                      onDrop={(e) => { e.preventDefault(); draggingProjId ? handleDropProject(col.id) : handleDropStatus(col.id); }}
                     >
                       {/* Project cards */}
                       {projetosNaCol.map((proj) => (
@@ -817,6 +877,9 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
                           draggingId={draggingId}
                           onDragStart={(id) => setDraggingId(id)}
                           onDragEnd={() => { setDraggingId(null); setOverCol(null); }}
+                          isDragging={draggingProjId === proj.id}
+                          onProjDragStart={() => setDraggingProjId(proj.id)}
+                          onProjDragEnd={() => { setDraggingProjId(null); setOverCol(null); }}
                           expandedTasks={expandedTasks}
                           onToggleTask={toggleTask}
                           onToggleMicro={toggleMicro}
@@ -872,6 +935,7 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
               tarefas={tarefas}
               onClose={() => setDetalheProj(null)}
               onTaskClick={(t) => { setDetalhe(t); setDetalheProj(null); }}
+              onUpdate={(p) => { setProjetos((prev) => prev.map((x) => x.id === p.id ? p : x)); setDetalheProj(p); }}
             />
           )}
         </div>
