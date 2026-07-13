@@ -51,18 +51,41 @@ const ICONS = {
 };
 
 // ── TarefaCard ─────────────────────────────────────────────────────────────────
-function TarefaCard({ tarefa, onClick }: { tarefa: Tarefa; onClick: () => void }) {
-  const done    = tarefa.microtarefas.filter((m) => m.concluida).length;
-  const total   = tarefa.microtarefas.length;
-  const overdue = isOverdue(tarefa.data_limite);
+function TarefaCard({
+  tarefa, onClick, onDragStart, onDragEnd, isDragging,
+}: {
+  tarefa: Tarefa;
+  onClick: () => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+  isDragging?: boolean;
+}) {
+  const done       = tarefa.microtarefas.filter((m) => m.concluida).length;
+  const total      = tarefa.microtarefas.length;
+  const overdue    = isOverdue(tarefa.data_limite);
+  const concluido  = tarefa.status === "concluido";
 
   return (
     <div
+      draggable
       onClick={onClick}
-      className="cursor-pointer rounded-xl border border-neutral-200 bg-white p-3 shadow-sm
-                 hover:border-neutral-300 hover:shadow transition-all space-y-2"
+      onDragStart={(e) => { e.stopPropagation(); onDragStart?.(); }}
+      onDragEnd={onDragEnd}
+      className={`cursor-grab active:cursor-grabbing rounded-xl border bg-white p-3 shadow-sm
+                 hover:border-neutral-300 hover:shadow transition-all space-y-2
+                 ${isDragging ? "opacity-40 scale-95" : ""}
+                 ${concluido ? "border-emerald-200" : "border-neutral-200"}`}
     >
-      <p className="text-sm font-medium text-neutral-900 leading-snug">{tarefa.titulo}</p>
+      <div className="flex items-start gap-2">
+        {concluido && (
+          <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+            <Ico d={ICONS.check} className="h-2.5 w-2.5 text-emerald-600" />
+          </span>
+        )}
+        <p className={`text-sm font-medium leading-snug ${concluido ? "line-through text-neutral-400" : "text-neutral-900"}`}>
+          {tarefa.titulo}
+        </p>
+      </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${PRIO[tarefa.prioridade].cls}`}>
@@ -414,6 +437,8 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
   const [detalhe, setDetalhe]     = useState<Tarefa | null>(null);
   const [novaTarefaStatus, setNovaTarefaStatus] = useState<StatusKey | null>(null);
   const [showNovoProjeto, setShowNovoProjeto]   = useState(false);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [overCol, setOverCol]       = useState<StatusKey | null>(null);
 
   // Carrega projetos ao trocar cliente (null = sem cliente)
   useEffect(() => {
@@ -463,6 +488,22 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
 
   function handleCreate(t: Tarefa) {
     setTarefas((prev) => [...prev, t]);
+  }
+
+  async function handleDropStatus(newStatus: StatusKey) {
+    if (!draggingId) return;
+    const tarefa = tarefas.find((t) => t.id === draggingId);
+    setDraggingId(null);
+    setOverCol(null);
+    if (!tarefa || tarefa.status === newStatus) return;
+    const updated = { ...tarefa, status: newStatus };
+    setTarefas((prev) => prev.map((t) => t.id === draggingId ? updated : t));
+    if (detalhe?.id === draggingId) setDetalhe(updated);
+    await fetch(`/api/tarefas/tarefas/${draggingId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
   }
 
   return (
@@ -547,6 +588,7 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
           ) : (
             COLUNAS.map((col) => {
               const cards = tarefas.filter((t) => t.status === col.id);
+              const isOver = overCol === col.id && draggingId !== null;
               return (
                 <div key={col.id} className="flex w-72 shrink-0 flex-col gap-3">
                   <div className={`flex items-center justify-between rounded-xl px-3 py-2 ${col.hdr}`}>
@@ -560,11 +602,24 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
                     </button>
                   </div>
 
-                  <div className="flex flex-col gap-2">
+                  <div
+                    className={`flex flex-col gap-2 min-h-[4rem] rounded-xl transition-colors
+                      ${isOver ? "bg-violet-50 ring-2 ring-violet-200 ring-inset" : ""}`}
+                    onDragOver={(e) => { e.preventDefault(); if (overCol !== col.id) setOverCol(col.id); }}
+                    onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }}
+                    onDrop={(e) => { e.preventDefault(); handleDropStatus(col.id); }}
+                  >
                     {cards.map((t) => (
-                      <TarefaCard key={t.id} tarefa={t} onClick={() => setDetalhe(t)} />
+                      <TarefaCard
+                        key={t.id}
+                        tarefa={t}
+                        onClick={() => setDetalhe(t)}
+                        onDragStart={() => setDraggingId(t.id)}
+                        onDragEnd={() => { setDraggingId(null); setOverCol(null); }}
+                        isDragging={draggingId === t.id}
+                      />
                     ))}
-                    {cards.length === 0 && (
+                    {cards.length === 0 && !isOver && (
                       <button
                         onClick={() => setNovaTarefaStatus(col.id)}
                         className="rounded-xl border-2 border-dashed border-neutral-200 py-4 text-center text-xs text-neutral-400 hover:border-violet-300 hover:text-violet-500 transition"

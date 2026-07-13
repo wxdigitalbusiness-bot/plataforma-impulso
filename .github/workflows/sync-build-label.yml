@@ -1,0 +1,61 @@
+name: Sync BUILD_LABEL
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract PR number from merge commit
+        id: pr
+        run: |
+          MSG="${{ github.event.head_commit.message }}"
+          PR=$(echo "$MSG" | grep -oP '(?<=pull request #)\d+' | head -1)
+          if [ -z "$PR" ]; then
+            LABEL="$(echo '${{ github.sha }}' | cut -c1-7)"
+          else
+            LABEL="#$PR"
+          fi
+          echo "label=$LABEL" >> "$GITHUB_OUTPUT"
+
+      - name: Read current env from EasyPanel
+        id: env
+        run: |
+          RESPONSE=$(curl -sf \
+            "${{ secrets.EASYPANEL_URL }}/api/trpc/services.app.inspectService?input=%7B%22projectName%22%3A%22projeto_impulso%22%2C%22serviceName%22%3A%22web%22%7D" \
+            -H "Authorization: Bearer ${{ secrets.EASYPANEL_API_KEY }}")
+          ENV_CURRENT=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['result']['data']['env'])")
+          echo "env_current<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$ENV_CURRENT" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Update BUILD_LABEL in env
+        run: |
+          LABEL="${{ steps.pr.outputs.label }}"
+          ENV="${{ steps.env.outputs.env_current }}"
+
+          # Remove existing BUILD_LABEL line if present, append new one
+          NEW_ENV=$(printf '%s' "$ENV" | grep -v '^BUILD_LABEL=' || true)
+          NEW_ENV="${NEW_ENV}"$'\n'"BUILD_LABEL=${LABEL}"
+
+          PAYLOAD=$(python3 -c "
+          import json, sys
+          env = sys.stdin.read()
+          print(json.dumps({'projectName': 'projeto_impulso', 'serviceName': 'web', 'env': env}))
+          " <<< "$NEW_ENV")
+
+          curl -sf -X POST \
+            "${{ secrets.EASYPANEL_URL }}/api/trpc/services.app.updateEnv" \
+            -H "Authorization: Bearer ${{ secrets.EASYPANEL_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"
+
+      - name: Restart service to apply new env
+        run: |
+          curl -sf -X POST \
+            "${{ secrets.EASYPANEL_URL }}/api/trpc/services.app.restartService" \
+            -H "Authorization: Bearer ${{ secrets.EASYPANEL_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"projectName":"projeto_impulso","serviceName":"web"}'
