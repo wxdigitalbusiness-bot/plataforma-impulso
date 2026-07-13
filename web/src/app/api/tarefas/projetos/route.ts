@@ -18,11 +18,11 @@ export async function GET(req: NextRequest) {
   // simplificando: semCliente → WHERE cliente_id IS NULL; comCliente → WHERE cliente_id = X
   const semCliente = !param || param === "";
   const filtrados = semCliente
-    ? await db.$queryRaw<{ id: number; nome: string; descricao: string | null; cor: string; status: string; cliente_id: number | null; visivel_portal: boolean }[]>`
-        SELECT id, nome, descricao, cor, status, cliente_id, visivel_portal FROM crm_projetos
+    ? await db.$queryRaw<{ id: number; nome: string; descricao: string | null; cor: string; status: string; cliente_id: number | null; visivel_portal: boolean; coluna: string }[]>`
+        SELECT id, nome, descricao, cor, status, cliente_id, visivel_portal, coluna FROM crm_projetos
         WHERE status != 'arquivado' AND cliente_id IS NULL ORDER BY id ASC`
-    : await db.$queryRaw<{ id: number; nome: string; descricao: string | null; cor: string; status: string; cliente_id: number | null; visivel_portal: boolean }[]>`
-        SELECT id, nome, descricao, cor, status, cliente_id, visivel_portal FROM crm_projetos
+    : await db.$queryRaw<{ id: number; nome: string; descricao: string | null; cor: string; status: string; cliente_id: number | null; visivel_portal: boolean; coluna: string }[]>`
+        SELECT id, nome, descricao, cor, status, cliente_id, visivel_portal, coluna FROM crm_projetos
         WHERE status != 'arquivado' AND cliente_id = ${Number(param)} ORDER BY id ASC`;
 
   return NextResponse.json(filtrados);
