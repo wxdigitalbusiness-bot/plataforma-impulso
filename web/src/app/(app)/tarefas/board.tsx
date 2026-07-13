@@ -13,10 +13,11 @@ const SEM_PROJETO: Projeto = { id: -1, nome: "Sem projeto", cor: "#94a3b8", stat
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 const COLUNAS: { id: StatusKey; label: string; hdr: string; dot: string }[] = [
-  { id: "a_fazer",      label: "A Fazer",       hdr: "bg-neutral-100 text-neutral-700", dot: "bg-neutral-400" },
-  { id: "em_andamento", label: "Em Andamento",   hdr: "bg-blue-50 text-blue-700",       dot: "bg-blue-500" },
-  { id: "em_revisao",   label: "Em Revisão",     hdr: "bg-amber-50 text-amber-700",     dot: "bg-amber-500" },
-  { id: "concluido",    label: "Concluído",      hdr: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" },
+  { id: "a_fazer",             label: "A Fazer",             hdr: "bg-neutral-100 text-neutral-700", dot: "bg-neutral-400" },
+  { id: "em_andamento",        label: "Em Andamento",        hdr: "bg-blue-50 text-blue-700",       dot: "bg-blue-500" },
+  { id: "em_revisao",          label: "Em Revisão",          hdr: "bg-amber-50 text-amber-700",     dot: "bg-amber-500" },
+  { id: "aguardando_resposta", label: "Aguardando Resposta", hdr: "bg-orange-50 text-orange-700",   dot: "bg-orange-400" },
+  { id: "concluido",           label: "Concluído",           hdr: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" },
 ];
 
 
@@ -571,7 +572,7 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
       </div>
 
       {/* ── Dashboard ── */}
-      {modoView === "dashboard" && <DashboardView clientes={clientes} responsaveis={responsaveis} />}
+      {modoView === "dashboard" && <DashboardView clientes={clientes} responsaveis={responsaveis} onNovaTarefa={() => setNovaTarefaStatus("a_fazer")} />}
 
       {/* ── Board ── */}
       {modoView === "board" && <div className="flex flex-1 overflow-hidden">
@@ -648,9 +649,9 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
       </div>}
 
       {/* ── Modals ── */}
-      {novaTarefaStatus && projetoId !== null && (
+      {novaTarefaStatus && (
         <NovaTarefaModal
-          projetoId={projetoId === -1 ? null : projetoId}
+          projetoId={projetoId === null || projetoId === -1 ? null : projetoId}
           clienteId={clienteId}
           todosProjetos={projetos}
           responsaveis={responsaveis}
