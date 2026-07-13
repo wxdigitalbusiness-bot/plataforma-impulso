@@ -50,11 +50,14 @@ const ICONS = {
 };
 
 // ── TarefaDetalhe ──────────────────────────────────────────────────────────────
+type Responsaveis = { admins: { nome: string }[]; clientes: { nome: string }[] };
+
 export function TarefaDetalhe({
-  tarefa, todosProjetos = [], onClose, onUpdate, onDelete,
+  tarefa, todosProjetos = [], responsaveis: responsaveisProp, onClose, onUpdate, onDelete,
 }: {
   tarefa: Tarefa;
   todosProjetos?: Projeto[];
+  responsaveis?: Responsaveis;
   onClose: () => void;
   onUpdate: (t: Tarefa) => void;
   onDelete: (id: number) => void;
@@ -62,16 +65,17 @@ export function TarefaDetalhe({
   const [local, setLocal]         = useState<Tarefa>(tarefa);
   const [novoMicro, setNovoMicro] = useState("");
   const [saving, setSaving]       = useState(false);
-  const [responsaveis, setResp]   = useState<{ admins: {nome:string}[]; clientes: {nome:string}[] } | null>(null);
+  const [responsaveis, setResp]   = useState<Responsaveis | null>(responsaveisProp ?? null);
 
   useEffect(() => { setLocal(tarefa); }, [tarefa]);
 
   useEffect(() => {
+    if (responsaveisProp) return;
     fetch("/api/tarefas/responsaveis")
       .then((r) => r.json())
       .then(setResp)
       .catch(() => {});
-  }, []);
+  }, [responsaveisProp]);
 
   const patch = useCallback(async (fields: Partial<Tarefa & { projeto_id: number | null }>) => {
     const merged = { ...local, ...fields };

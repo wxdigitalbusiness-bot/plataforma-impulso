@@ -98,23 +98,17 @@ const QUADRANTS = [
   },
 ] as const;
 
+type Responsaveis = { admins: { nome: string }[]; clientes: { nome: string }[] };
+
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function DashboardView({ clientes }: { clientes: Cliente[] }) {
+export function DashboardView({ clientes, responsaveis = { admins: [], clientes: [] } }: { clientes: Cliente[]; responsaveis?: Responsaveis }) {
   const [tarefas, setTarefas]   = useState<DashTarefa[] | null>(null);
   const [detalhe, setDetalhe]   = useState<DashTarefa | null>(null);
-  const [responsaveis, setResp] = useState<{ admins: {nome:string}[]; clientes: {nome:string}[] }>({ admins: [], clientes: [] });
 
   const [filtroStatus,      setFiltroStatus]      = useState("");
   const [filtroResponsavel, setFiltroResponsavel] = useState("");
   const [filtroClienteId,   setFiltroClienteId]   = useState("");
-
-  useEffect(() => {
-    fetch("/api/tarefas/responsaveis")
-      .then((r) => r.json())
-      .then(setResp)
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     setTarefas(null);
@@ -230,6 +224,7 @@ export function DashboardView({ clientes }: { clientes: Cliente[] }) {
       {detalhe && (
         <TarefaDetalhe
           tarefa={detalhe}
+          responsaveis={responsaveis}
           onClose={() => setDetalhe(null)}
           onUpdate={handleUpdate}
           onDelete={handleDelete}

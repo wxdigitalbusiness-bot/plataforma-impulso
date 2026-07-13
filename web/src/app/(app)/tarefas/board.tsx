@@ -383,8 +383,10 @@ function NovoProjetoModal({
   );
 }
 
+type Responsaveis = { admins: { nome: string }[]; clientes: { nome: string }[] };
+
 // ── TarefasBoard (componente principal) ────────────────────────────────────────
-export function TarefasBoard({ clientes }: { clientes: Cliente[] }) {
+export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; responsaveis?: Responsaveis }) {
   const [modoView, setModoView]   = useState<"board" | "dashboard">("board");
 
   // null = "Sem cliente"
@@ -513,7 +515,7 @@ export function TarefasBoard({ clientes }: { clientes: Cliente[] }) {
       </div>
 
       {/* ── Dashboard ── */}
-      {modoView === "dashboard" && <DashboardView clientes={clientes} />}
+      {modoView === "dashboard" && <DashboardView clientes={clientes} responsaveis={responsaveis} />}
 
       {/* ── Board ── */}
       {modoView === "board" && <div className="flex flex-1 overflow-hidden">
@@ -567,6 +569,7 @@ export function TarefasBoard({ clientes }: { clientes: Cliente[] }) {
           <TarefaDetalhe
             tarefa={detalhe}
             todosProjetos={projetos}
+            responsaveis={responsaveis}
             onClose={() => setDetalhe(null)}
             onUpdate={handleUpdate}
             onDelete={handleDelete}
