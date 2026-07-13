@@ -58,7 +58,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     const [row] = await db.$queryRaw<{ id: number }[]>`
       INSERT INTO crm_tarefas (projeto_id, cliente_id, titulo, descricao, prioridade, data_limite, responsavel)
       VALUES (${projetoId}, ${clienteId}, ${titulo}, ${descricao ?? null},
-              ${prioridade ?? "media"}, ${data_limite ?? null}, ${responsavel ?? null})
+              ${prioridade ?? "media"}, ${data_limite ?? null}::date, ${responsavel ?? null})
       RETURNING id`;
     return NextResponse.json(row, { status: 201 });
   } catch (err) {
