@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 export type Micro     = { id: number; texto: string; concluida: boolean; ordem: number };
-export type StatusKey = "a_fazer" | "em_andamento" | "em_revisao" | "concluido";
+export type StatusKey = "a_fazer" | "em_andamento" | "em_revisao" | "aguardando_resposta" | "concluido";
 export type PrioKey   = "baixa" | "media" | "alta" | "urgente";
 export type Projeto   = { id: number; nome: string; cor: string; status: string; cliente_id: number | null };
 
@@ -19,10 +19,11 @@ export type Tarefa = {
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 const COLUNAS: { id: StatusKey; label: string }[] = [
-  { id: "a_fazer",      label: "A Fazer" },
-  { id: "em_andamento", label: "Em Andamento" },
-  { id: "em_revisao",   label: "Em Revisão" },
-  { id: "concluido",    label: "Concluído" },
+  { id: "a_fazer",             label: "A Fazer" },
+  { id: "em_andamento",        label: "Em Andamento" },
+  { id: "em_revisao",          label: "Em Revisão" },
+  { id: "aguardando_resposta", label: "Aguardando Resposta" },
+  { id: "concluido",           label: "Concluído" },
 ];
 
 export const PRIO: Record<PrioKey, { label: string; cls: string }> = {

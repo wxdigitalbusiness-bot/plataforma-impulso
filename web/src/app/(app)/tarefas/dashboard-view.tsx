@@ -11,22 +11,23 @@ type DashTarefa = Tarefa & {
 };
 
 const STATUS_OPTS = [
-  { value: "",             label: "Todos os status" },
-  { value: "a_fazer",      label: "A Fazer" },
-  { value: "em_andamento", label: "Em Andamento" },
-  { value: "em_revisao",   label: "Em Revisão" },
-  { value: "concluido",    label: "Concluído" },
+  { value: "",                   label: "Todos os status" },
+  { value: "a_fazer",            label: "A Fazer" },
+  { value: "em_andamento",       label: "Em Andamento" },
+  { value: "em_revisao",         label: "Em Revisão" },
+  { value: "aguardando_resposta",label: "Aguardando Resposta" },
 ];
 
 const STATUS_DOT: Record<string, string> = {
-  a_fazer:      "bg-neutral-400",
-  em_andamento: "bg-blue-500",
-  em_revisao:   "bg-amber-500",
-  concluido:    "bg-emerald-500",
+  a_fazer:             "bg-neutral-400",
+  em_andamento:        "bg-blue-500",
+  em_revisao:          "bg-amber-500",
+  aguardando_resposta: "bg-orange-400",
+  concluido:           "bg-emerald-500",
 };
 const STATUS_LABEL: Record<string, string> = {
   a_fazer: "A Fazer", em_andamento: "Em Andamento",
-  em_revisao: "Em Revisão", concluido: "Concluído",
+  em_revisao: "Em Revisão", aguardando_resposta: "Aguardando Resposta", concluido: "Concluído",
 };
 
 // ── Eisenhower helpers ────────────────────────────────────────────────────────
@@ -102,7 +103,7 @@ type Responsaveis = { admins: { nome: string }[]; clientes: { nome: string }[] }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function DashboardView({ clientes, responsaveis = { admins: [], clientes: [] } }: { clientes: Cliente[]; responsaveis?: Responsaveis }) {
+export function DashboardView({ clientes, responsaveis = { admins: [], clientes: [] }, onNovaTarefa }: { clientes: Cliente[]; responsaveis?: Responsaveis; onNovaTarefa?: () => void }) {
   const [tarefas, setTarefas]   = useState<DashTarefa[] | null>(null);
   const [detalhe, setDetalhe]   = useState<DashTarefa | null>(null);
 
@@ -186,8 +187,20 @@ export function DashboardView({ clientes, responsaveis = { admins: [], clientes:
           )}
 
           <span className="ml-auto self-center text-xs text-neutral-400">
-            {tarefas === null ? "Carregando…" : `${tarefas.length} tarefa${tarefas.length !== 1 ? "s" : ""}`}
+            {tarefas === null ? "Carregando…" : `${tarefas.filter(t => t.status !== "concluido").length} tarefa${tarefas.filter(t => t.status !== "concluido").length !== 1 ? "s" : ""}`}
           </span>
+
+          {onNovaTarefa && (
+            <button
+              onClick={onNovaTarefa}
+              className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 transition"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 4v16m8-8H4" />
+              </svg>
+              Nova Tarefa
+            </button>
+          )}
         </div>
 
         {/* Legenda de urgência */}
@@ -204,6 +217,7 @@ export function DashboardView({ clientes, responsaveis = { admins: [], clientes:
           <div className="grid flex-1 grid-cols-2 grid-rows-2 gap-px bg-neutral-200 overflow-hidden">
             {QUADRANTS.map((q) => {
               const items = tarefas.filter((t) =>
+                t.status !== "concluido" &&
                 isUrgent(t) === q.urgente && isImportant(t) === q.importante
               );
               return (
