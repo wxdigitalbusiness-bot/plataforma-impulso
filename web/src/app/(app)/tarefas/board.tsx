@@ -61,6 +61,7 @@ const ICONS = {
 function TarefaCard({
   tarefa, onClick, onDragStart, onDragEnd, isDragging,
   expanded, onToggleExpand, onToggleMicro, compact = false,
+  projetoNome, projetoCor,
 }: {
   tarefa: Tarefa;
   onClick: () => void;
@@ -71,6 +72,8 @@ function TarefaCard({
   onToggleExpand?: () => void;
   onToggleMicro?: (microId: number, concluida: boolean) => void;
   compact?: boolean;
+  projetoNome?: string;
+  projetoCor?: string;
 }) {
   const done      = tarefa.microtarefas.filter((m) => m.concluida).length;
   const total     = tarefa.microtarefas.length;
@@ -89,6 +92,7 @@ function TarefaCard({
              ${isDragging ? "opacity-40 scale-95" : ""}
              ${concluido ? "border-emerald-200" : "border-neutral-200"}`
       }
+      style={!compact && projetoCor ? { borderLeftWidth: "3px", borderLeftColor: projetoCor } : undefined}
     >
       {/* Title row */}
       <div className="flex items-start gap-1.5">
@@ -123,6 +127,12 @@ function TarefaCard({
             </span>
             {tarefa.visivel_portal && (
               <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700">Portal</span>
+            )}
+            {projetoNome && (
+              <span className="flex items-center gap-1 rounded-full bg-violet-50 border border-violet-100 px-2 py-0.5 text-[11px] text-violet-600 max-w-[120px] truncate">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: projetoCor }} />
+                {projetoNome}
+              </span>
             )}
           </div>
           <div className="flex items-center justify-between text-[11px] text-neutral-400">
@@ -951,6 +961,11 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
                 const colTasks       = tarefas.filter((t) => t.status === col.id);
                 const projetosNaCol  = projetos.filter((p) => (p.coluna ?? "a_fazer") === col.id);
                 const semProj        = colTasks.filter((t) => t.projeto_id === null);
+                // tasks de projetos cujo projeto está em outra coluna → aparecem como cards standalone
+                const projTasksInCol = colTasks.filter((t) =>
+                  t.projeto_id !== null &&
+                  (projetos.find((p) => p.id === t.projeto_id)?.coluna ?? "a_fazer") !== col.id
+                );
                 const isOver         = overCol === col.id && (draggingId !== null || draggingProjId !== null);
 
                 return (
@@ -1017,8 +1032,28 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
                         />
                       ))}
 
+                      {/* Tasks de projetos que estão em outra coluna */}
+                      {projTasksInCol.map((t) => {
+                        const proj = projetos.find((p) => p.id === t.projeto_id);
+                        return (
+                          <TarefaCard
+                            key={`pt-${t.id}`}
+                            tarefa={t}
+                            projetoNome={proj?.nome}
+                            projetoCor={proj?.cor}
+                            onClick={() => { setDetalhe(t); setDetalheProj(null); }}
+                            onDragStart={() => setDraggingId(t.id)}
+                            onDragEnd={() => { setDraggingId(null); setOverCol(null); }}
+                            isDragging={draggingId === t.id}
+                            expanded={expandedTasks.has(t.id)}
+                            onToggleExpand={() => toggleTask(t.id)}
+                            onToggleMicro={(mId, c) => toggleMicro(t.id, mId, c)}
+                          />
+                        );
+                      })}
+
                       {/* Empty state */}
-                      {projetosNaCol.length === 0 && semProj.length === 0 && !isOver && (
+                      {projetosNaCol.length === 0 && semProj.length === 0 && projTasksInCol.length === 0 && !isOver && (
                         <button
                           onClick={() => openNovaTarefa(col.id)}
                           className="rounded-xl border-2 border-dashed border-neutral-200 py-4 text-center text-xs text-neutral-400 hover:border-violet-300 hover:text-violet-500 transition"
