@@ -38,8 +38,15 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
 # Número do PR/merge para exibir na sidebar. Passe via: --build-arg BUILD_LABEL=<n>
+# Se não fornecido, tenta ler o SHA do git (disponível se .git estiver no contexto)
 ARG BUILD_LABEL
-ENV BUILD_LABEL=$BUILD_LABEL
+RUN if [ -n "$BUILD_LABEL" ]; then \
+      echo "$BUILD_LABEL"; \
+    elif [ -d ".git" ]; then \
+      git log -1 --format='#%h'; \
+    else \
+      echo "dev"; \
+    fi > /tmp/build-label
 
 RUN npm run build
 
@@ -66,6 +73,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 # Prisma client + engines precisam ir junto (não estão no standalone output)
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+
+# Label de build para exibir na sidebar
+COPY --from=builder --chown=nextjs:nodejs /tmp/build-label ./.build-label
 
 USER nextjs
 

@@ -2,6 +2,17 @@ import { auth, signOut } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { AppShell } from "@/components/app-shell";
+import fs from "fs";
+import path from "path";
+
+function getBuildLabel(): string {
+  if (process.env.BUILD_LABEL) return process.env.BUILD_LABEL;
+  try {
+    return fs.readFileSync(path.join(process.cwd(), ".build-label"), "utf8").trim();
+  } catch {
+    return "dev";
+  }
+}
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -24,7 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       userName={session.user.name ?? session.user.email ?? ""}
       crmClientes={crmClientes}
       logoutAction={logout}
-      buildLabel={process.env.BUILD_LABEL ?? "dev"}
+      buildLabel={getBuildLabel()}
     >
       {children}
     </AppShell>
