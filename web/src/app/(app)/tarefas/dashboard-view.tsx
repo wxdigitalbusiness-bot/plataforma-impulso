@@ -14,8 +14,8 @@ const STATUS_OPTS = [
   { value: "",                   label: "Todos os status" },
   { value: "a_fazer",            label: "A Fazer" },
   { value: "em_andamento",       label: "Em Andamento" },
-  { value: "em_revisao",         label: "Em Revisão" },
   { value: "aguardando_resposta",label: "Aguardando Resposta" },
+  { value: "em_revisao",         label: "Em Revisão" },
 ];
 
 const STATUS_DOT: Record<string, string> = {

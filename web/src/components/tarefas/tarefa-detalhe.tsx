@@ -21,8 +21,8 @@ export type Tarefa = {
 const COLUNAS: { id: StatusKey; label: string }[] = [
   { id: "a_fazer",             label: "A Fazer" },
   { id: "em_andamento",        label: "Em Andamento" },
-  { id: "em_revisao",          label: "Em Revisão" },
   { id: "aguardando_resposta", label: "Aguardando Resposta" },
+  { id: "em_revisao",          label: "Em Revisão" },
   { id: "concluido",           label: "Concluído" },
 ];
 
