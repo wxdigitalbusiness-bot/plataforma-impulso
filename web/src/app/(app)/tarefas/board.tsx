@@ -471,12 +471,14 @@ function NovaTarefaModal({
     projeto_id: projetoId,
   });
   const [saving, setSaving] = useState(false);
+  const [erro, setErro]     = useState<string | null>(null);
 
   const projetosReais = todosProjetos.filter((p) => p.id !== -1);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.titulo.trim()) return;
+    setErro(null);
     setSaving(true);
     try {
       let id: number;
@@ -531,6 +533,7 @@ function NovaTarefaModal({
       onClose();
     } catch (err) {
       console.error("Erro ao criar tarefa:", err);
+      setErro(err instanceof Error ? err.message : "Erro desconhecido ao criar tarefa");
       setSaving(false);
     }
   }
@@ -625,6 +628,12 @@ function NovaTarefaModal({
               className="w-full resize-none rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-violet-500"
             />
           </div>
+
+          {erro && (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 border border-red-100">
+              {erro}
+            </p>
+          )}
 
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose}
@@ -858,6 +867,10 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
 
   function handleCreate(t: Tarefa) {
     setTarefas((prev) => [...prev, t]);
+    // auto-expande o projeto para a tarefa recém-criada aparecer
+    if (t.projeto_id !== null) {
+      setExpandedProjects((prev) => new Set([...prev, t.projeto_id!]));
+    }
   }
 
   async function handleDropStatus(newStatus: StatusKey) {
