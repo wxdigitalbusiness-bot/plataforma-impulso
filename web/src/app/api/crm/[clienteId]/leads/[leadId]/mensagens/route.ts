@@ -36,7 +36,7 @@ export async function GET(
     SELECT id, lead_id, de, tipo, conteudo, media_url, recebida_em
     FROM crm_mensagens
     WHERE lead_id = ${leadId}
-      AND client_key = ${cliente.n8nClientKey}
+      AND lower(client_key) = lower(${cliente.n8nClientKey})
     ORDER BY recebida_em ASC
   `;
 

@@ -121,12 +121,30 @@ export async function POST(req: NextRequest) {
     }
 
     const clientKey = cliente.n8nClientKey;
-    const leadId    = parsed.phone;
     log.clientKey   = clientKey;
-    log.leadId      = leadId;
 
-    // Mensagens enviadas pelo negócio (fromMe): grava como 'atendente', sem criar lead
+    // Mensagens enviadas pelo negócio (fromMe): resolve o lead_id correto pelo telefone,
+    // evitando salvar com o número bruto quando o lead tem UUID do n8n
     if (parsed.fromMe) {
+      const phoneDigits    = parsed.phone.replace(/^\+/, "");
+      const phoneWithout55 = phoneDigits.length > 11 && phoneDigits.startsWith("55")
+        ? phoneDigits.slice(2)
+        : phoneDigits;
+
+      type Row = { lead_id: string };
+      const [existing] = await db.$queryRaw<Row[]>`
+        SELECT lead_id FROM fb_leads
+        WHERE lower(client_key) = lower(${clientKey})
+          AND (
+            lead_whatsapp = ${phoneDigits}
+            OR lead_whatsapp = ${phoneWithout55}
+            OR '55' || lead_whatsapp = ${phoneDigits}
+          )
+        LIMIT 1
+      `;
+      const leadId = existing?.lead_id ?? phoneDigits;
+      log.leadId   = leadId;
+
       await db.$executeRaw`
         INSERT INTO crm_mensagens (
           lead_id, client_key, de, tipo, conteudo, media_url, evolution_msg_id, recebida_em
@@ -145,6 +163,9 @@ export async function POST(req: NextRequest) {
       log.status = "fromMe";
       return NextResponse.json({ ok: true, fromMe: true });
     }
+
+    const leadId = parsed.phone;
+    log.leadId   = leadId;
 
     // Mensagem do lead: upsert do lead + grava mensagem + atribuição Google
     const { leadId: upsertedId, isNew } = await upsertCrmLead({
