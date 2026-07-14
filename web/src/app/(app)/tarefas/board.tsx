@@ -183,7 +183,7 @@ function TarefaCard({
 
 // ── ProjetoCard ────────────────────────────────────────────────────────────────
 function ProjetoCard({
-  projeto, tasks, expanded, onToggle, onOpenDetail, onAddTask,
+  projeto, tasks, expanded, onToggle, onOpenDetail, onAddTask, onDelete,
   draggingId, onDragStart, onDragEnd,
   isDragging, onProjDragStart, onProjDragEnd,
   expandedTasks, onToggleTask, onToggleMicro, onTaskClick, onTaskStatusChange,
@@ -194,6 +194,7 @@ function ProjetoCard({
   onToggle: () => void;
   onOpenDetail: () => void;
   onAddTask: () => void;
+  onDelete: () => void;
   draggingId: number | null;
   onDragStart: (id: number) => void;
   onDragEnd: () => void;
@@ -219,7 +220,7 @@ function ProjetoCard({
       style={{ borderLeftWidth: expanded ? "4px" : "3px", borderLeftColor: projeto.cor }}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 bg-violet-50 px-3 py-2.5">
+      <div className="group flex items-center gap-2 bg-violet-50 px-3 py-2.5">
         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: projeto.cor }} />
         <div className="flex-1 min-w-0">
           <span
@@ -235,6 +236,13 @@ function ProjetoCard({
           )}
         </div>
         <span className="text-xs font-medium text-violet-400 shrink-0">{tasks.length}</span>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="shrink-0 rounded p-0.5 text-violet-300 opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-500 transition"
+          title="Excluir projeto"
+        >
+          <Ico d={ICONS.trash} className="h-3.5 w-3.5" />
+        </button>
         <button
           onClick={(e) => { e.stopPropagation(); onAddTask(); }}
           className="shrink-0 rounded p-0.5 hover:bg-violet-200 text-violet-500 transition"
@@ -873,6 +881,14 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
     }
   }
 
+  async function handleDeleteProjeto(projId: number) {
+    if (!confirm("Excluir projeto e todas as suas tarefas? Esta ação não pode ser desfeita.")) return;
+    setProjetos((prev) => prev.filter((p) => p.id !== projId));
+    setTarefas((prev) => prev.filter((t) => t.projeto_id !== projId));
+    if (detalheProj?.id === projId) setDetalheProj(null);
+    await fetch(`/api/tarefas/projetos/${projId}`, { method: "DELETE" });
+  }
+
   async function handleDropStatus(newStatus: StatusKey) {
     if (!draggingId) return;
     const tarefa = tarefas.find((t) => t.id === draggingId);
@@ -1016,6 +1032,7 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
                           onToggle={() => toggleProject(proj.id)}
                           onOpenDetail={() => { setDetalheProj(proj); setDetalhe(null); }}
                           onAddTask={() => openNovaTarefa(col.id, proj.id)}
+                          onDelete={() => handleDeleteProjeto(proj.id)}
                           draggingId={draggingId}
                           onDragStart={(id) => setDraggingId(id)}
                           onDragEnd={() => { setDraggingId(null); setOverCol(null); }}
