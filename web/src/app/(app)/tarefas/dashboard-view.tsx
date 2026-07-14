@@ -99,6 +99,14 @@ const QUADRANTS = [
   },
 ] as const;
 
+const ETAPAS_CONFIG = [
+  { id: "a_fazer",             label: "A Fazer",             hdr: "bg-neutral-100 text-neutral-600", dot: "bg-neutral-400", badge: "bg-neutral-100 text-neutral-500" },
+  { id: "em_andamento",        label: "Em Andamento",        hdr: "bg-blue-50 text-blue-700",        dot: "bg-blue-500",    badge: "bg-blue-100 text-blue-700"      },
+  { id: "aguardando_resposta", label: "Aguardando Resposta", hdr: "bg-orange-50 text-orange-700",    dot: "bg-orange-400",  badge: "bg-orange-100 text-orange-700"  },
+  { id: "em_revisao",          label: "Em Revisão",          hdr: "bg-amber-50 text-amber-700",      dot: "bg-amber-500",   badge: "bg-amber-100 text-amber-700"    },
+  { id: "concluido",           label: "Concluído",           hdr: "bg-emerald-50 text-emerald-700",  dot: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-700"},
+] as const;
+
 type Responsaveis = { admins: { nome: string }[]; clientes: { nome: string }[] };
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -106,6 +114,7 @@ type Responsaveis = { admins: { nome: string }[]; clientes: { nome: string }[] }
 export function DashboardView({ clientes, responsaveis = { admins: [], clientes: [] }, onNovaTarefa }: { clientes: Cliente[]; responsaveis?: Responsaveis; onNovaTarefa?: () => void }) {
   const [tarefas, setTarefas]   = useState<DashTarefa[] | null>(null);
   const [detalhe, setDetalhe]   = useState<DashTarefa | null>(null);
+  const [modo, setModo]         = useState<"matriz" | "etapas">("matriz");
 
   const [filtroStatus,      setFiltroStatus]      = useState("");
   const [filtroResponsavel, setFiltroResponsavel] = useState("");
@@ -186,6 +195,21 @@ export function DashboardView({ clientes, responsaveis = { admins: [], clientes:
             </button>
           )}
 
+          <div className="flex overflow-hidden rounded-lg border border-neutral-200 text-xs">
+            <button
+              onClick={() => setModo("matriz")}
+              className={`px-3 py-1.5 transition ${modo === "matriz" ? "bg-violet-600 text-white" : "text-neutral-500 hover:bg-neutral-50"}`}
+            >
+              Matriz
+            </button>
+            <button
+              onClick={() => setModo("etapas")}
+              className={`border-l border-neutral-200 px-3 py-1.5 transition ${modo === "etapas" ? "bg-violet-600 text-white" : "text-neutral-500 hover:bg-neutral-50"}`}
+            >
+              Etapas
+            </button>
+          </div>
+
           <span className="ml-auto self-center text-xs text-neutral-400">
             {tarefas === null ? "Carregando…" : `${tarefas.filter(t => t.status !== "concluido").length} tarefa${tarefas.filter(t => t.status !== "concluido").length !== 1 ? "s" : ""}`}
           </span>
@@ -203,17 +227,19 @@ export function DashboardView({ clientes, responsaveis = { admins: [], clientes:
           )}
         </div>
 
-        {/* Legenda de urgência */}
-        <div className="flex items-center gap-4 border-b border-neutral-100 bg-neutral-50 px-6 py-2 text-[11px] text-neutral-400">
-          <span className="font-semibold uppercase tracking-wide">Urgência</span>
-          <span>• Prioridade <strong className="text-red-500">urgente</strong></span>
-          <span>• Prazo vencido ou nos próximos 3 dias</span>
-        </div>
+        {/* Legenda de urgência — só na matriz */}
+        {modo === "matriz" && (
+          <div className="flex items-center gap-4 border-b border-neutral-100 bg-neutral-50 px-6 py-2 text-[11px] text-neutral-400">
+            <span className="font-semibold uppercase tracking-wide">Urgência</span>
+            <span>• Prioridade <strong className="text-red-500">urgente</strong></span>
+            <span>• Prazo vencido ou nos próximos 3 dias</span>
+          </div>
+        )}
 
-        {/* Matriz 2×2 */}
         {tarefas === null ? (
           <p className="py-12 text-center text-sm text-neutral-400 animate-pulse">Carregando tarefas…</p>
-        ) : (
+        ) : modo === "matriz" ? (
+          /* Matriz 2×2 */
           <div className="grid flex-1 grid-cols-2 grid-rows-2 gap-px bg-neutral-200 overflow-hidden">
             {QUADRANTS.map((q) => {
               const items = tarefas.filter((t) =>
@@ -228,6 +254,34 @@ export function DashboardView({ clientes, responsaveis = { admins: [], clientes:
                   onSelect={(t) => setDetalhe(t)}
                   selectedId={detalhe?.id ?? null}
                 />
+              );
+            })}
+          </div>
+        ) : (
+          /* Etapas view */
+          <div className="flex flex-1 flex-wrap content-start gap-px overflow-y-auto bg-neutral-200">
+            {ETAPAS_CONFIG.map((e) => {
+              const items = tarefas.filter((t) => t.status === e.id);
+              const hasItems = items.length > 0;
+              return (
+                <div
+                  key={e.id}
+                  className="flex flex-col overflow-hidden bg-white"
+                  style={{ flexBasis: "calc(50% - 0.5px)", flexGrow: hasItems ? 1 : 0, minHeight: hasItems ? 180 : 0 }}
+                >
+                  <div className={`flex shrink-0 items-center gap-2 px-4 py-2.5 ${e.hdr} ${!hasItems ? "opacity-50" : ""}`}>
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${e.dot}`} />
+                    <span className="flex-1 text-sm font-semibold">{e.label}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${e.badge}`}>{items.length}</span>
+                  </div>
+                  {hasItems && (
+                    <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5">
+                      {items.map((t) => (
+                        <MatrizCard key={t.id} t={t} selected={t.id === detalhe?.id} onClick={() => setDetalhe(t)} />
+                      ))}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
