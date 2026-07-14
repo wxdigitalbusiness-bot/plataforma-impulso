@@ -26,6 +26,9 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 
 export async function DELETE(_req: NextRequest, { params }: Ctx) {
   const { id } = await params;
-  await db.$executeRaw`DELETE FROM crm_projetos WHERE id = ${Number(id)}`;
+  const projId = Number(id);
+  await db.$executeRaw`DELETE FROM crm_microtarefas WHERE tarefa_id IN (SELECT id FROM crm_tarefas WHERE projeto_id = ${projId})`;
+  await db.$executeRaw`DELETE FROM crm_tarefas WHERE projeto_id = ${projId}`;
+  await db.$executeRaw`DELETE FROM crm_projetos WHERE id = ${projId}`;
   return NextResponse.json({ ok: true });
 }
