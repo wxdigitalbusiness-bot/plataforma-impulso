@@ -115,6 +115,8 @@ export function DashboardView({ clientes, responsaveis = { admins: [], clientes:
   const [tarefas, setTarefas]   = useState<DashTarefa[] | null>(null);
   const [detalhe, setDetalhe]   = useState<DashTarefa | null>(null);
   const [modo, setModo]         = useState<"matriz" | "etapas">("matriz");
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [overEtapa, setOverEtapa]   = useState<string | null>(null);
 
   const [filtroStatus,      setFiltroStatus]      = useState("");
   const [filtroResponsavel, setFiltroResponsavel] = useState("");
@@ -140,6 +142,22 @@ export function DashboardView({ clientes, responsaveis = { admins: [], clientes:
   function handleDelete(id: number) {
     setTarefas((prev) => prev?.filter((x) => x.id !== id) ?? null);
     setDetalhe(null);
+  }
+
+  async function handleDropEtapa(newStatus: string) {
+    if (!draggingId) return;
+    const id = draggingId;
+    setDraggingId(null);
+    setOverEtapa(null);
+    const tarefa = tarefas?.find((t) => t.id === id);
+    if (!tarefa || tarefa.status === newStatus) return;
+    setTarefas((prev) => prev?.map((t) => t.id === id ? { ...t, status: newStatus as Tarefa["status"] } : t) ?? null);
+    if (detalhe?.id === id) setDetalhe((prev) => prev ? { ...prev, status: newStatus as Tarefa["status"] } : null);
+    await fetch(`/api/tarefas/tarefas/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
   }
 
   const hasFilter = !!(filtroStatus || filtroResponsavel || filtroClienteId);
@@ -263,22 +281,35 @@ export function DashboardView({ clientes, responsaveis = { admins: [], clientes:
             {ETAPAS_CONFIG.map((e) => {
               const items = tarefas.filter((t) => t.status === e.id);
               const hasItems = items.length > 0;
+              const isOver = overEtapa === e.id;
               return (
                 <div
                   key={e.id}
-                  className="flex flex-col overflow-hidden bg-white"
-                  style={{ flexBasis: "calc(50% - 0.5px)", flexGrow: hasItems ? 1 : 0, minHeight: hasItems ? 180 : 0 }}
+                  className={`flex flex-col overflow-hidden bg-white transition-shadow ${isOver ? "ring-2 ring-inset ring-violet-300" : ""}`}
+                  style={{ flexBasis: "calc(50% - 0.5px)", flexGrow: (hasItems || isOver) ? 1 : 0, minHeight: (hasItems || isOver) ? 180 : 0 }}
+                  onDragOver={(ev) => { ev.preventDefault(); if (overEtapa !== e.id) setOverEtapa(e.id); }}
+                  onDragLeave={(ev) => { if (!ev.currentTarget.contains(ev.relatedTarget as Node)) setOverEtapa(null); }}
+                  onDrop={(ev) => { ev.preventDefault(); handleDropEtapa(e.id); }}
                 >
-                  <div className={`flex shrink-0 items-center gap-2 px-4 py-2.5 ${e.hdr} ${!hasItems ? "opacity-50" : ""}`}>
+                  <div className={`flex shrink-0 items-center gap-2 px-4 py-2.5 ${e.hdr} ${!hasItems && !isOver ? "opacity-50" : ""}`}>
                     <span className={`h-2 w-2 shrink-0 rounded-full ${e.dot}`} />
                     <span className="flex-1 text-sm font-semibold">{e.label}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${e.badge}`}>{items.length}</span>
                   </div>
-                  {hasItems && (
+                  {(hasItems || isOver) && (
                     <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5">
                       {items.map((t) => (
-                        <MatrizCard key={t.id} t={t} selected={t.id === detalhe?.id} onClick={() => setDetalhe(t)} />
+                        <MatrizCard
+                          key={t.id} t={t} selected={t.id === detalhe?.id}
+                          onClick={() => setDetalhe(t)}
+                          isDragging={draggingId === t.id}
+                          onDragStart={() => setDraggingId(t.id)}
+                          onDragEnd={() => { setDraggingId(null); setOverEtapa(null); }}
+                        />
                       ))}
+                      {!hasItems && isOver && (
+                        <div className="h-14 rounded-lg border-2 border-dashed border-violet-200" />
+                      )}
                     </div>
                   )}
                 </div>
@@ -349,7 +380,10 @@ function Quadrant({
 
 // ── Card compacto ─────────────────────────────────────────────────────────────
 
-function MatrizCard({ t, selected, onClick }: { t: DashTarefa; selected: boolean; onClick: () => void }) {
+function MatrizCard({ t, selected, onClick, onDragStart, onDragEnd, isDragging }: {
+  t: DashTarefa; selected: boolean; onClick: () => void;
+  onDragStart?: () => void; onDragEnd?: () => void; isDragging?: boolean;
+}) {
   const days    = daysUntil(t.data_limite);
   const overdue = days !== null && days < 0;
   const soon    = days !== null && days >= 0 && days <= 3;
@@ -357,12 +391,14 @@ function MatrizCard({ t, selected, onClick }: { t: DashTarefa; selected: boolean
 
   return (
     <div
+      draggable={!!onDragStart}
+      onDragStart={(e) => { e.stopPropagation(); onDragStart?.(); }}
+      onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`cursor-pointer rounded-lg border px-3 py-2 transition
-        ${selected
-          ? "border-violet-400 bg-violet-50 shadow-sm"
-          : "border-neutral-100 bg-white hover:border-neutral-300 hover:shadow-sm"
-        }
+      className={`rounded-lg border px-3 py-2 transition
+        ${onDragStart ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}
+        ${isDragging ? "opacity-40" : ""}
+        ${selected ? "border-violet-400 bg-violet-50 shadow-sm" : "border-neutral-100 bg-white hover:border-neutral-300 hover:shadow-sm"}
         ${concluido ? "opacity-50" : ""}
       `}
     >
