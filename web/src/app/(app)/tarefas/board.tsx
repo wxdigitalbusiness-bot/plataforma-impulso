@@ -461,10 +461,11 @@ function ProjetoDetalhe({
 
 // ── NovaTarefaModal ────────────────────────────────────────────────────────────
 function NovaTarefaModal({
-  projetoId, clienteId, todosProjetos, responsaveis, statusInicial, onClose, onCreate,
+  projetoId, clienteId, clientes, todosProjetos, responsaveis, statusInicial, onClose, onCreate,
 }: {
   projetoId: number | null;
   clienteId: number | null;
+  clientes: Cliente[];
   todosProjetos: Projeto[];
   responsaveis?: Responsaveis;
   statusInicial: StatusKey;
@@ -478,6 +479,7 @@ function NovaTarefaModal({
     status: statusInicial,
     projeto_id: projetoId,
   });
+  const [selCliente, setSelCliente] = useState<number | null>(clienteId);
   const [saving, setSaving] = useState(false);
   const [erro, setErro]     = useState<string | null>(null);
 
@@ -495,7 +497,7 @@ function NovaTarefaModal({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            clienteId, titulo: form.titulo.trim(),
+            clienteId: selCliente, titulo: form.titulo.trim(),
             descricao: form.descricao || undefined,
             prioridade: form.prioridade,
             data_limite: form.data_limite || undefined,
@@ -509,7 +511,7 @@ function NovaTarefaModal({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            clienteId, titulo: form.titulo.trim(),
+            clienteId: selCliente, titulo: form.titulo.trim(),
             descricao: form.descricao || undefined,
             prioridade: form.prioridade,
             data_limite: form.data_limite || undefined,
@@ -532,7 +534,7 @@ function NovaTarefaModal({
       const projetoIdReal = form.projeto_id === -1 ? null : form.projeto_id;
       // Sempre adiciona ao estado local (board mostra todas as tarefas)
       onCreate({
-        id, projeto_id: projetoIdReal, cliente_id: clienteId,
+        id, projeto_id: projetoIdReal, cliente_id: selCliente,
         titulo: form.titulo.trim(), descricao: form.descricao || null,
         status: form.status, prioridade: form.prioridade,
         data_limite: form.data_limite || null, responsavel: form.responsavel || null,
@@ -577,6 +579,20 @@ function NovaTarefaModal({
               {projetosReais.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
             </select>
           </div>
+
+          {(form.projeto_id === null || form.projeto_id === -1) && clientes.length > 0 && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-neutral-700">Cliente</label>
+              <select
+                value={selCliente ?? ""}
+                onChange={(e) => setSelCliente(e.target.value === "" ? null : Number(e.target.value))}
+                className="w-full rounded-lg border border-neutral-300 px-2 py-2 text-sm outline-none focus:border-violet-500"
+              >
+                <option value="">Sem cliente</option>
+                {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -1126,6 +1142,7 @@ export function TarefasBoard({ clientes, responsaveis }: { clientes: Cliente[]; 
         <NovaTarefaModal
           projetoId={novaTarefaProjetoId}
           clienteId={clienteId}
+          clientes={clientes}
           todosProjetos={projetos}
           responsaveis={responsaveis}
           statusInicial={novaTarefaStatus}
