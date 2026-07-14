@@ -52,6 +52,17 @@ export async function GET(
   const somentePago = cliente.crmSomentePago;
 
   const leads = await db.$queryRaw<LeadRow[]>`
+    WITH dedup AS (
+      SELECT DISTINCT ON (COALESCE(NULLIF(TRIM(fl.lead_whatsapp), ''), fl.lead_id))
+        fl.*
+      FROM fb_leads fl
+      WHERE lower(fl.client_key) = lower(${clientKey})
+      ORDER BY
+        COALESCE(NULLIF(TRIM(fl.lead_whatsapp), ''), fl.lead_id),
+        -- prefere o registro com dados de atribuição
+        (fl.ctwa_clid IS NOT NULL OR fl.ad_id IS NOT NULL OR fl.gclid IS NOT NULL) DESC,
+        fl.data_criacao ASC
+    )
     SELECT
       fl.lead_id,
       fl.lead_nome,
@@ -77,7 +88,7 @@ export async function GET(
       m.recebida_em     AS ultima_msg_em,
       fl.capi_status,
       fl.capi_enviado_em
-    FROM fb_leads fl
+    FROM dedup fl
     LEFT JOIN LATERAL (
       SELECT recebida_em
       FROM crm_mensagens
@@ -94,8 +105,7 @@ export async function GET(
       ORDER BY recebida_em DESC
       LIMIT 1
     ) m ON TRUE
-    WHERE lower(fl.client_key) = lower(${clientKey})
-      AND (NOT ${somentePago} OR
+    WHERE (NOT ${somentePago} OR
            fl.ad_id IS NOT NULL OR fl.ctwa_clid IS NOT NULL OR
            fl.gclid IS NOT NULL OR fl.wbraid IS NOT NULL OR fl.gbraid IS NOT NULL)
     ORDER BY COALESCE(m.recebida_em, fl.data_criacao::timestamptz) DESC
