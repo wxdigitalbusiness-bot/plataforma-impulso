@@ -53,12 +53,19 @@ export async function GET(
 
   const leads = await db.$queryRaw<LeadRow[]>`
     WITH dedup AS (
-      SELECT DISTINCT ON (COALESCE(NULLIF(TRIM(fl.lead_whatsapp), ''), fl.lead_id))
-        fl.*
+      SELECT DISTINCT ON (
+        REGEXP_REPLACE(
+          COALESCE(NULLIF(TRIM(fl.lead_whatsapp), ''), fl.lead_id),
+          '^55(\d{10,11})$', '\1'
+        )
+      ) fl.*
       FROM fb_leads fl
       WHERE lower(fl.client_key) = lower(${clientKey})
       ORDER BY
-        COALESCE(NULLIF(TRIM(fl.lead_whatsapp), ''), fl.lead_id),
+        REGEXP_REPLACE(
+          COALESCE(NULLIF(TRIM(fl.lead_whatsapp), ''), fl.lead_id),
+          '^55(\d{10,11})$', '\1'
+        ),
         -- prefere o registro com dados de atribuição
         (fl.ctwa_clid IS NOT NULL OR fl.ad_id IS NOT NULL OR fl.gclid IS NOT NULL) DESC,
         fl.data_criacao ASC
