@@ -52,23 +52,28 @@ export async function GET(
   const somentePago = cliente.crmSomentePago;
 
   const leads = await db.$queryRaw<LeadRow[]>`
-    WITH dedup AS (
-      SELECT DISTINCT ON (
-        REGEXP_REPLACE(
-          COALESCE(NULLIF(TRIM(fl.lead_whatsapp), ''), fl.lead_id),
-          '^55(\d{10,11})$', '\1'
-        )
-      ) fl.*
+    WITH with_key AS (
+      SELECT fl.*,
+        REPLACE(COALESCE(NULLIF(TRIM(fl.lead_whatsapp), ''), fl.lead_id), '+', '') AS raw_phone
       FROM fb_leads fl
       WHERE lower(fl.client_key) = lower(${clientKey})
+    ),
+    dedup AS (
+      SELECT DISTINCT ON (
+        CASE WHEN raw_phone ~ '^55[0-9]{10,11}$'
+             THEN SUBSTRING(raw_phone FROM 3)
+             ELSE raw_phone
+        END
+      ) with_key.*
+      FROM with_key
       ORDER BY
-        REGEXP_REPLACE(
-          COALESCE(NULLIF(TRIM(fl.lead_whatsapp), ''), fl.lead_id),
-          '^55(\d{10,11})$', '\1'
-        ),
+        CASE WHEN raw_phone ~ '^55[0-9]{10,11}$'
+             THEN SUBSTRING(raw_phone FROM 3)
+             ELSE raw_phone
+        END,
         -- prefere o registro com dados de atribuição
-        (fl.ctwa_clid IS NOT NULL OR fl.ad_id IS NOT NULL OR fl.gclid IS NOT NULL) DESC,
-        fl.data_criacao ASC
+        (ctwa_clid IS NOT NULL OR ad_id IS NOT NULL OR gclid IS NOT NULL) DESC,
+        data_criacao ASC
     )
     SELECT
       fl.lead_id,
