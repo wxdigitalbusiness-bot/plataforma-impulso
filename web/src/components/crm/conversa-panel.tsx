@@ -145,7 +145,6 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
 
   // Histórico de negociação + tarefas
   const [historicoNeg, setHistoricoNeg]         = useState<HistNeg[]>([]);
-  const [totalClienteNeg, setTotalClienteNeg]   = useState<number>(0);
   const [tarefasLead, setTarefasLead]           = useState<TarefaLead[] | null>(null);
   const [novaTarefaTitulo, setNovaTarefaTitulo] = useState("");
   const [criandoTarefa, setCriandoTarefa]       = useState(false);
@@ -194,13 +193,11 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
         tags: Tag[];
         atribuicao: Atribuicao | null;
         historicoNegociacao: HistNeg[];
-        totalClienteNegociacao: number;
       };
       setDetalhes(data.detalhes);
       setTagsLead(data.tags);
       setAtribuicao(data.atribuicao);
       setHistoricoNeg(data.historicoNegociacao ?? []);
-      setTotalClienteNeg(data.totalClienteNegociacao ?? 0);
     } catch { /* ignora */ }
   }, [clienteId, lead.lead_id]);
 
@@ -659,36 +656,31 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
           </div>
 
           {/* Histórico de negociação */}
-          {(historicoNeg.length > 0 || totalClienteNeg > 0) && (
+          {historicoNeg.length > 0 && (
             <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2.5 space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                  Total acumulado do cliente
+                  Total deste lead
                 </p>
                 <span className="text-sm font-bold text-emerald-700">
-                  {totalClienteNeg.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  {historicoNeg.reduce((s, h) => s + h.valor, 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                 </span>
               </div>
-              {historicoNeg.length > 0 && (
-                <div className="space-y-1 pt-1 border-t border-emerald-100">
-                  <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-wide">
-                    Histórico deste lead
-                  </p>
-                  {historicoNeg.map((h) => (
-                    <div key={h.id} className="flex items-center justify-between text-xs">
-                      <span className="text-neutral-500">
-                        {new Date(h.registrado_em).toLocaleString("pt-BR", {
-                          day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
-                          timeZone: "America/Sao_Paulo",
-                        })}
-                      </span>
-                      <span className="font-semibold text-neutral-800">
-                        {h.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="space-y-1 pt-1 border-t border-emerald-100">
+                {historicoNeg.map((h) => (
+                  <div key={h.id} className="flex items-center justify-between text-xs">
+                    <span className="text-neutral-500">
+                      {new Date(h.registrado_em).toLocaleString("pt-BR", {
+                        day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                        timeZone: "America/Sao_Paulo",
+                      })}
+                    </span>
+                    <span className="font-semibold text-neutral-800">
+                      {h.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

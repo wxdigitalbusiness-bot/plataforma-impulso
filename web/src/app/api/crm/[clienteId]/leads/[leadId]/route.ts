@@ -19,7 +19,7 @@ export async function GET(
   const clientKey = await resolveClientKey(clienteId);
   if (!clientKey) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 });
 
-  const [leads, tags, atribuicao, historicoNeg, totalCliente] = await Promise.all([
+  const [leads, tags, atribuicao, historicoNeg] = await Promise.all([
     db.$queryRaw<Array<{
       observacoes: string | null;
       valor_negociacao: number | null;
@@ -59,12 +59,6 @@ export async function GET(
       ORDER BY registrado_em DESC
     `,
 
-    // Total acumulado do cliente (todos os leads)
-    db.$queryRaw<Array<{ total: number | null }>>`
-      SELECT SUM(valor)::float AS total
-      FROM crm_historico_negociacao
-      WHERE lower(client_key) = lower(${clientKey})
-    `,
   ]);
 
   if (!leads.length) return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
@@ -74,7 +68,6 @@ export async function GET(
     tags: tags.map((t) => ({ ...t, id: t.id.toString() })),
     atribuicao: atribuicao[0] ?? null,
     historicoNegociacao: historicoNeg,
-    totalClienteNegociacao: totalCliente[0]?.total ?? 0,
   });
 }
 
