@@ -1,9 +1,28 @@
-export { auth as middleware } from "@/lib/auth";
+import { auth } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
+
+const PUBLIC_PREFIXES = [
+  "/api/auth",
+  "/api/w/",
+  "/api/whatsapp/qr/",
+  "/api/webhooks/",
+  "/api/crm/",
+  "/api/cron/",
+  "/_next/static",
+  "/_next/image",
+  "/r/",
+  "/qr/",
+  "/portal",
+];
+
+export async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
+  if (PUBLIC_PREFIXES.some((p) => path.startsWith(p))) {
+    return NextResponse.next();
+  }
+  return (auth as (req: NextRequest) => Response | Promise<Response>)(req);
+}
 
 export const config = {
-  matcher: [
-    // Protege tudo exceto auth, _next, arquivos estáticos, relatórios /r/*, páginas QR /qr/* e webhooks externos
-    // /portal/** tem auth própria via cookie JWT — fica fora do NextAuth
-    "/((?!api/auth|api/w/|api/whatsapp/qr/|api/webhooks/|api/crm/|api/cron/|_next/static|_next/image|favicon.ico|.*\\.svg|.*\\.png|r/|qr/|portal).*)",
-  ],
+  matcher: ["/((?!favicon.ico|.*\\.svg|.*\\.png).*)"],
 };
