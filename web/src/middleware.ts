@@ -20,7 +20,7 @@ export async function middleware(req: NextRequest) {
   if (PUBLIC_PREFIXES.some((p) => path.startsWith(p))) {
     return NextResponse.next();
   }
-  return (auth as (req: NextRequest) => Response | Promise<Response>)(req);
+  return (auth as unknown as (req: NextRequest) => Promise<Response>)(req);
 }
 
 export const config = {
