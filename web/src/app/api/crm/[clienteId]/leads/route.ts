@@ -52,29 +52,6 @@ export async function GET(
   const somentePago = cliente.crmSomentePago;
 
   const leads = await db.$queryRaw<LeadRow[]>`
-    WITH with_key AS (
-      SELECT fl.*,
-        REPLACE(COALESCE(NULLIF(TRIM(fl.lead_whatsapp), ''), fl.lead_id), '+', '') AS raw_phone
-      FROM fb_leads fl
-      WHERE lower(fl.client_key) = lower(${clientKey})
-    ),
-    dedup AS (
-      SELECT DISTINCT ON (
-        CASE WHEN raw_phone ~ '^55[0-9]{10,11}$'
-             THEN SUBSTRING(raw_phone FROM 3)
-             ELSE raw_phone
-        END
-      ) with_key.*
-      FROM with_key
-      ORDER BY
-        CASE WHEN raw_phone ~ '^55[0-9]{10,11}$'
-             THEN SUBSTRING(raw_phone FROM 3)
-             ELSE raw_phone
-        END,
-        -- prefere o registro com dados de atribuição
-        (ctwa_clid IS NOT NULL OR ad_id IS NOT NULL OR gclid IS NOT NULL) DESC,
-        data_criacao ASC
-    )
     SELECT
       fl.lead_id,
       fl.lead_nome,
@@ -100,7 +77,7 @@ export async function GET(
       m.recebida_em     AS ultima_msg_em,
       fl.capi_status,
       fl.capi_enviado_em
-    FROM dedup fl
+    FROM fb_leads fl
     LEFT JOIN LATERAL (
       SELECT recebida_em
       FROM crm_mensagens
@@ -117,7 +94,8 @@ export async function GET(
       ORDER BY recebida_em DESC
       LIMIT 1
     ) m ON TRUE
-    WHERE (NOT ${somentePago} OR
+    WHERE lower(fl.client_key) = lower(${clientKey})
+      AND (NOT ${somentePago} OR
            fl.ad_id IS NOT NULL OR fl.ctwa_clid IS NOT NULL OR
            fl.gclid IS NOT NULL OR fl.wbraid IS NOT NULL OR fl.gbraid IS NOT NULL)
     ORDER BY COALESCE(m.recebida_em, fl.data_criacao::timestamptz) DESC
