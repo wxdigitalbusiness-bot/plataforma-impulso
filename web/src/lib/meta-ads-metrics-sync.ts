@@ -44,7 +44,7 @@ async function fetchInsights(
 
   const all: Record<string, unknown>[] = [];
   while (nextUrl) {
-    const res = await fetch(nextUrl, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+    const res: Response = await fetch(nextUrl, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
     const json = await res.json();
     if (!res.ok || json.error) {
       throw new Error(`Meta API ${level}: ${json.error?.message ?? res.status}`);
