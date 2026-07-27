@@ -96,21 +96,25 @@ export async function PATCH(
   // ── Meta CAPI (só em concluído) ────────────────────────────────────────────
   let capiResult: { ok: boolean; detail?: string } | null = null;
   if (ehConcluido && cliente.pixelId && cliente.capiToken) {
-    const result = await fireCapiEvent({
-      pixelId:   cliente.pixelId,
-      capiToken: cliente.capiToken,
-      phone:     lead.lead_whatsapp,
-      ctwaClid:  lead.ctwa_clid ?? undefined,
-    });
-    capiResult = result.ok ? { ok: true } : { ok: false, detail: result.error };
-    // Persiste resultado para exibir no painel do lead
-    const capiStatusVal = result.ok ? "ok" : "erro";
-    await db.$executeRaw`
-      UPDATE fb_leads
-      SET capi_status = ${capiStatusVal}, capi_enviado_em = NOW()
-      WHERE lead_id = ${leadId}
-        AND lower(client_key) = lower(${clientKey})
-    `;
+    try {
+      const result = await fireCapiEvent({
+        pixelId:   cliente.pixelId,
+        capiToken: cliente.capiToken,
+        phone:     lead.lead_whatsapp,
+        ctwaClid:  lead.ctwa_clid ?? undefined,
+      });
+      capiResult = result.ok ? { ok: true } : { ok: false, detail: result.error };
+      const capiStatusVal = result.ok ? "ok" : "erro";
+      await db.$executeRaw`
+        UPDATE fb_leads
+        SET capi_status = ${capiStatusVal}, capi_enviado_em = NOW()
+        WHERE lead_id = ${leadId}
+          AND lower(client_key) = lower(${clientKey})
+      `;
+    } catch (err) {
+      console.error("[CAPI] erro ao disparar:", err);
+      capiResult = { ok: false, detail: String(err) };
+    }
   }
 
   // ── Google Ads Offline Conversions ─────────────────────────────────────────
@@ -124,21 +128,26 @@ export async function PATCH(
         : null;
 
     if (actionId) {
-      const result = await fireGoogleConversion({
-        customerId:         cliente.googleAdsCustomerId,
-        conversionActionId: actionId,
-        gclid:  lead.gclid,
-        wbraid: lead.wbraid,
-        gbraid: lead.gbraid,
-      });
-      googleResult = result.ok ? { ok: true } : { ok: false, detail: result.error };
-      const gconvStatus = result.ok ? "ok" : "erro";
-      await db.$executeRaw`
-        UPDATE fb_leads
-        SET gconv_status = ${gconvStatus}, gconv_enviado_em = NOW()
-        WHERE lead_id = ${leadId}
-          AND lower(client_key) = lower(${clientKey})
-      `;
+      try {
+        const result = await fireGoogleConversion({
+          customerId:         cliente.googleAdsCustomerId,
+          conversionActionId: actionId,
+          gclid:  lead.gclid,
+          wbraid: lead.wbraid,
+          gbraid: lead.gbraid,
+        });
+        googleResult = result.ok ? { ok: true } : { ok: false, detail: result.error };
+        const gconvStatus = result.ok ? "ok" : "erro";
+        await db.$executeRaw`
+          UPDATE fb_leads
+          SET gconv_status = ${gconvStatus}, gconv_enviado_em = NOW()
+          WHERE lead_id = ${leadId}
+            AND lower(client_key) = lower(${clientKey})
+        `;
+      } catch (err) {
+        console.error("[GOOGLE-CONV] erro ao disparar:", err);
+        googleResult = { ok: false, detail: String(err) };
+      }
     }
   }
 

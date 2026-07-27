@@ -473,18 +473,36 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
   // Pendente de confirmação de motivo de perda
   const [pendingPerda, setPendingPerda] = useState<{ leadId: string; etapa: Etapa } | null>(null);
 
+  // Bloqueia o polling enquanto há um PATCH em voo para evitar sobrescrever
+  // o estado optimista antes da resposta chegar
+  const mutatingRef = useRef(false);
+
   async function confirmarFase(leadId: string, etapa: Etapa, motivoPerda?: string) {
+    const fasePrev = leads.find((l) => l.lead_id === leadId)?.fase;
     setLeads((prev) =>
       prev.map((l) => l.lead_id === leadId ? { ...l, fase: etapa.etapaLabel } : l)
     );
+    mutatingRef.current = true;
     try {
-      await fetch(`/api/crm/${clienteId}/leads/${leadId}/fase`, {
+      const res = await fetch(`/api/crm/${clienteId}/leads/${leadId}/fase`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fase: etapa.etapa, faseLabel: etapa.etapaLabel, motivoPerda }),
       });
+      if (!res.ok) {
+        // Reverte para a fase anterior e busca estado real do servidor
+        setLeads((prev) =>
+          prev.map((l) => l.lead_id === leadId ? { ...l, fase: fasePrev ?? l.fase } : l)
+        );
+        await fetchLeads();
+      }
     } catch {
+      setLeads((prev) =>
+        prev.map((l) => l.lead_id === leadId ? { ...l, fase: fasePrev ?? l.fase } : l)
+      );
       await fetchLeads();
+    } finally {
+      mutatingRef.current = false;
     }
   }
 
@@ -566,11 +584,12 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
 
   // ── Polling ────────────────────────────────────────────────────────────
   const fetchLeads = useCallback(async () => {
+    if (mutatingRef.current) return; // não sobrescreve enquanto há PATCH em voo
     try {
       const res = await fetch(`/api/crm/${clienteId}/leads`);
       if (!res.ok) return;
       const data = await res.json() as { leads: Lead[] };
-      setLeads(data.leads);
+      if (!mutatingRef.current) setLeads(data.leads);
     } catch { /* silencioso */ }
   }, [clienteId]);
 
