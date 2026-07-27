@@ -1,11 +1,9 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  const { default: cron } = await import("node-cron");
-  const { sincronizarSaldosTodos } = await import("@/lib/sync-saldos");
-  const { sincronizarMetricasGoogle } = await import("@/lib/google-ads-metrics-sync");
+  const cron = (await import("node-cron")).default;
 
-  function defaultRange() {
+  function range7d() {
     const brt = new Date(Date.now() - 3 * 60 * 60 * 1000);
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
     const to = new Date(brt);
@@ -15,20 +13,42 @@ export async function register() {
     return { from: fmt(from), to: fmt(to) };
   }
 
-  // Saldos: a cada hora, 08h–17h BRT (11h–20h UTC), seg–sex
-  cron.schedule("0 11-20 * * 1-5", async () => {
-    console.log("[CRON] sync-saldos iniciado");
-    const r = await sincronizarSaldosTodos();
-    console.log("[CRON] sync-saldos:", r);
-  });
+  const tz = { timezone: "America/Sao_Paulo" };
 
-  // Métricas Google: 1× por dia às 05h UTC (02h BRT)
-  cron.schedule("0 5 * * *", async () => {
-    console.log("[CRON] google-metrics iniciado");
-    const { from, to } = defaultRange();
-    const r = await sincronizarMetricasGoogle(from, to);
-    console.log("[CRON] google-metrics:", r);
-  });
+  // Saldos Meta + Google: 3× ao dia (8h, 14h, 20h BRT)
+  cron.schedule("0 8,14,20 * * *", async () => {
+    try {
+      const { sincronizarSaldosTodos } = await import("@/lib/sync-saldos");
+      const r = await sincronizarSaldosTodos();
+      console.log("[CRON] sync-saldos:", r);
+    } catch (err) {
+      console.error("[CRON] sync-saldos erro:", err);
+    }
+  }, tz);
 
-  console.log("[CRON] agendamentos registrados");
+  // Google Ads métricas: todo dia às 6h BRT
+  cron.schedule("0 6 * * *", async () => {
+    try {
+      const { sincronizarMetricasGoogle } = await import("@/lib/google-ads-metrics-sync");
+      const { from, to } = range7d();
+      const r = await sincronizarMetricasGoogle(from, to);
+      console.log("[CRON] google-metrics:", r);
+    } catch (err) {
+      console.error("[CRON] google-metrics erro:", err);
+    }
+  }, tz);
+
+  // Meta Ads métricas: todo dia às 6h30 BRT
+  cron.schedule("30 6 * * *", async () => {
+    try {
+      const { sincronizarMetricasMeta } = await import("@/lib/meta-ads-metrics-sync");
+      const { from, to } = range7d();
+      const r = await sincronizarMetricasMeta(from, to);
+      console.log("[CRON] meta-metrics:", r);
+    } catch (err) {
+      console.error("[CRON] meta-metrics erro:", err);
+    }
+  }, tz);
+
+  console.log("[CRON] Jobs registrados: sync-saldos (8h/14h/20h), google-metrics (6h), meta-metrics (6h30) — BRT");
 }
