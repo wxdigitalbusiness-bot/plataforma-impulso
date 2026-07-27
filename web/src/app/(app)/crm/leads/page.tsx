@@ -85,6 +85,23 @@ export default async function CrmLeadsPage({ searchParams }: Props) {
 
   const leadsRaw: LeadRow[] = cliente.n8nClientKey
     ? await db.$queryRaw<LeadRow[]>`
+        WITH dedup AS (
+          SELECT DISTINCT ON (
+            REGEXP_REPLACE(
+              COALESCE(NULLIF(TRIM(fl.lead_whatsapp), ''), fl.lead_id),
+              '^55(\d{10,11})$', '\1'
+            )
+          ) fl.*
+          FROM fb_leads fl
+          WHERE lower(fl.client_key) = lower(${cliente.n8nClientKey})
+          ORDER BY
+            REGEXP_REPLACE(
+              COALESCE(NULLIF(TRIM(fl.lead_whatsapp), ''), fl.lead_id),
+              '^55(\d{10,11})$', '\1'
+            ),
+            (fl.ctwa_clid IS NOT NULL OR fl.ad_id IS NOT NULL OR fl.gclid IS NOT NULL) DESC,
+            fl.data_criacao ASC
+        )
         SELECT
           fl.lead_id,
           fl.lead_nome,
@@ -112,7 +129,7 @@ export default async function CrmLeadsPage({ searchParams }: Props) {
           fl.capi_enviado_em,
           fl.gconv_status,
           fl.gconv_enviado_em
-        FROM fb_leads fl
+        FROM dedup fl
         LEFT JOIN LATERAL (
           SELECT recebida_em FROM crm_mensagens
           WHERE lead_id = fl.lead_id AND client_key = fl.client_key
@@ -123,8 +140,7 @@ export default async function CrmLeadsPage({ searchParams }: Props) {
           WHERE lead_id = fl.lead_id AND client_key = fl.client_key
           ORDER BY recebida_em DESC LIMIT 1
         ) m ON TRUE
-        WHERE lower(fl.client_key) = lower(${cliente.n8nClientKey})
-          AND (NOT ${cliente.crmSomentePago} OR
+        WHERE (NOT ${cliente.crmSomentePago} OR
                fl.ad_id IS NOT NULL OR fl.ctwa_clid IS NOT NULL OR
                fl.gclid IS NOT NULL OR fl.wbraid IS NOT NULL OR fl.gbraid IS NOT NULL)
         ORDER BY COALESCE(m.recebida_em, fl.data_criacao::timestamptz) DESC
