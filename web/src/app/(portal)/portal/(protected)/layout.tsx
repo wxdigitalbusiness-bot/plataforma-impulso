@@ -8,7 +8,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const session = await getPortalSession();
   if (!session) redirect("/portal/login");
 
-  const [cliente, tarefasCount] = await Promise.all([
+  const [cliente, tarefasCount, historicoCount] = await Promise.all([
     db.cliente.findUnique({
       where: { id: session.clienteId },
       select: {
@@ -20,19 +20,25 @@ export default async function PortalLayout({ children }: { children: React.React
       SELECT COUNT(*) AS count FROM crm_tarefas
       WHERE cliente_id = ${session.clienteId} AND visivel_portal = true
     `,
+    db.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*) AS count FROM cliente_historico
+      WHERE cliente_id = ${session.clienteId} AND visivel_portal = true
+    `,
   ]);
 
   const hasMeta      = cliente?.contas.some((c) => c.metaAdAccountId) ?? false;
   const hasGoogle    = cliente?.contas.some((c) => c.googleAdCustomerId) ?? false;
   const hasCrm       = (cliente?.crmWebhooks.length ?? 0) > 0;
   const hasTarefas   = Number(tarefasCount[0]?.count ?? 0) > 0;
+  const hasHistorico = Number(historicoCount[0]?.count ?? 0) > 0;
 
   const NAV = [
-    hasMeta    && { href: "/portal/meta",      label: "Meta Ads" },
-    hasGoogle  && { href: "/portal/google",    label: "Google Ads" },
-    hasCrm     && { href: "/portal/leads",     label: "Leads" },
-    hasTarefas && { href: "/portal/tarefas",   label: "Tarefas" },
-                  { href: "/portal/relatorios", label: "Relatórios" },
+    hasMeta      && { href: "/portal/meta",       label: "Meta Ads" },
+    hasGoogle    && { href: "/portal/google",     label: "Google Ads" },
+    hasCrm       && { href: "/portal/leads",      label: "Leads" },
+    hasTarefas   && { href: "/portal/tarefas",    label: "Tarefas" },
+    hasHistorico && { href: "/portal/historico",  label: "O que fizemos" },
+                    { href: "/portal/relatorios", label: "Relatórios" },
   ].filter(Boolean) as { href: string; label: string }[];
 
   return (
