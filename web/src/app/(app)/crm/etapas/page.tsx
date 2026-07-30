@@ -33,8 +33,8 @@ export default async function CrmEtapasPage({ searchParams }: Props) {
 
   const etapas = await db.clienteCrmWebhook.findMany({
     where: { clienteId },
-    select: { id: true, etapa: true, etapaLabel: true, ehExtra: true, tipoConversao: true },
-    orderBy: [{ ehExtra: "asc" }, { criadoEm: "asc" }],
+    select: { id: true, etapa: true, etapaLabel: true, ehExtra: true, tipoConversao: true, posicao: true },
+    orderBy: { posicao: "asc" },
   });
 
   const etapasSerial = etapas.map((e) => ({ ...e, id: Number(e.id) }));

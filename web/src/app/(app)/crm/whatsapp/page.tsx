@@ -44,7 +44,7 @@ export default async function CrmWhatsappPage({ searchParams }: Props) {
     include: {
       crmWebhooks: {
         select: { id: true, etapa: true, etapaLabel: true, ehExtra: true, webhookUrl: true, tipoConversao: true },
-        orderBy: [{ ehExtra: "asc" }, { criadoEm: "asc" }],
+        orderBy: { posicao: "asc" },
       },
     },
   });
