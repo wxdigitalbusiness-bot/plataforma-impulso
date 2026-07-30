@@ -47,7 +47,7 @@ export default async function PortalLeadsPage() {
       crmSomentePago: true,
       crmWebhooks: {
         select: { etapa: true, etapaLabel: true },
-        orderBy: [{ ehExtra: "asc" }, { criadoEm: "asc" }],
+        orderBy: { posicao: "asc" },
       },
     },
   });

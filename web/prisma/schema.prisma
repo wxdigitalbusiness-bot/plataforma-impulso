@@ -69,6 +69,8 @@ model ClienteCrmWebhook {
   webhookUrl      String    @map("webhook_url")
   n8nWorkflowId   String    @map("n8n_workflow_id")
   tipoConversao   String?   @map("tipo_conversao")
+  // Ordem de exibição das colunas do Kanban — editável na tela de Etapas
+  posicao         Int       @default(0)
   criadoEm        DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
   atualizadoEm    DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz()
 

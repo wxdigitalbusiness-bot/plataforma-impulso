@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HISTORICO_TIPOS, tipoInfo, podeIrProPortal } from "@/lib/historico-tipos";
+
+const TIPOS_FIXOS = new Set(HISTORICO_TIPOS.map((t) => t.valor));
 
 export type Entrada = {
   id: number;
@@ -59,6 +61,36 @@ export function HistoricoTimeline({ entradas, clientes, clienteFixoId }: Props) 
 
   const [filtroTipo, setFiltroTipo]       = useState<string>("todos");
   const [filtroCliente, setFiltroCliente] = useState<number | "todos">("todos");
+
+  // Tipos criados livremente antes, extraídos do próprio histórico — assim
+  // viram pills reutilizáveis sem precisar de uma tabela separada
+  const tiposCustomUsados = useMemo(() => {
+    const vistos = new Set<string>();
+    for (const e of entradas) {
+      if (!TIPOS_FIXOS.has(e.tipo)) vistos.add(e.tipo);
+    }
+    return Array.from(vistos).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [entradas]);
+
+  const [novoTipoAberto, setNovoTipoAberto] = useState(false);
+  const [novoTipoInput, setNovoTipoInput]   = useState("");
+  // Tipo recém-criado nesta sessão, pra aparecer como pill mesmo antes do refresh
+  const [tipoRecemCriado, setTipoRecemCriado] = useState<string | null>(null);
+
+  const tiposCustomVisiveis = useMemo(() => {
+    const lista = [...tiposCustomUsados];
+    if (tipoRecemCriado && !lista.includes(tipoRecemCriado)) lista.push(tipoRecemCriado);
+    return lista;
+  }, [tiposCustomUsados, tipoRecemCriado]);
+
+  function criarTipoCustom() {
+    const nome = novoTipoInput.trim();
+    if (!nome) { setNovoTipoAberto(false); return; }
+    trocarTipo(nome);
+    setTipoRecemCriado(nome);
+    setNovoTipoInput("");
+    setNovoTipoAberto(false);
+  }
 
   function resetForm() {
     setTipo("criativo");
@@ -146,8 +178,8 @@ export function HistoricoTimeline({ entradas, clientes, clienteFixoId }: Props) 
         </button>
       ) : (
         <div className="rounded-xl border border-neutral-200 bg-white p-4">
-          {/* Tipos como pills — escolha em 1 clique */}
-          <div className="mb-3 flex flex-wrap gap-1.5">
+          {/* Tipos como pills — escolha em 1 clique. Fixos + criados livremente antes + criar novo */}
+          <div className="mb-3 flex flex-wrap items-center gap-1.5">
             {HISTORICO_TIPOS.map((t) => (
               <button
                 key={t.valor}
@@ -159,6 +191,41 @@ export function HistoricoTimeline({ entradas, clientes, clienteFixoId }: Props) 
                 {t.label}
               </button>
             ))}
+
+            {tiposCustomVisiveis.map((valor) => (
+              <button
+                key={valor}
+                onClick={() => trocarTipo(valor)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  tipo === valor ? tipoInfo(valor).cor : "bg-neutral-50 text-neutral-500 hover:bg-neutral-100"
+                }`}
+              >
+                {valor}
+              </button>
+            ))}
+
+            {novoTipoAberto ? (
+              <input
+                autoFocus
+                value={novoTipoInput}
+                onChange={(e) => setNovoTipoInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") criarTipoCustom();
+                  if (e.key === "Escape") { setNovoTipoAberto(false); setNovoTipoInput(""); }
+                }}
+                onBlur={criarTipoCustom}
+                placeholder="Nome do tipo..."
+                maxLength={40}
+                className="w-32 rounded-full border border-neutral-200 px-3 py-1 text-xs outline-none focus:border-neutral-400"
+              />
+            ) : (
+              <button
+                onClick={() => setNovoTipoAberto(true)}
+                className="rounded-full border border-dashed border-neutral-300 px-3 py-1 text-xs font-medium text-neutral-400 hover:border-neutral-400 hover:text-neutral-600"
+              >
+                + Outro
+              </button>
+            )}
           </div>
 
           <input
@@ -247,6 +314,9 @@ export function HistoricoTimeline({ entradas, clientes, clienteFixoId }: Props) 
             <option value="todos">Todos os tipos</option>
             {HISTORICO_TIPOS.map((t) => (
               <option key={t.valor} value={t.valor}>{t.label}</option>
+            ))}
+            {tiposCustomUsados.map((valor) => (
+              <option key={valor} value={valor}>{valor}</option>
             ))}
           </select>
 

@@ -2,17 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { adicionarEtapa, removerEtapa, salvarTipoConversao } from "./_actions";
+import { adicionarEtapa, moverEtapa, removerEtapa, salvarTipoConversao } from "./_actions";
 
-type Etapa = { id: number; etapa: string; etapaLabel: string; ehExtra: boolean; tipoConversao: string | null };
-
-const ORDEM_BASE = ["novo_lead", "nao_classificado", "qualificado", "perdido", "concluido"];
-
-const TIPO_LABEL: Record<string, string> = {
-  "":           "Nenhum",
-  qualificado:  "Lead qualificado",
-  concluido:    "Negócio concluído",
-};
+type Etapa = { id: number; etapa: string; etapaLabel: string; ehExtra: boolean; tipoConversao: string | null; posicao: number };
 
 export function EtapasClient({
   clienteId,
@@ -27,10 +19,14 @@ export function EtapasClient({
   const [novaLabel, setNovaLabel] = useState("");
   const [mostrandoForm, setMostrandoForm] = useState(false);
 
-  const base = ORDEM_BASE.map((slug) => etapas.find((e) => e.etapa === slug)).filter(
-    (e): e is Etapa => !!e,
-  );
-  const extras = etapas.filter((e) => e.ehExtra);
+  function mover(id: number, direcao: "cima" | "baixo") {
+    setErro(null);
+    startTransition(async () => {
+      const r = await moverEtapa(clienteId, id, direcao);
+      if (r.ok) router.refresh();
+      else setErro(r.erro);
+    });
+  }
 
   function adicionar() {
     const label = novaLabel.trim();
@@ -71,56 +67,38 @@ export function EtapasClient({
         <p className="rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-700">{erro}</p>
       )}
 
-      {/* Etapas base */}
+      {/* Todas as etapas, na ordem em que aparecem no Kanban */}
       <div>
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-          Etapas base (fixas)
+          Etapas do funil — use as setas pra reordenar as colunas do Kanban
         </p>
         <div className="space-y-1.5">
-          {base.map((e) => (
+          {etapas.map((e, i) => (
             <div
               key={e.id}
               className="flex items-center justify-between rounded-xl border border-neutral-100 bg-white px-4 py-2.5"
             >
-              <span className="text-sm font-medium text-neutral-700">{e.etapaLabel}</span>
-              <div className="flex items-center gap-3">
-                <select
-                  value={e.tipoConversao ?? ""}
-                  disabled={pending}
-                  onChange={(ev) => alterarTipo(e.id, ev.target.value)}
-                  className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs text-neutral-700 focus:border-violet-400 focus:outline-none disabled:opacity-50"
-                  title="Tipo de conversão Google Ads"
-                >
-                  <option value="">Nenhum</option>
-                  <option value="qualificado">Lead qualificado</option>
-                  <option value="concluido">Negócio concluído</option>
-                </select>
-                <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-400">
-                  Base
-                </span>
+              <div className="flex items-center gap-2">
+                <div className="flex flex-col">
+                  <button
+                    onClick={() => mover(e.id, "cima")}
+                    disabled={pending || i === 0}
+                    title="Mover para cima"
+                    className="leading-none text-neutral-400 hover:text-neutral-700 disabled:opacity-20 disabled:hover:text-neutral-400"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    onClick={() => mover(e.id, "baixo")}
+                    disabled={pending || i === etapas.length - 1}
+                    title="Mover para baixo"
+                    className="leading-none text-neutral-400 hover:text-neutral-700 disabled:opacity-20 disabled:hover:text-neutral-400"
+                  >
+                    ▼
+                  </button>
+                </div>
+                <span className="text-sm font-medium text-neutral-700">{e.etapaLabel}</span>
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Etapas extras */}
-      <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-          Etapas extras
-        </p>
-
-        {extras.length === 0 && !mostrandoForm && (
-          <p className="text-sm text-neutral-400">Nenhuma etapa extra adicionada.</p>
-        )}
-
-        <div className="space-y-1.5">
-          {extras.map((e) => (
-            <div
-              key={e.id}
-              className="flex items-center justify-between rounded-xl border border-neutral-100 bg-white px-4 py-2.5"
-            >
-              <span className="text-sm font-medium text-neutral-700">{e.etapaLabel}</span>
               <div className="flex items-center gap-3">
                 <select
                   value={e.tipoConversao ?? ""}
@@ -133,13 +111,19 @@ export function EtapasClient({
                   <option value="qualificado">Lead qualificado</option>
                   <option value="concluido">Negócio concluído</option>
                 </select>
-                <button
-                  onClick={() => remover(e.id, e.etapaLabel)}
-                  disabled={pending}
-                  className="rounded-lg px-2.5 py-1 text-xs font-medium text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
-                >
-                  Remover
-                </button>
+                {e.ehExtra ? (
+                  <button
+                    onClick={() => remover(e.id, e.etapaLabel)}
+                    disabled={pending}
+                    className="rounded-lg px-2.5 py-1 text-xs font-medium text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                  >
+                    Remover
+                  </button>
+                ) : (
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-400">
+                    Base
+                  </span>
+                )}
               </div>
             </div>
           ))}

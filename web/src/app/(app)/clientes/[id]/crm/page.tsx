@@ -51,7 +51,7 @@ export default async function CrmPage({ params }: Props) {
       crmSomentePago: true,
       crmWebhooks: {
         select: { etapa: true, etapaLabel: true, ehExtra: true },
-        orderBy: [{ ehExtra: "asc" }, { criadoEm: "asc" }],
+        orderBy: { posicao: "asc" },
       },
     },
   });
