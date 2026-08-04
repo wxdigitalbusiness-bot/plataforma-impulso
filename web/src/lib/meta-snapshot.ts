@@ -99,6 +99,8 @@ export type Snapshot = {
   geradoEm: string; // ISO
   periodo: { from: string; to: string };
   contas: string[]; // ad_account_ids consultados
+  /** Alcance deduplicado por conta (query direta, sem somar campanhas) — bate com o Ads Manager. */
+  reachTotal: number;
   campanhas: CampanhaSnapshot[];
   adsets: AdsetSnapshot[];
   ads: AdSnapshot[];
@@ -274,6 +276,37 @@ async function fetchInsights(
   return out;
 }
 
+/**
+ * Alcance real da conta no período — query direta sem breakdown por campanha.
+ * Reach é métrica de pessoas ÚNICAS: somar o reach de várias campanhas gera
+ * um número diferente do alcance real (a mesma pessoa pode aparecer em mais
+ * de uma campanha). O Ads Manager sempre mostra o alcance deduplicado; essa
+ * chamada reproduz exatamente isso.
+ */
+async function fetchAccountReach(
+  adAccountId: string,
+  from: string,
+  to: string,
+  token: string,
+): Promise<number> {
+  const url = new URL(`https://graph.facebook.com/${API_VERSION}/${adAccountId}/insights`);
+  url.searchParams.set("time_range", JSON.stringify({ since: from, until: to }));
+  url.searchParams.set("fields", "reach");
+  url.searchParams.set("access_token", token);
+  try {
+    const r = await fetch(url.toString());
+    const j = (await r.json()) as { data?: Array<{ reach?: string | number }>; error?: { message: string } };
+    if (j.error) {
+      console.warn(`[META] fetchAccountReach ${adAccountId}: ${j.error.message}`);
+      return 0;
+    }
+    return Math.round(toNum(j.data?.[0]?.reach));
+  } catch (err) {
+    console.warn(`[META] fetchAccountReach ${adAccountId} failed:`, err instanceof Error ? err.message : err);
+    return 0;
+  }
+}
+
 type RawRow = {
   campaign_id?: string;
   campaign_name?: string;
@@ -297,7 +330,12 @@ function mapBase(r: RawRow) {
   const spend       = round2(toNum(r.spend));
   const reach       = Math.round(toNum(r.reach));
   const impressions = Math.round(toNum(r.impressions));
-  const clicks      = Math.round(toNum(r.clicks));
+  // "clicks" da Meta API conta QUALQUER clique (curtir, ver foto, comentar...).
+  // Ads Manager mostra CTR/CPC/Cliques baseados em cliques no LINK (preset
+  // "Performance", o padrão) — usamos actions:link_click pra bater com o que
+  // o cliente vê lá, em vez do clicks bruto que é maior e sem rótulo claro.
+  const linkClick    = (r.actions ?? []).find((a) => a.action_type === "link_click");
+  const clicks       = Math.round(toNum(linkClick?.value));
   const frequency   = round2(toNum(r.frequency));
   const cpp         = round2(toNum(r.cpp));
   const ctr         = impressions > 0 ? round2((clicks / impressions) * 100) : 0;
@@ -443,15 +481,21 @@ export async function gerarSnapshotMeta(
   const campanhas: CampanhaSnapshot[] = [];
   const adsets:    AdsetSnapshot[]    = [];
   const ads:       AdSnapshot[]       = [];
+  let reachTotal = 0;
 
   for (const rawId of adAccountIds) {
     const id = rawId.startsWith("act_") ? rawId : `act_${rawId}`;
 
-    const [rowsC, rowsAS, rowsAd] = await Promise.all([
+    const [rowsC, rowsAS, rowsAd, contaReach] = await Promise.all([
       fetchInsights(id, "campaign", from, to, token),
       fetchInsights(id, "adset",    from, to, token),
       fetchInsights(id, "ad",       from, to, token),
+      fetchAccountReach(id, from, to, token),
     ]);
+    // Somar entre CONTAS diferentes é seguro (não há sobreposição de pessoas
+    // rastreável entre contas de anúncio distintas) — só somar entre
+    // campanhas da mesma conta que não é seguro.
+    reachTotal += contaReach;
 
     for (const r of rowsC) {
       const resultado   = parseResultado(r.results, r.cost_per_result);
@@ -519,6 +563,7 @@ export async function gerarSnapshotMeta(
     geradoEm: new Date().toISOString(),
     periodo:  { from, to },
     contas:   adAccountIds,
+    reachTotal,
     campanhas, adsets, ads,
     instagram: igPorConta.length > 0 ? igPorConta : null,
   };

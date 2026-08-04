@@ -101,10 +101,9 @@ export default async function RelatorioPublicoPage({ params }: Props) {
   const totalSpend       = round2(campanhas.reduce((s, c) => s + c.spend, 0));
   const totalImpressions = campanhas.reduce((s, c) => s + c.impressions, 0);
   const totalClicks      = campanhas.reduce((s, c) => s + c.clicks, 0);
-  // Reach total = soma dos reach per-campaign (já é deduplicado dentro de cada campanha
-  // no período inteiro). Cross-campaign pode ter sobreposição, mas é a melhor aproximação
-  // sem fazer query "todas as campanhas juntas" agregada.
-  const totalReach       = campanhas.reduce((s, c) => s + c.reach, 0);
+  // Alcance deduplicado direto da conta (query própria, ver meta-snapshot.ts).
+  // Fallback pra soma por campanha só em relatórios antigos gerados antes desse campo existir.
+  const totalReach = snapshot?.reachTotal ?? campanhas.reduce((s, c) => s + c.reach, 0);
   const ctrMedio = totalImpressions > 0 ? round2((totalClicks / totalImpressions) * 100) : 0;
   const cpcMedio = totalClicks > 0 ? round2(totalSpend / totalClicks) : 0;
 
