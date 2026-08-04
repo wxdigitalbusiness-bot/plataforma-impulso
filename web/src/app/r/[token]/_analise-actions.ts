@@ -98,19 +98,34 @@ async function chamarClaude(resumo: string, clienteNome: string): Promise<Result
       },
       body: JSON.stringify({
         model: "claude-sonnet-5",
-        max_tokens: 1024,
+        max_tokens: 2048,
         messages: [{ role: "user", content: prompt }],
       }),
     });
     const json = await res.json() as {
-      content?: Array<{ text?: string }>;
+      content?: Array<{ type?: string; text?: string }>;
+      stop_reason?: string;
       error?: { message: string };
     };
     if (!res.ok || json.error) {
       return { ok: false, erro: json.error?.message ?? `HTTP ${res.status}` };
     }
-    const texto = json.content?.[0]?.text?.trim();
-    if (!texto) return { ok: false, erro: "Resposta vazia da IA." };
+    // A resposta pode ter blocos que não são texto (ex: raciocínio interno)
+    // antes do bloco de texto de verdade — junta só os blocos type:"text",
+    // em vez de pegar content[0] direto.
+    const texto = (json.content ?? [])
+      .filter((b) => b.type === "text" && b.text)
+      .map((b) => b.text)
+      .join("\n")
+      .trim();
+    if (!texto) {
+      return {
+        ok: false,
+        erro: json.stop_reason === "max_tokens"
+          ? "A IA não conseguiu terminar a resposta a tempo (limite de tokens). Tente gerar de novo."
+          : "Resposta vazia da IA.",
+      };
+    }
     return { ok: true, texto };
   } catch (err) {
     return { ok: false, erro: err instanceof Error ? err.message : String(err) };
