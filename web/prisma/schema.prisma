@@ -94,6 +94,10 @@ model RelatorioPublico {
   expiraEm    DateTime? @map("expira_em") @db.Timestamptz()
   revogado    Boolean   @default(false)
   snapshot    Json?
+  // Análise gerada pela Anthropic API a partir dos números do relatório —
+  // editável manualmente pela agência antes de compartilhar com o cliente.
+  analiseIa         String?   @map("analise_ia")
+  analiseIaGeradoEm DateTime? @map("analise_ia_gerado_em") @db.Timestamptz()
 
   cliente     Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 

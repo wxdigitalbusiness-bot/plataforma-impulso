@@ -20,6 +20,7 @@ import type {
 } from "@/lib/meta-snapshot";
 import { getCreativeLink } from "@/lib/meta-api";
 import { RelatorioHierarquia } from "./_relatorio-hierarquia";
+import { AnaliseIA } from "./_analise-ia";
 import { LeadsAtribuicao } from "@/components/crm/leads-atribuicao";
 
 export const dynamic = "force-dynamic";
@@ -588,6 +589,9 @@ export default async function RelatorioPublicoPage({ params }: Props) {
             )}
           </section>
         )}
+
+        {/* ── Análise por IA ───────────────────────────────────────────── */}
+        <AnaliseIA token={token} analiseInicial={relatorio.analiseIa} ehAgencia={ehAgencia} />
 
         {/* ── Rodapé ───────────────────────────────────────────────────── */}
         <footer className="mt-10 border-t border-neutral-200 pt-5 text-center text-xs text-neutral-400">
