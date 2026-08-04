@@ -25,6 +25,7 @@ import {
   type MetaCampanhaDB,
   type GoogleCampanhaDB,
 } from "@/lib/db-insights";
+import { getInsightsCampanhasMeta } from "@/lib/meta-api";
 import { MetaHierarquia } from "./_meta-hierarquia";
 import { LeadsAtribuicao } from "@/components/crm/leads-atribuicao";
 import { GoogleLeadsAtribuicao } from "@/components/crm/google-leads-atribuicao";
@@ -154,6 +155,27 @@ export default async function PerformancePage({ params, searchParams }: Props) {
         ? getCrmLeadsAtribuicaoGoogle(clientKey, from, to)
         : Promise.resolve([] as GoogleLeadAtribuicao[]),
     ]);
+
+  // Alcance é pessoas ÚNICAS — não dá pra somar o alcance diário guardado no
+  // banco sem inflar/distorcer o número (a mesma pessoa em dois dias conta 2x
+  // no SUM, mas 1x no alcance real do período). Busca ao vivo por campanha,
+  // mesma correção já feita no relatório público (meta-snapshot.ts).
+  if (contasMeta.length > 0 && campanhasMeta.length > 0) {
+    const reachPorCampanha = new Map<string, number>();
+    await Promise.all(
+      contasMeta.map(async (c) => {
+        const live = await getInsightsCampanhasMeta(c.metaAdAccountId!, from, to);
+        for (const l of live) reachPorCampanha.set(l.campanhaId, l.reach);
+      }),
+    );
+    for (const c of campanhasMeta) {
+      const reachReal = reachPorCampanha.get(c.campanhaId);
+      if (reachReal !== undefined) {
+        c.reach = reachReal;
+        c.frequencia = reachReal > 0 ? round2(c.impressoes / reachReal) : 0;
+      }
+    }
+  }
 
   // Mapa campanhaId → leads CRM
   const leadsMap = new Map<string, number>(
