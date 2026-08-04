@@ -18,6 +18,7 @@ import type {
   ResultadoMeta,
   InstagramSnapshot,
 } from "@/lib/meta-snapshot";
+import { getCreativeLink } from "@/lib/meta-api";
 import { RelatorioHierarquia } from "./_relatorio-hierarquia";
 import { LeadsAtribuicao } from "@/components/crm/leads-atribuicao";
 
@@ -210,6 +211,9 @@ export default async function RelatorioPublicoPage({ params }: Props) {
     return { ad, tipo: "meta_resultado", crmStats: undefined };
   })();
 
+  // Link do criativo — busca ao vivo, só pro anúncio campeão (1 chamada leve)
+  const creativeLink = campeaoInfo ? await getCreativeLink(campeaoInfo.ad.adId) : null;
+
   // ─── Tipo dominante (pra subtítulo do relatório) ───────────────────────────
   const tipoDominante = cardsResultado[0]?.label ?? "Resultados";
 
@@ -339,6 +343,16 @@ export default async function RelatorioPublicoPage({ params }: Props) {
                   <h3 className="mt-1 text-base font-semibold text-neutral-900" title={campeaoInfo.ad.adName}>
                     {campeaoInfo.ad.adName}
                   </h3>
+                  {creativeLink && (
+                    <a
+                      href={creativeLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-amber-700 underline hover:text-amber-800"
+                    >
+                      Ver criativo ↗
+                    </a>
+                  )}
                   <dl className="mt-3 space-y-1.5 text-xs text-neutral-600">
                     <div className="flex gap-2">
                       <dt className="w-20 shrink-0 text-neutral-400">Campanha</dt>
