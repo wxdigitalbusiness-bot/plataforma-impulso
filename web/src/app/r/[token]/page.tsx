@@ -313,6 +313,126 @@ export default async function RelatorioPublicoPage({ params }: Props) {
           </section>
         )}
 
+        {/* ── Anúncio Campeão ──────────────────────────────────────────── */}
+        {!ehPanfletagem && campeaoInfo && (
+          <section className="mb-6">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-lg">🏆</span>
+              <h2 className="text-sm font-semibold text-neutral-700">Anúncio Campeão</h2>
+              <span className="text-[11px] text-neutral-400">
+                {campeaoInfo.tipo === "crm_concluidos"
+                  ? "Mais negócios concluídos pelo menor custo"
+                  : campeaoInfo.tipo === "crm_leads"
+                  ? "Mais leads pelo menor custo"
+                  : `Mais ${tipoDominante.toLowerCase()} pelo menor custo`}
+              </span>
+              {campeaoInfo.tipo !== "meta_resultado" && (
+                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700">
+                  via CRM
+                </span>
+              )}
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white shadow-sm">
+              <div className="grid gap-0 md:grid-cols-[2fr_3fr]">
+                <div className="border-b border-amber-100 p-5 md:border-b-0 md:border-r">
+                  <p className="text-[10px] uppercase tracking-wider text-amber-700">Anúncio</p>
+                  <h3 className="mt-1 text-base font-semibold text-neutral-900" title={campeaoInfo.ad.adName}>
+                    {campeaoInfo.ad.adName}
+                  </h3>
+                  <dl className="mt-3 space-y-1.5 text-xs text-neutral-600">
+                    <div className="flex gap-2">
+                      <dt className="w-20 shrink-0 text-neutral-400">Campanha</dt>
+                      <dd className="truncate text-neutral-700" title={campeaoInfo.ad.campaignName}>
+                        {campeaoInfo.ad.campaignName}
+                      </dd>
+                    </div>
+                    <div className="flex gap-2">
+                      <dt className="w-20 shrink-0 text-neutral-400">Conjunto</dt>
+                      <dd className="truncate text-neutral-700" title={campeaoInfo.ad.adsetName}>
+                        {campeaoInfo.ad.adsetName}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <div className="grid grid-cols-2 gap-px bg-amber-100/60 md:grid-cols-4">
+                  {campeaoInfo.tipo === "crm_concluidos" ? (
+                    <>
+                      <ChampionStat
+                        label="Negócios concluídos"
+                        value={fInt(campeaoInfo.crmStats!.concluidos)}
+                        tone="amber"
+                        highlight
+                      />
+                      <ChampionStat
+                        label="Custo / concluído"
+                        value={fBRL(round2(campeaoInfo.ad.spend / campeaoInfo.crmStats!.concluidos))}
+                        tone="emerald"
+                        highlight
+                      />
+                    </>
+                  ) : campeaoInfo.tipo === "crm_leads" ? (
+                    <>
+                      <ChampionStat
+                        label="Leads CRM"
+                        value={fInt(campeaoInfo.crmStats!.totalLeads)}
+                        tone="amber"
+                        highlight
+                      />
+                      <ChampionStat
+                        label="Custo / lead"
+                        value={fBRL(round2(campeaoInfo.ad.spend / campeaoInfo.crmStats!.totalLeads))}
+                        tone="emerald"
+                        highlight
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <ChampionStat
+                        label={campeaoInfo.ad.resultado!.label}
+                        value={fInt(campeaoInfo.ad.resultado!.valor)}
+                        tone="amber"
+                        highlight
+                        sub={
+                          campeaoInfo.ad.secundarias.length > 0
+                            ? campeaoInfo.ad.secundarias.map((s) => `+${fInt(s.valor)} ${s.label.toLowerCase()}`).join(" · ")
+                            : undefined
+                        }
+                      />
+                      <ChampionStat
+                        label="Custo / resultado"
+                        value={fBRL(campeaoInfo.ad.resultado!.custoPorResultado)}
+                        tone="emerald"
+                        highlight
+                      />
+                    </>
+                  )}
+                  <ChampionStat label="Investimento" value={fBRL(campeaoInfo.ad.spend)} />
+                  <ChampionStat
+                    label="CTR"
+                    value={campeaoInfo.ad.ctr > 0 ? `${campeaoInfo.ad.ctr.toFixed(2)}%` : "—"}
+                    sub={campeaoInfo.ad.clicks > 0 ? `${fInt(campeaoInfo.ad.clicks)} cliques` : undefined}
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── Meta Ads — Detalhamento ──────────────────────────────────── */}
+        {!ehPanfletagem && campanhas.length > 0 && (
+          <section className="mb-8">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" />
+              <h2 className="text-sm font-semibold text-neutral-700">Meta Ads — Detalhamento</h2>
+              <span className="text-xs text-neutral-400">
+                {campanhas.length} campanha{campanhas.length > 1 ? "s" : ""}
+              </span>
+            </div>
+            <RelatorioHierarquia campanhas={campanhas} adsets={adsets} ads={ads} />
+          </section>
+        )}
+
         {/* ── Google Ads ────────────────────────────────────────────── */}
         {googleData && googleData.totais.spend > 0 && (
           <section className="mb-6">
@@ -452,126 +572,6 @@ export default async function RelatorioPublicoPage({ params }: Props) {
                 💡 Nenhum lead deste período possui atribuição de anúncio — podem ter vindo de tráfego orgânico ou formulários sem rastreamento ativo.
               </p>
             )}
-          </section>
-        )}
-
-        {/* ── Anúncio Campeão ──────────────────────────────────────────── */}
-        {!ehPanfletagem && campeaoInfo && (
-          <section className="mb-6">
-            <div className="mb-3 flex items-center gap-2">
-              <span className="text-lg">🏆</span>
-              <h2 className="text-sm font-semibold text-neutral-700">Anúncio Campeão</h2>
-              <span className="text-[11px] text-neutral-400">
-                {campeaoInfo.tipo === "crm_concluidos"
-                  ? "Mais negócios concluídos pelo menor custo"
-                  : campeaoInfo.tipo === "crm_leads"
-                  ? "Mais leads pelo menor custo"
-                  : `Mais ${tipoDominante.toLowerCase()} pelo menor custo`}
-              </span>
-              {campeaoInfo.tipo !== "meta_resultado" && (
-                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700">
-                  via CRM
-                </span>
-              )}
-            </div>
-            <div className="overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white shadow-sm">
-              <div className="grid gap-0 md:grid-cols-[2fr_3fr]">
-                <div className="border-b border-amber-100 p-5 md:border-b-0 md:border-r">
-                  <p className="text-[10px] uppercase tracking-wider text-amber-700">Anúncio</p>
-                  <h3 className="mt-1 text-base font-semibold text-neutral-900" title={campeaoInfo.ad.adName}>
-                    {campeaoInfo.ad.adName}
-                  </h3>
-                  <dl className="mt-3 space-y-1.5 text-xs text-neutral-600">
-                    <div className="flex gap-2">
-                      <dt className="w-20 shrink-0 text-neutral-400">Campanha</dt>
-                      <dd className="truncate text-neutral-700" title={campeaoInfo.ad.campaignName}>
-                        {campeaoInfo.ad.campaignName}
-                      </dd>
-                    </div>
-                    <div className="flex gap-2">
-                      <dt className="w-20 shrink-0 text-neutral-400">Conjunto</dt>
-                      <dd className="truncate text-neutral-700" title={campeaoInfo.ad.adsetName}>
-                        {campeaoInfo.ad.adsetName}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-
-                <div className="grid grid-cols-2 gap-px bg-amber-100/60 md:grid-cols-4">
-                  {campeaoInfo.tipo === "crm_concluidos" ? (
-                    <>
-                      <ChampionStat
-                        label="Negócios concluídos"
-                        value={fInt(campeaoInfo.crmStats!.concluidos)}
-                        tone="amber"
-                        highlight
-                      />
-                      <ChampionStat
-                        label="Custo / concluído"
-                        value={fBRL(round2(campeaoInfo.ad.spend / campeaoInfo.crmStats!.concluidos))}
-                        tone="emerald"
-                        highlight
-                      />
-                    </>
-                  ) : campeaoInfo.tipo === "crm_leads" ? (
-                    <>
-                      <ChampionStat
-                        label="Leads CRM"
-                        value={fInt(campeaoInfo.crmStats!.totalLeads)}
-                        tone="amber"
-                        highlight
-                      />
-                      <ChampionStat
-                        label="Custo / lead"
-                        value={fBRL(round2(campeaoInfo.ad.spend / campeaoInfo.crmStats!.totalLeads))}
-                        tone="emerald"
-                        highlight
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <ChampionStat
-                        label={campeaoInfo.ad.resultado!.label}
-                        value={fInt(campeaoInfo.ad.resultado!.valor)}
-                        tone="amber"
-                        highlight
-                        sub={
-                          campeaoInfo.ad.secundarias.length > 0
-                            ? campeaoInfo.ad.secundarias.map((s) => `+${fInt(s.valor)} ${s.label.toLowerCase()}`).join(" · ")
-                            : undefined
-                        }
-                      />
-                      <ChampionStat
-                        label="Custo / resultado"
-                        value={fBRL(campeaoInfo.ad.resultado!.custoPorResultado)}
-                        tone="emerald"
-                        highlight
-                      />
-                    </>
-                  )}
-                  <ChampionStat label="Investimento" value={fBRL(campeaoInfo.ad.spend)} />
-                  <ChampionStat
-                    label="CTR"
-                    value={campeaoInfo.ad.ctr > 0 ? `${campeaoInfo.ad.ctr.toFixed(2)}%` : "—"}
-                    sub={campeaoInfo.ad.clicks > 0 ? `${fInt(campeaoInfo.ad.clicks)} cliques` : undefined}
-                  />
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── Detalhamento ─────────────────────────────────────────────── */}
-        {!ehPanfletagem && campanhas.length > 0 && (
-          <section className="mb-8">
-            <div className="mb-3 flex items-center gap-2">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" />
-              <h2 className="text-sm font-semibold text-neutral-700">Meta Ads — Detalhamento</h2>
-              <span className="text-xs text-neutral-400">
-                {campanhas.length} campanha{campanhas.length > 1 ? "s" : ""}
-              </span>
-            </div>
-            <RelatorioHierarquia campanhas={campanhas} adsets={adsets} ads={ads} />
           </section>
         )}
 
