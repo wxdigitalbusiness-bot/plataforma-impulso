@@ -430,6 +430,18 @@ export default async function RelatorioPublicoPage({ params }: Props) {
               </span>
             </div>
             <RelatorioHierarquia campanhas={campanhas} adsets={adsets} ads={ads} />
+            {leadsAtribuicao.length > 0 && (
+              <>
+                <p className="mt-4 mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-400">
+                  Atribuição de leads CRM
+                </p>
+                <LeadsAtribuicao
+                  dados={leadsAtribuicao}
+                  totalLeads={totalLeadsCampanha}
+                  totalGeral={crmFunil?.totalLeads ?? 0}
+                />
+              </>
+            )}
           </section>
         )}
 
@@ -459,6 +471,14 @@ export default async function RelatorioPublicoPage({ params }: Props) {
               </div>
               {googleData.campanhas.length > 1 && (
                 <GoogleCampanhasTable campanhas={googleData.campanhas} />
+              )}
+              {googleLeads && googleLeads.length > 0 && (
+                <>
+                  <p className="mt-4 mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-400">
+                    Atribuição de leads CRM
+                  </p>
+                  <GoogleLeadsAtribuicao dados={googleLeads} totalGeral={crmFunil?.totalLeads ?? 0} />
+                </>
               )}
             </div>
           </section>
@@ -547,26 +567,6 @@ export default async function RelatorioPublicoPage({ params }: Props) {
               })}
             </div>
 
-            {leadsAtribuicao.length > 0 && (
-              <>
-                <p className="mt-4 mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-400">
-                  Atribuição Meta Ads
-                </p>
-                <LeadsAtribuicao
-                  dados={leadsAtribuicao}
-                  totalLeads={totalLeadsCampanha}
-                  totalGeral={crmFunil.totalLeads}
-                />
-              </>
-            )}
-            {googleLeads && googleLeads.length > 0 && (
-              <>
-                <p className="mt-4 mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-400">
-                  Atribuição Google Ads
-                </p>
-                <GoogleLeadsAtribuicao dados={googleLeads} totalGeral={crmFunil.totalLeads} />
-              </>
-            )}
             {leadsAtribuicao.length === 0 && (!googleLeads || googleLeads.length === 0) && (
               <p className="mt-3 text-xs text-neutral-400">
                 💡 Nenhum lead deste período possui atribuição de anúncio — podem ter vindo de tráfego orgânico ou formulários sem rastreamento ativo.
