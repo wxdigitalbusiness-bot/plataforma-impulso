@@ -682,12 +682,15 @@ export async function getMetaInsightsPorCampanhaDB(
     return rows.map((r) => {
       const spend      = toFloat(r.spend);
       const impressoes = toFloat(r.impressions);
-      const cliques    = toFloat(r.clicks);
       const reach      = toFloat(r.reach);
       const convMsg    = toFloat(r.conv_msg);
       const convPurch  = toFloat(r.conv_purchase);
       const convLink   = toFloat(r.conv_link);
       const convProf   = toFloat(r.conv_profile);
+      // "clicks" bruto conta qualquer clique (curtir, ver foto...). Ads Manager
+      // mostra CTR/CPC/Cliques baseados em clique no LINK (conv_link_clicks) —
+      // mesma correção já feita no relatório público (meta-snapshot.ts).
+      const cliques    = convLink;
 
       const { tipoResultado, conversoes } = derivarResultadoPrincipal(
         r.objective, r.campaign_name ?? "", convPurch, convMsg, convLink,
