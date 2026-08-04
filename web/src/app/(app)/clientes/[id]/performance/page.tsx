@@ -25,7 +25,7 @@ import {
   type MetaCampanhaDB,
   type GoogleCampanhaDB,
 } from "@/lib/db-insights";
-import { getInsightsCampanhasMeta } from "@/lib/meta-api";
+import { getReachPorCampanha } from "@/lib/meta-api";
 import { MetaHierarquia } from "./_meta-hierarquia";
 import { LeadsAtribuicao } from "@/components/crm/leads-atribuicao";
 import { GoogleLeadsAtribuicao } from "@/components/crm/google-leads-atribuicao";
@@ -164,8 +164,8 @@ export default async function PerformancePage({ params, searchParams }: Props) {
     const reachPorCampanha = new Map<string, number>();
     await Promise.all(
       contasMeta.map(async (c) => {
-        const live = await getInsightsCampanhasMeta(c.metaAdAccountId!, from, to);
-        for (const l of live) reachPorCampanha.set(l.campanhaId, l.reach);
+        const live = await getReachPorCampanha(c.metaAdAccountId!, from, to);
+        for (const [campanhaId, reach] of live) reachPorCampanha.set(campanhaId, reach);
       }),
     );
     for (const c of campanhasMeta) {

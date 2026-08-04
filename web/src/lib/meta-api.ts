@@ -454,162 +454,59 @@ export async function getInsightsMeta(
   };
 }
 
-// ─── Insights por Campanha (detalhe) ─────────────────────────────────────────
-//
-// Busca campanhas ativas/pausadas com objetivo, destino de conversão e
-// métricas do período. Uma chamada só (campaigns edge com insights subfield).
+// ─── Alcance por campanha (detalhe) ──────────────────────────────────────────
 
-export type CampanhaMetrics = {
-  campanhaId: string;
-  nome: string;
-  objetivo: string;              // label em PT-BR
-  objetivoRaw: string;
-  destinoConversao: string | null;
-  destinoRaw: string | null;
-  status: string;
-  spend: number;
-  impressoes: number;
-  reach: number;                 // pessoas únicas alcançadas no período
-  cliques: number;
-  ctr: number;
-  cpc: number;
-  conversoes: number;
-  taxaConversao: number;
-  tipoResultado: string;         // label do tipo de resultado (ex: "Conversas iniciadas")
-  custoResultado: number;        // spend / conversoes (0 se sem resultado)
-  orcamentoDiario: number;       // em BRL (0 se não for orçamento diário)
-  orcamentoVitalicio: number;    // em BRL (0 se não for orçamento vitalício)
-  erro: string | null;
-};
-
-export async function getInsightsCampanhasMeta(
+/**
+ * Alcance real por campanha no período — query direta em /insights.
+ *
+ * Existia uma versão anterior que buscava via /campaigns com um sub-edge
+ * insights{...} e time_range no nível raiz — nesse formato aninhado o Meta
+ * não aplica o time_range de forma confiável ao sub-edge, retornando alcance
+ * de um período diferente do pedido (silenciosamente errado, sem erro na
+ * resposta). Consultar /insights diretamente com level=campaign é o mesmo
+ * padrão usado no sync diário (meta-ads-metrics-sync.ts) e já validado
+ * contra o Ads Manager.
+ */
+export async function getReachPorCampanha(
   adAccountId: string,
-  from: string,   // ISO date YYYY-MM-DD
-  to: string,     // ISO date YYYY-MM-DD
-): Promise<CampanhaMetrics[]> {
+  from: string,
+  to: string,
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
   const token = process.env.META_ACCESS_TOKEN;
-  if (!token) return [];
+  if (!token) return out;
+
+  const url = new URL(`https://graph.facebook.com/${GRAPH_API_VERSION}/${adAccountId}/insights`);
+  url.searchParams.set("level", "campaign");
+  url.searchParams.set("time_range", JSON.stringify({ since: from, until: to }));
+  url.searchParams.set("fields", "campaign_id,reach");
+  url.searchParams.set("limit", "500");
 
   try {
-    const insightFields = [
-      "spend",
-      "impressions",
-      "reach",
-      "clicks",
-      "ctr",
-      "cpc",
-      "actions",
-    ].join(",");
-
-    const url = new URL(
-      `https://graph.facebook.com/${GRAPH_API_VERSION}/${adAccountId}/campaigns`,
-    );
-    // daily_budget e lifetime_budget são retornados na menor unidade da moeda
-    // (centavos para BRL) — dividimos por 100 na hora de popular o objeto.
-    url.searchParams.set(
-      "fields",
-      `id,name,objective,destination_type,status,daily_budget,lifetime_budget,insights{${insightFields}}`,
-    );
-    // time_range no nível raiz é propagado para o sub-edge insights
-    url.searchParams.set("time_range", JSON.stringify({ since: from, until: to }));
-    // Inclui campanhas pausadas para cobrir períodos históricos onde a campanha
-    // estava ativa mas foi pausada depois. Exclui apenas as deletadas/arquivadas.
-    url.searchParams.set(
-      "filtering",
-      JSON.stringify([
-        {
-          field: "effective_status",
-          operator: "IN",
-          value: ["ACTIVE", "PAUSED", "WITH_ISSUES", "IN_PROCESS"],
-        },
-      ]),
-    );
-    url.searchParams.set("limit", "100");
-
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-
-    const json = await res.json();
-    if (!res.ok || json.error) return [];
-
-    const campaigns = (json.data as Record<string, unknown>[]) ?? [];
-
-    return campaigns
-      .map((c): CampanhaMetrics => {
-        const insightsData = (
-          c.insights as { data?: Record<string, unknown>[] } | undefined
-        )?.data?.[0];
-
-        const actions =
-          (insightsData?.actions as Array<{
-            action_type: string;
-            value: string;
-          }>) ?? [];
-
-        const cliques = toNumber(insightsData?.clicks);
-        const spend = toNumber(insightsData?.spend);
-        const objetivoRaw = (c.objective as string) ?? "";
-        const destinoRaw = (c.destination_type as string) ?? null;
-
-        // Campanha de mensagens? Detecta pelo destino ou objetivo.
-        // Se for de mensagens: sempre usa messaging_conversation_started_7d
-        // como resultado (mesmo que seja 0 no período — não cai em "Leads").
-        const ehCampanhaMensagens =
-          MESSAGING_OBJECTIVES.has(objetivoRaw) ||
-          MESSAGING_DESTINATIONS.has(destinoRaw ?? "");
-
-        const mensagensCount = actions
-          .filter((a) => a.action_type === "messaging_conversation_started_7d")
-          .reduce((max, a) => Math.max(max, toNumber(a.value)), 0);
-
-        const usarMensagens = ehCampanhaMensagens || mensagensCount > 0;
-
-        const conversoes = usarMensagens ? mensagensCount : contarConversoes(actions);
-        const tipoResultado = usarMensagens
-          ? "Conversas iniciadas"
-          : tipoResultadoLabel(actions, cliques);
-
-        const convRound = Math.round(conversoes * 100) / 100;
-
-        return {
-          campanhaId: c.id as string,
-          nome: c.name as string,
-          objetivo: OBJETIVO_PT[objetivoRaw] ?? objetivoRaw,
-          objetivoRaw,
-          destinoConversao: destinoRaw
-            ? (DESTINO_PT[destinoRaw] ?? destinoRaw)
-            : null,
-          destinoRaw,
-          status: c.status as string,
-          spend,
-          impressoes: toNumber(insightsData?.impressions),
-          reach: toNumber(insightsData?.reach),
-          cliques,
-          ctr: toNumber(insightsData?.ctr),
-          cpc: toNumber(insightsData?.cpc),
-          conversoes: convRound,
-          taxaConversao:
-            cliques > 0
-              ? Math.round((conversoes / cliques) * 100 * 100) / 100
-              : 0,
-          tipoResultado,
-          custoResultado:
-            conversoes > 0
-              ? Math.round((spend / conversoes) * 100) / 100
-              : 0,
-          // Orçamentos em centavos → dividir por 100 para obter BRL
-          orcamentoDiario: toNumber(c.daily_budget) / 100,
-          orcamentoVitalicio: toNumber(c.lifetime_budget) / 100,
-          erro: null,
-        };
-      })
-      .filter((c) => c.spend > 0 || c.impressoes > 0);
+    let next: string | null = url.toString();
+    while (next) {
+      const res = await fetch(next, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const json = (await res.json()) as {
+        data?: Array<{ campaign_id?: string; reach?: string | number }>;
+        paging?: { next?: string };
+        error?: { message: string };
+      };
+      if (json.error) {
+        console.warn(`[META] getReachPorCampanha ${adAccountId}: ${json.error.message}`);
+        break;
+      }
+      for (const row of json.data ?? []) {
+        if (row.campaign_id) out.set(row.campaign_id, Math.round(toNumber(row.reach)));
+      }
+      next = json.paging?.next ?? null;
+    }
   } catch (err) {
-    console.error("[META] getInsightsCampanhasMeta:", err);
-    return [];
+    console.warn(`[META] getReachPorCampanha ${adAccountId} failed:`, err instanceof Error ? err.message : err);
   }
+  return out;
 }
 
 function makeInsightsResult(
