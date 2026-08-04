@@ -299,7 +299,11 @@ export default async function RelatorioPublicoPage({ params }: Props) {
 
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <KpiCard label="Alcance"     value={totalReach > 0 ? fInt(totalReach) : "—"} />
+                  <KpiCard
+                    label="Alcance"
+                    value={totalReach > 0 ? fInt(totalReach) : "—"}
+                    title="A Meta calcula alcance por sistemas diferentes na API e no Gerenciador de Anúncios — pequenas divergências entre os dois são esperadas e documentadas pela própria Meta."
+                  />
                   <KpiCard label="Cliques"     value={fInt(totalClicks)} />
                   <KpiCard label="CTR"         value={ctrMedio > 0 ? `${ctrMedio.toFixed(2)}%` : "—"} />
                   <KpiCard label="CPC médio"   value={cpcMedio > 0 ? fBRL(cpcMedio) : "—"} />
@@ -646,17 +650,18 @@ function ChampionStat({
 }
 
 function KpiCard({
-  label, value, tone = "default", highlight = false,
+  label, value, tone = "default", highlight = false, title,
 }: {
   label: string;
   value: string;
   tone?: "default" | "ok";
   highlight?: boolean;
+  title?: string;
 }) {
   const border = highlight ? (tone === "ok" ? "border-emerald-200" : "border-blue-200") : "border-neutral-200";
   return (
-    <div className={`rounded-xl border ${border} bg-white p-4`}>
-      <p className="text-[10px] uppercase tracking-wide text-neutral-500">{label}</p>
+    <div className={`rounded-xl border ${border} bg-white p-4`} title={title}>
+      <p className={`text-[10px] uppercase tracking-wide text-neutral-500 ${title ? "cursor-help" : ""}`}>{label}</p>
       <p className={`mt-1 text-lg font-semibold ${tone === "ok" ? "text-emerald-700" : "text-neutral-900"}`}>{value}</p>
     </div>
   );
