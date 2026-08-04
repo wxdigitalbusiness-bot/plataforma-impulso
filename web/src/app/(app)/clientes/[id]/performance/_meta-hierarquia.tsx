@@ -98,7 +98,12 @@ export function MetaHierarquia({
             <th className="px-4 py-3 text-right font-medium">CTR</th>
             <th className="px-4 py-3 text-right font-medium">CPC</th>
             <th className="px-4 py-3 text-right font-medium">Impressões</th>
-            <th className="px-4 py-3 text-right font-medium">Alcance</th>
+            <th
+              className="cursor-help px-4 py-3 text-right font-medium"
+              title="A Meta calcula alcance por sistemas diferentes na API e no Gerenciador de Anúncios — pequenas divergências entre os dois são esperadas e documentadas pela própria Meta."
+            >
+              Alcance
+            </th>
             <th className="px-4 py-3 text-right font-medium">Freq.</th>
             {mostrarLeads && (
               <th className="px-4 py-3 text-right font-medium text-violet-600">Leads CRM</th>
