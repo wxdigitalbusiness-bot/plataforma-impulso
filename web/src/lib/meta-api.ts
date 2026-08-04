@@ -571,3 +571,54 @@ function toNumber(v: unknown): number {
   }
   return 0;
 }
+
+// ─── Link do criativo (Anúncio Campeão) ──────────────────────────────────────
+//
+// Prioridade: link do post no Instagram > link do post no Facebook (resolvido
+// a partir do effective_object_story_id) > thumbnail da imagem/vídeo como
+// último recurso, já que esse campo praticamente sempre existe.
+
+type CreativeFields = {
+  thumbnail_url?: string;
+  instagram_permalink_url?: string;
+  effective_object_story_id?: string;
+};
+
+export async function getCreativeLink(adId: string): Promise<string | null> {
+  const token = process.env.META_ACCESS_TOKEN;
+  if (!token) return null;
+
+  try {
+    const url = new URL(`https://graph.facebook.com/${GRAPH_API_VERSION}/${adId}`);
+    url.searchParams.set(
+      "fields",
+      "creative{thumbnail_url,instagram_permalink_url,effective_object_story_id}",
+    );
+    url.searchParams.set("access_token", token);
+
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    const json = (await res.json()) as { creative?: CreativeFields; error?: { message: string } };
+    if (json.error || !json.creative) return null;
+
+    const { instagram_permalink_url, effective_object_story_id, thumbnail_url } = json.creative;
+    if (instagram_permalink_url) return instagram_permalink_url;
+
+    if (effective_object_story_id) {
+      const storyUrl = new URL(`https://graph.facebook.com/${GRAPH_API_VERSION}/${effective_object_story_id}`);
+      storyUrl.searchParams.set("fields", "permalink_url");
+      storyUrl.searchParams.set("access_token", token);
+      const storyRes = await fetch(storyUrl.toString(), { cache: "no-store" });
+      const storyJson = (await storyRes.json()) as { permalink_url?: string; error?: { message: string } };
+      if (!storyJson.error && storyJson.permalink_url) {
+        return storyJson.permalink_url.startsWith("http")
+          ? storyJson.permalink_url
+          : `https://www.facebook.com${storyJson.permalink_url}`;
+      }
+    }
+
+    return thumbnail_url ?? null;
+  } catch (err) {
+    console.warn(`[META] getCreativeLink ${adId} falhou:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
