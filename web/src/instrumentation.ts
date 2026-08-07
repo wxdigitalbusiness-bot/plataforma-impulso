@@ -59,5 +59,31 @@ export async function register() {
     }
   }, tz);
 
-  console.log("[CRON] Jobs registrados: sync-saldos (8h/14h/20h), google-metrics (6h), meta-metrics (6h30) — BRT");
+  // Saúde das conexões WhatsApp (Evolution API): 2× ao dia (9h e 17h BRT).
+  // Pega tanto instância caída (status != "open") quanto instância "zumbi"
+  // (status open mas sem mensagem nova há muito tempo — o que aconteceu com
+  // Sarah Carmo e Fest Pizza em 2026-08, 14 dias sem ninguém perceber).
+  cron.schedule("0 9,17 * * *", async () => {
+    try {
+      const { verificarConexoesEvolution } = await import("@/lib/evolution-health");
+      const { enviarWhatsapp } = await import("@/lib/cron-alert");
+      const problemas = await verificarConexoesEvolution();
+      console.log("[CRON] evolution-health:", problemas);
+      if (problemas.length > 0) {
+        const linhas = problemas.map((p) => {
+          const msgInfo = p.horasSemMensagem === null
+            ? "nunca recebeu mensagem"
+            : `${p.horasSemMensagem}h sem mensagem nova`;
+          return `• ${p.clienteNome} (${p.instancia}): status "${p.status}", ${msgInfo}`;
+        }).join("\n");
+        await enviarWhatsapp(
+          `📵 *WhatsApp possivelmente desconectado*\n\n${linhas}\n\nReconecte via evolution-qr-manager.`,
+        );
+      }
+    } catch (err) {
+      console.error("[CRON] evolution-health erro:", err);
+    }
+  }, tz);
+
+  console.log("[CRON] Jobs registrados: sync-saldos (8h/14h/20h), google-metrics (6h), meta-metrics (6h30), evolution-health (9h/17h) — BRT");
 }
