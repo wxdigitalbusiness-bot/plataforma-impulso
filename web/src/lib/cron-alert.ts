@@ -7,7 +7,7 @@ const ALERT_INSTANCE  = process.env.ALERT_EVOLUTION_INSTANCE ?? "IMPULSO";
 // ponytail: número fixo em vez de config por usuário — só uma agência usa essa plataforma
 const ALERT_WHATSAPP  = process.env.CRON_ALERT_WHATSAPP ?? "5563984386017";
 
-async function enviarWhatsapp(texto: string) {
+export async function enviarWhatsapp(texto: string) {
   if (!EVOLUTION_API_URL) return;
   try {
     const jid = `${ALERT_WHATSAPP}@s.whatsapp.net`;
