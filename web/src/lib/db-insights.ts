@@ -148,6 +148,7 @@ export async function getCrmFunil(
         FROM fb_leads
         WHERE lower(client_key) = lower(${clientKey})
           AND data_criacao::date BETWEEN ${from}::date AND ${to}::date
+          AND NOT eh_colaborador
         GROUP BY COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id)
       )
       SELECT
@@ -216,6 +217,7 @@ export async function getCrmFunilMultiplos(
         FROM fb_leads
         WHERE lower(client_key) = ANY(${lowerKeys})
           AND data_criacao::date BETWEEN ${from}::date AND ${to}::date
+          AND NOT eh_colaborador
         GROUP BY lower(client_key), COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id)
       )
       SELECT
@@ -281,6 +283,7 @@ export async function getCrmFunilDetalhado(
         FROM fb_leads
         WHERE lower(client_key) = lower(${clientKey})
           AND data_criacao::date BETWEEN ${from}::date AND ${to}::date
+          AND NOT eh_colaborador
         GROUP BY COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id)
       )
       SELECT
@@ -327,6 +330,7 @@ export async function getCrmFunilDetalhadoMultiplos(
         FROM fb_leads
         WHERE lower(client_key) = ANY(${lowerKeys})
           AND data_criacao::date BETWEEN ${from}::date AND ${to}::date
+          AND NOT eh_colaborador
         GROUP BY lower(client_key), COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id)
       )
       SELECT
@@ -413,6 +417,7 @@ export async function getCrmLeadsAtribuicaoCompleta(
           AND ad_id IS NOT NULL
           AND trim(ad_id) <> ''
           AND trim(ad_id) <> 'null'
+          AND NOT eh_colaborador
         GROUP BY COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id)
       )
       SELECT
@@ -505,6 +510,7 @@ export async function getCrmLeadsPorCampanha(
         AND trim(lc.ad_id) <> ''
         AND trim(lc.ad_id) <> 'null'
         AND lc.data_criacao::date BETWEEN ${from}::date AND ${to}::date
+        AND NOT lc.eh_colaborador
       GROUP BY
         COALESCE(acm.campaign_id, 'sem_campanha'),
         COALESCE(acm.campaign_name, 'Sem atribuição de campanha')
@@ -942,6 +948,7 @@ export async function getCrmLeadsAtribuicaoGoogle(
         WHERE lower(client_key) = lower(${clientKey})
           AND data_criacao::date BETWEEN ${from}::date AND ${to}::date
           AND (gclid IS NOT NULL OR wbraid IS NOT NULL OR gbraid IS NOT NULL)
+          AND NOT eh_colaborador
         GROUP BY COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id)
       )
       SELECT

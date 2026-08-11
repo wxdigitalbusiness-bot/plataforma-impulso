@@ -58,6 +58,7 @@ export default async function ResultadosPage({ searchParams }: Props) {
           ON hn.lead_id = fl.lead_id
          AND lower(hn.client_key) = lower(${cliente.n8nClientKey})
         WHERE lower(fl.client_key) = lower(${cliente.n8nClientKey})
+          AND NOT fl.eh_colaborador
         GROUP BY fl.lead_id, fl.lead_nome, fl.lead_whatsapp, fl.fase
         HAVING COALESCE(SUM(hn.valor), 0) > 0
         ORDER BY total_negociado DESC
