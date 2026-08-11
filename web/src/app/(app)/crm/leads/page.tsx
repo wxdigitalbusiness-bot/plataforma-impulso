@@ -124,6 +124,7 @@ export default async function CrmLeadsPage({ searchParams }: Props) {
           ORDER BY recebida_em DESC LIMIT 1
         ) m ON TRUE
         WHERE lower(fl.client_key) = lower(${cliente.n8nClientKey})
+          AND NOT fl.eh_colaborador
           AND (NOT ${cliente.crmSomentePago} OR
                fl.ad_id IS NOT NULL OR fl.ctwa_clid IS NOT NULL OR
                fl.gclid IS NOT NULL OR fl.wbraid IS NOT NULL OR fl.gbraid IS NOT NULL)

@@ -40,6 +40,7 @@ export async function GET(
     LEFT JOIN crm_historico_negociacao hn
       ON hn.lead_id = fl.lead_id AND lower(hn.client_key) = lower(${clientKey})
     WHERE lower(fl.client_key) = lower(${clientKey})
+      AND NOT fl.eh_colaborador
     GROUP BY fl.lead_id, fl.lead_nome, fl.lead_whatsapp, fl.fase
     HAVING COALESCE(SUM(hn.valor), 0) > 0
     ORDER BY total_negociado DESC

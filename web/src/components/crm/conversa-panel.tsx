@@ -118,6 +118,9 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
   // Exclusão
   const [excluindo, setExcluindo] = useState(false);
 
+  // Marcar como colaborador
+  const [marcandoColaborador, setMarcandoColaborador] = useState(false);
+
   // Detalhes
   const [detalhes, setDetalhes] = useState<Detalhes>({ observacoes: null, valor_negociacao: null });
   const [salvando, setSalvando] = useState(false);
@@ -315,6 +318,20 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
     } finally { setExcluindo(false); }
   }
 
+  async function marcarComoColaborador() {
+    const nome = lead.lead_nome || lead.lead_whatsapp;
+    if (!confirm(`Marcar "${nome}" como colaborador? Ele some da lista de leads (a conversa continua salva, dá pra reverter direto no banco se precisar).`)) return;
+    setMarcandoColaborador(true);
+    try {
+      await fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}/colaborador`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ colaborador: true }),
+      });
+      onDelete(lead.lead_id);
+    } finally { setMarcandoColaborador(false); }
+  }
+
   async function salvarDetalhes() {
     setSalvando(true);
     try {
@@ -418,6 +435,17 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
           </span>
         </div>
         <div className="ml-3 flex shrink-0 items-center gap-1">
+          <button
+            onClick={marcarComoColaborador}
+            disabled={marcandoColaborador}
+            title="Marcar como colaborador (sai da lista de leads)"
+            className="rounded-lg p-1.5 text-neutral-400 hover:bg-amber-50 hover:text-amber-600 disabled:opacity-40"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
+            </svg>
+          </button>
           <button
             onClick={excluirLead}
             disabled={excluindo}
