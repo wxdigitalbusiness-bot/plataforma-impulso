@@ -1,21 +1,12 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { ClienteSeletor } from "@/components/crm/cliente-seletor";
+import { getResultadosFinanceiros } from "@/lib/db-insights";
 
 export const dynamic = "force-dynamic";
 
 type Props = {
   searchParams: Promise<{ cliente?: string; from?: string; to?: string; origem?: string }>;
-};
-
-type LeadResultado = {
-  lead_id: string;
-  lead_nome: string | null;
-  lead_whatsapp: string | null;
-  fase: string | null;
-  eh_pago: boolean;
-  total_negociado: number;
-  ultima_negociacao: Date | null;
 };
 
 type Origem = "todos" | "pago" | "organico";
@@ -58,41 +49,11 @@ export default async function ResultadosPage({ searchParams }: Props) {
   const to   = isValidIso(sp.to)   ? sp.to   : null;
   const origem: Origem = sp.origem === "pago" || sp.origem === "organico" ? sp.origem : "todos";
 
-  const rows: LeadResultado[] = cliente?.n8nClientKey
-    ? await db.$queryRaw<LeadResultado[]>`
-        SELECT
-          fl.lead_id,
-          fl.lead_nome,
-          fl.lead_whatsapp,
-          fl.fase,
-          (fl.ad_id IS NOT NULL OR fl.ctwa_clid IS NOT NULL OR fl.gclid IS NOT NULL
-             OR fl.wbraid IS NOT NULL OR fl.gbraid IS NOT NULL) AS eh_pago,
-          COALESCE(SUM(hn.valor), 0)::float AS total_negociado,
-          MAX(hn.registrado_em) AS ultima_negociacao
-        FROM fb_leads fl
-        LEFT JOIN crm_historico_negociacao hn
-          ON hn.lead_id = fl.lead_id
-         AND lower(hn.client_key) = lower(${cliente.n8nClientKey})
-         AND (${from}::date IS NULL OR hn.registrado_em::date >= ${from}::date)
-         AND (${to}::date   IS NULL OR hn.registrado_em::date <= ${to}::date)
-        WHERE lower(fl.client_key) = lower(${cliente.n8nClientKey})
-          AND NOT fl.eh_colaborador
-          AND (
-            ${origem} = 'todos'
-            OR (${origem} = 'pago' AND (fl.ad_id IS NOT NULL OR fl.ctwa_clid IS NOT NULL
-                  OR fl.gclid IS NOT NULL OR fl.wbraid IS NOT NULL OR fl.gbraid IS NOT NULL))
-            OR (${origem} = 'organico' AND fl.ad_id IS NULL AND fl.ctwa_clid IS NULL
-                  AND fl.gclid IS NULL AND fl.wbraid IS NULL AND fl.gbraid IS NULL)
-          )
-        GROUP BY fl.lead_id, fl.lead_nome, fl.lead_whatsapp, fl.fase, eh_pago
-        HAVING COALESCE(SUM(hn.valor), 0) > 0
-        ORDER BY total_negociado DESC
-      `
-    : [];
+  const resultados = cliente?.n8nClientKey
+    ? await getResultadosFinanceiros(cliente.n8nClientKey, from, to, origem)
+    : { leads: [], totalGeral: 0, totalPago: 0, totalOrganico: 0 };
 
-  const totalGeral   = rows.reduce((s, r) => s + r.total_negociado, 0);
-  const totalPago     = rows.filter((r) => r.eh_pago).reduce((s, r) => s + r.total_negociado, 0);
-  const totalOrganico = totalGeral - totalPago;
+  const { leads: rows, totalGeral, totalPago, totalOrganico } = resultados;
 
   const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   const fmtDate = (d: Date | null) =>
@@ -209,22 +170,22 @@ export default async function ResultadosPage({ searchParams }: Props) {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.lead_id} className="border-b border-neutral-50 last:border-0 hover:bg-neutral-50">
+                <tr key={r.leadId} className="border-b border-neutral-50 last:border-0 hover:bg-neutral-50">
                   <td className="px-4 py-3 font-medium text-neutral-800">
-                    {r.lead_nome || r.lead_id}
+                    {r.leadNome || r.leadId}
                   </td>
-                  <td className="px-4 py-3 text-neutral-500">{r.lead_whatsapp || "—"}</td>
+                  <td className="px-4 py-3 text-neutral-500">{r.leadWhatsapp || "—"}</td>
                   <td className="px-4 py-3 text-neutral-500">{r.fase || "—"}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                      r.eh_pago ? "bg-blue-100 text-blue-700" : "bg-neutral-100 text-neutral-500"
+                      r.ehPago ? "bg-blue-100 text-blue-700" : "bg-neutral-100 text-neutral-500"
                     }`}>
-                      {r.eh_pago ? "Tráfego pago" : "Orgânico"}
+                      {r.ehPago ? "Tráfego pago" : "Orgânico"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-neutral-500">{fmtDate(r.ultima_negociacao)}</td>
+                  <td className="px-4 py-3 text-neutral-500">{fmtDate(r.ultimaNegociacao)}</td>
                   <td className="px-4 py-3 text-right font-semibold text-emerald-700">
-                    {fmt(r.total_negociado)}
+                    {fmt(r.totalNegociado)}
                   </td>
                 </tr>
               ))}

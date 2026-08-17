@@ -1451,3 +1451,91 @@ export async function getMetaAdsDB(
     return [];
   }
 }
+
+// ─── Resultados financeiros (valores de negociação) ───────────────────────────
+//
+// Compartilhada entre /crm/resultados (interna, com filtros) e o relatório
+// público (período fixo do relatório, sem filtro de origem).
+
+export type LeadResultadoFinanceiro = {
+  leadId: string;
+  leadNome: string | null;
+  leadWhatsapp: string | null;
+  fase: string | null;
+  ehPago: boolean;
+  totalNegociado: number;
+  ultimaNegociacao: Date | null;
+};
+
+export type ResultadosFinanceiros = {
+  leads: LeadResultadoFinanceiro[];
+  totalGeral: number;
+  totalPago: number;
+  totalOrganico: number;
+};
+
+export async function getResultadosFinanceiros(
+  clientKey: string,
+  from: string | null,
+  to: string | null,
+  origem: "todos" | "pago" | "organico" = "todos",
+): Promise<ResultadosFinanceiros> {
+  type Row = {
+    lead_id: string;
+    lead_nome: string | null;
+    lead_whatsapp: string | null;
+    fase: string | null;
+    eh_pago: boolean;
+    total_negociado: number;
+    ultima_negociacao: Date | null;
+  };
+
+  try {
+    const rows = await db.$queryRaw<Row[]>`
+      SELECT
+        fl.lead_id,
+        fl.lead_nome,
+        fl.lead_whatsapp,
+        fl.fase,
+        (fl.ad_id IS NOT NULL OR fl.ctwa_clid IS NOT NULL OR fl.gclid IS NOT NULL
+           OR fl.wbraid IS NOT NULL OR fl.gbraid IS NOT NULL) AS eh_pago,
+        COALESCE(SUM(hn.valor), 0)::float AS total_negociado,
+        MAX(hn.registrado_em) AS ultima_negociacao
+      FROM fb_leads fl
+      LEFT JOIN crm_historico_negociacao hn
+        ON hn.lead_id = fl.lead_id
+       AND lower(hn.client_key) = lower(${clientKey})
+       AND (${from}::date IS NULL OR hn.registrado_em::date >= ${from}::date)
+       AND (${to}::date   IS NULL OR hn.registrado_em::date <= ${to}::date)
+      WHERE lower(fl.client_key) = lower(${clientKey})
+        AND NOT fl.eh_colaborador
+        AND (
+          ${origem} = 'todos'
+          OR (${origem} = 'pago' AND (fl.ad_id IS NOT NULL OR fl.ctwa_clid IS NOT NULL
+                OR fl.gclid IS NOT NULL OR fl.wbraid IS NOT NULL OR fl.gbraid IS NOT NULL))
+          OR (${origem} = 'organico' AND fl.ad_id IS NULL AND fl.ctwa_clid IS NULL
+                AND fl.gclid IS NULL AND fl.wbraid IS NULL AND fl.gbraid IS NULL)
+        )
+      GROUP BY fl.lead_id, fl.lead_nome, fl.lead_whatsapp, fl.fase, eh_pago
+      HAVING COALESCE(SUM(hn.valor), 0) > 0
+      ORDER BY total_negociado DESC
+    `;
+
+    const leads = rows.map((r) => ({
+      leadId: r.lead_id,
+      leadNome: r.lead_nome,
+      leadWhatsapp: r.lead_whatsapp,
+      fase: r.fase,
+      ehPago: r.eh_pago,
+      totalNegociado: r.total_negociado,
+      ultimaNegociacao: r.ultima_negociacao,
+    }));
+    const totalGeral = leads.reduce((s, l) => s + l.totalNegociado, 0);
+    const totalPago  = leads.filter((l) => l.ehPago).reduce((s, l) => s + l.totalNegociado, 0);
+
+    return { leads, totalGeral, totalPago, totalOrganico: totalGeral - totalPago };
+  } catch (err) {
+    console.error("[DB] getResultadosFinanceiros:", err);
+    return { leads: [], totalGeral: 0, totalPago: 0, totalOrganico: 0 };
+  }
+}
