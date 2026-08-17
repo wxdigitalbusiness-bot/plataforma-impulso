@@ -598,6 +598,7 @@ export default async function RelatorioPublicoPage({ params }: Props) {
             token={token}
             resultados={resultadosFinanceiros}
             mostrarInicial={relatorio.mostrarResultados}
+            origemInicial={relatorio.resultadosOrigem as "todos" | "pago" | "organico"}
             ehAgencia={ehAgencia}
           />
         )}

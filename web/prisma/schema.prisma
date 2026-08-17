@@ -101,6 +101,8 @@ model RelatorioPublico {
   // Se o total negociado (Resultados Financeiros) aparece pro cliente. A
   // agência sempre vê a seção; o cliente só vê quando ligado.
   mostrarResultados Boolean   @default(false) @map("mostrar_resultados")
+  // Quais totais aparecem na seção: "todos" | "pago" | "organico"
+  resultadosOrigem  String    @default("todos") @map("resultados_origem")
 
   cliente     Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
