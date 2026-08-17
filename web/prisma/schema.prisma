@@ -98,6 +98,9 @@ model RelatorioPublico {
   // editável manualmente pela agência antes de compartilhar com o cliente.
   analiseIa         String?   @map("analise_ia")
   analiseIaGeradoEm DateTime? @map("analise_ia_gerado_em") @db.Timestamptz()
+  // Se o total negociado (Resultados Financeiros) aparece pro cliente. A
+  // agência sempre vê a seção; o cliente só vê quando ligado.
+  mostrarResultados Boolean   @default(false) @map("mostrar_resultados")
 
   cliente     Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 

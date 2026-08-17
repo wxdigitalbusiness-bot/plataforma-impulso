@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { formatarPeriodoLabel, type TipoRelatorio } from "@/lib/relatorios";
-import { getCrmFunilDetalhado, getCrmLeadsAtribuicaoCompleta, getPanfletagemInsights, getGoogleInsightsRelatorio, getCrmLeadsAtribuicaoGoogle, type GoogleCampanhaRelatorio, type GoogleLeadAtribuicao } from "@/lib/db-insights";
+import { getCrmFunilDetalhado, getCrmLeadsAtribuicaoCompleta, getPanfletagemInsights, getGoogleInsightsRelatorio, getCrmLeadsAtribuicaoGoogle, getResultadosFinanceiros, type GoogleCampanhaRelatorio, type GoogleLeadAtribuicao } from "@/lib/db-insights";
 import { PanfletagemResumo } from "@/components/panfletagem/resumo";
 import { EnviarRelatorioButton } from "./_enviar-relatorio-button";
 import { GoogleLeadsAtribuicao } from "@/components/crm/google-leads-atribuicao";
@@ -21,6 +21,7 @@ import type {
 import { getCreativeLink } from "@/lib/meta-api";
 import { RelatorioHierarquia } from "./_relatorio-hierarquia";
 import { AnaliseIA } from "./_analise-ia";
+import { ResultadosRelatorio } from "./_resultados-relatorio";
 import { LeadsAtribuicao } from "@/components/crm/leads-atribuicao";
 
 export const dynamic = "force-dynamic";
@@ -77,7 +78,7 @@ export default async function RelatorioPublicoPage({ params }: Props) {
   const clientKey     = relatorio.cliente.n8nClientKey;
   const ehPanfletagem = relatorio.cliente.tipoServico === "panfletagem_digital";
 
-  const [crmFunil, leadsAtribuicao, panfletagemData, googleData, googleLeads] = clientKey
+  const [crmFunil, leadsAtribuicao, panfletagemData, googleData, googleLeads, resultadosFinanceiros] = clientKey
     ? await Promise.all([
         getCrmFunilDetalhado(clientKey, from, to),
         getCrmLeadsAtribuicaoCompleta(clientKey, from, to),
@@ -86,8 +87,9 @@ export default async function RelatorioPublicoPage({ params }: Props) {
           : Promise.resolve(null),
         getGoogleInsightsRelatorio(clientKey, from, to),
         getCrmLeadsAtribuicaoGoogle(clientKey, from, to),
+        getResultadosFinanceiros(clientKey, from, to),
       ])
-    : [null, [] as Awaited<ReturnType<typeof getCrmLeadsAtribuicaoCompleta>>, null, null, [] as GoogleLeadAtribuicao[]];
+    : [null, [] as Awaited<ReturnType<typeof getCrmLeadsAtribuicaoCompleta>>, null, null, [] as GoogleLeadAtribuicao[], { leads: [], totalGeral: 0, totalPago: 0, totalOrganico: 0 }];
 
   const totalLeadsCampanha = leadsAtribuicao.reduce((s, l) => s + l.leads, 0);
 
@@ -588,6 +590,16 @@ export default async function RelatorioPublicoPage({ params }: Props) {
               </p>
             )}
           </section>
+        )}
+
+        {/* ── Resultados Financeiros ────────────────────────────────────── */}
+        {clientKey && (
+          <ResultadosRelatorio
+            token={token}
+            resultados={resultadosFinanceiros}
+            mostrarInicial={relatorio.mostrarResultados}
+            ehAgencia={ehAgencia}
+          />
         )}
 
         {/* ── Análise por IA ───────────────────────────────────────────── */}
