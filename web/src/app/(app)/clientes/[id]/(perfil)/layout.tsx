@@ -36,6 +36,7 @@ export default async function PerfilClienteLayout({ children, params }: Props) {
     ...(hasCrm ? [{ href: `${base}/crm`, label: "CRM" }] : []),
     { href: `${base}/relatorios`, label: "Relatórios" },
     ...(hasCrm ? [{ href: `${base}/resultados`, label: "Resultados" }] : []),
+    { href: `${base}/documentos`, label: "Documentos" },
     { href: `${base}/historico`, label: "Histórico" },
   ];
 
