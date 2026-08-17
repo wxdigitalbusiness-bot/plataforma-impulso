@@ -44,6 +44,20 @@ model Cliente {
   // true = kanban exibe somente leads com atribuição de tráfego pago (Meta ou Google)
   crmSomentePago                       Boolean  @default(false) @map("crm_somente_pago")
 
+  // ── Perfil (página estilo Instagram) ────────────────────────────────────────
+  fotoUrl         String?  @map("foto_url")
+  bio             String?
+
+  // Visibilidade de cada aba no portal do cliente — controle manual da agência,
+  // independente de haver dado ou não pra aquela aba.
+  portalMostrarDashboard   Boolean @default(false) @map("portal_mostrar_dashboard")
+  portalMostrarCrm         Boolean @default(false) @map("portal_mostrar_crm")
+  portalMostrarRelatorios  Boolean @default(true)  @map("portal_mostrar_relatorios")
+  portalMostrarResultados  Boolean @default(false) @map("portal_mostrar_resultados")
+  portalMostrarHistorico   Boolean @default(false) @map("portal_mostrar_historico")
+  portalMostrarDocumentos  Boolean @default(false) @map("portal_mostrar_documentos")
+  portalMostrarFaturamento Boolean @default(false) @map("portal_mostrar_faturamento")
+
   contas          ClienteAtivo[]
   relatorios      RelatorioPublico[]
   crmWebhooks     ClienteCrmWebhook[]

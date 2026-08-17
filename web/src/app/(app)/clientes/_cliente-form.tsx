@@ -6,6 +6,7 @@ export type ClienteFormData = {
   id: number;
   nome: string;
   empresa: string | null;
+  bio: string | null;
   whatsappAlerta: string | null;
   tipoServico: string | null;
   n8nClientKey: string | null;
@@ -65,6 +66,22 @@ export function ClienteForm({
         <p className="mt-1 text-xs text-neutral-400">
           Aparece nos relatórios e alertas. Compartilhada por todas as contas
           deste cliente.
+        </p>
+      </label>
+
+      <label className="block">
+        <span className="mb-1 block text-sm font-medium text-neutral-700">
+          Bio (aparece no perfil do cliente)
+        </span>
+        <textarea
+          name="bio"
+          rows={2}
+          defaultValue={cliente?.bio ?? ""}
+          placeholder="Ex.: Clínica de otorrinolaringologia em Goiânia, atendimento particular e convênios."
+          className="w-full resize-y rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+        />
+        <p className="mt-1 text-xs text-neutral-400">
+          Descrição curta do negócio, mostrada no topo da página do cliente e no portal.
         </p>
       </label>
 

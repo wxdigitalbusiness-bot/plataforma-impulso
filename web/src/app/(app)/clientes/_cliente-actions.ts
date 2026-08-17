@@ -12,6 +12,7 @@ const nullable = (v: unknown) =>
 const clienteSchema = z.object({
   nome: z.string().trim().min(1, "Nome obrigatório"),
   empresa: z.preprocess(nullable, z.string().nullable()),
+  bio: z.preprocess(nullable, z.string().nullable()),
   whatsappAlerta: z.preprocess(
     nullable,
     z.string().regex(/^\d{12,13}$/, "WhatsApp com DDI 55 sem espaços").nullable()
@@ -38,6 +39,7 @@ function parseForm(formData: FormData) {
   return clienteSchema.parse({
     nome: formData.get("nome"),
     empresa: formData.get("empresa"),
+    bio: formData.get("bio"),
     whatsappAlerta: formData.get("whatsappAlerta"),
     tipoServico: formData.get("tipoServico"),
     n8nClientKey: formData.get("n8nClientKey"),
@@ -56,6 +58,7 @@ export async function criarCliente(formData: FormData) {
     data: {
       nome: data.nome,
       empresa: data.empresa,
+      bio: data.bio,
       whatsappAlerta: data.whatsappAlerta,
       tipoServico: data.tipoServico,
       n8nClientKey: data.n8nClientKey,
@@ -79,6 +82,7 @@ export async function atualizarCliente(id: number, formData: FormData) {
     data: {
       nome: data.nome,
       empresa: data.empresa,
+      bio: data.bio,
       whatsappAlerta: data.whatsappAlerta,
       tipoServico: data.tipoServico,
       n8nClientKey: data.n8nClientKey,
