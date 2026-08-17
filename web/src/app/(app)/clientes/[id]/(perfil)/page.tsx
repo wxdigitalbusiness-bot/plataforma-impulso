@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { tipoServicoLabel } from "../_servicos";
 
 export const dynamic = "force-dynamic";
 
@@ -35,91 +34,12 @@ export default async function ClienteDetalhePage({ params }: Props) {
 
   return (
     <div className="space-y-8">
-      <header className="flex items-end justify-between">
-        <div>
-          <Link
-            href="/clientes"
-            className="text-xs text-neutral-500 hover:underline"
-          >
-            ← Clientes
-          </Link>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            {cliente.nome}
-          </h1>
-          <p className="text-sm text-neutral-500">
-            {cliente.contas.length}{" "}
-            {cliente.contas.length === 1 ? "conta vinculada" : "contas vinculadas"}
-            {!cliente.ativo && (
-              <span className="ml-2 rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
-                inativo
-              </span>
-            )}
-          </p>
-          <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-neutral-600">
-            {cliente.empresa && (
-              <div>
-                <dt className="inline text-neutral-400">Empresa: </dt>
-                <dd className="inline">{cliente.empresa}</dd>
-              </div>
-            )}
-            {cliente.tipoServico && (
-              <div>
-                <dt className="inline text-neutral-400">Serviço: </dt>
-                <dd className="inline">{tipoServicoLabel(cliente.tipoServico)}</dd>
-              </div>
-            )}
-            {cliente.whatsappAlerta && (
-              <div>
-                <dt className="inline text-neutral-400">WhatsApp alertas: </dt>
-                <dd className="inline">{cliente.whatsappAlerta}</dd>
-              </div>
-            )}
-            {!cliente.empresa && !cliente.whatsappAlerta && !cliente.tipoServico && (
-              <div className="text-neutral-400">
-                <Link
-                  href={`/clientes/${cliente.id}/editar`}
-                  className="underline"
-                >
-                  Adicionar empresa, tipo de serviço e WhatsApp
-                </Link>
-              </div>
-            )}
-          </dl>
-        </div>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-neutral-500">
+          {cliente.contas.length}{" "}
+          {cliente.contas.length === 1 ? "conta vinculada" : "contas vinculadas"}
+        </p>
         <div className="flex items-center gap-2">
-          <Link
-            href={`/clientes/${cliente.id}/editar`}
-            className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-          >
-            Editar cliente
-          </Link>
-          <Link
-            href={`/clientes/${cliente.id}/crm`}
-            className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
-          >
-            CRM
-          </Link>
-          {cliente.tipoServico === "panfletagem_digital" ? (
-            <Link
-              href={`/clientes/${cliente.id}/panfletagem`}
-              className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
-            >
-              Ver Panfletagem
-            </Link>
-          ) : (
-            <Link
-              href={`/clientes/${cliente.id}/performance`}
-              className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
-            >
-              Ver Performance
-            </Link>
-          )}
-          <Link
-            href={`/clientes/${cliente.id}/historico`}
-            className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-          >
-            Histórico
-          </Link>
           <Link
             href={`/clientes/${cliente.id}/portal`}
             className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
@@ -133,7 +53,7 @@ export default async function ClienteDetalhePage({ params }: Props) {
             + Nova conta
           </Link>
         </div>
-      </header>
+      </div>
 
       {/* Tabela Meta Ads */}
       <section>
