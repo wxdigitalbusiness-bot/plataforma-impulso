@@ -18,6 +18,7 @@ type LeadRow = {
   data_criacao: Date;
   primeira_msg_em: Date | null;
   reentradas: number;
+  nova_mensagem: boolean;
   ad_title: string | null;
   ad_body: string | null;
   ad_media_url: string | null;
@@ -65,6 +66,7 @@ export async function GET(
       fl.webhook_origem,
       fl.data_criacao,
       fl.reentradas,
+      fl.nova_mensagem,
       fl.ad_title,
       fl.ad_body,
       fl.ad_media_url,

@@ -621,6 +621,10 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
     fecharPainel();
   }
 
+  function handleNovaMensagemVista(leadId: string) {
+    setLeads((prev) => prev.map((l) => l.lead_id === leadId ? { ...l, nova_mensagem: false } : l));
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <>
@@ -761,9 +765,11 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
                     }`}
                   >
                     <LeadCard
+                      clienteId={clienteId}
                       lead={lead}
                       isSelected={lead.lead_id === selectedId}
                       onClick={() => abrirPainel(lead.lead_id)}
+                      onNovaMensagemVista={handleNovaMensagemVista}
                     />
                   </div>
                 ))}

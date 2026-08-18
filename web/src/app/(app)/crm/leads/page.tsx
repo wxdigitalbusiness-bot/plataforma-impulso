@@ -22,6 +22,7 @@ type LeadRow = {
   data_criacao: Date;
   primeira_msg_em: Date | null;
   reentradas: number;
+  nova_mensagem: boolean;
   ad_title: string | null;
   ad_body: string | null;
   ad_media_url: string | null;
@@ -98,6 +99,7 @@ export default async function CrmLeadsPage({ searchParams }: Props) {
           fl.webhook_origem,
           fl.data_criacao,
           fl.reentradas,
+          fl.nova_mensagem,
           fl.ad_title,
           fl.ad_body,
           fl.ad_media_url,

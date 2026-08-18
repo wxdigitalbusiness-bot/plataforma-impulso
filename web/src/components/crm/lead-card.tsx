@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 export type Lead = {
   lead_id: string;
   lead_nome: string;
@@ -14,6 +16,7 @@ export type Lead = {
   data_criacao: string | null;
   primeira_msg_em: string | null;
   reentradas: number;
+  nova_mensagem: boolean;
   // Detalhes do criativo do anúncio (Meta)
   ad_title: string | null;
   ad_body: string | null;
@@ -31,9 +34,11 @@ export type Lead = {
 };
 
 type Props = {
+  clienteId: number;
   lead: Lead;
   isSelected: boolean;
   onClick: () => void;
+  onNovaMensagemVista: (leadId: string) => void;
 };
 
 function tempoRelativo(isoStr: string | null): string {
@@ -120,45 +125,79 @@ function WebhookBadge({ origem }: { origem: string | null }) {
   );
 }
 
-export function LeadCard({ lead, isSelected, onClick }: Props) {
+export function LeadCard({ clienteId, lead, isSelected, onClick, onNovaMensagemVista }: Props) {
   const preview = previewMsg(lead.ultima_msg_tipo, lead.ultima_msg);
   const tempo = tempoRelativo(lead.ultima_msg_em);
   const dataCriacao = dataRelativa(lead.data_criacao);
+  const [marcandoVista, setMarcandoVista] = useState(false);
+
+  async function marcarVista(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (marcandoVista) return;
+    setMarcandoVista(true);
+    try {
+      await fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}/nova-mensagem`, { method: "PATCH" });
+      onNovaMensagemVista(lead.lead_id);
+    } finally {
+      setMarcandoVista(false);
+    }
+  }
 
   return (
-    <button
-      onClick={onClick}
-      className={`w-full rounded-xl border p-3 text-left transition-all ${
-        isSelected
-          ? "border-violet-300 bg-violet-50 shadow-sm"
-          : "border-neutral-200 bg-white hover:border-neutral-300 hover:shadow-sm"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-neutral-900">
-            {lead.lead_nome || "Sem nome"}
-          </p>
-          <p className="text-[11px] text-neutral-400">{lead.lead_whatsapp}</p>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          {tempo && (
-            <span className="text-[10px] text-neutral-400">{tempo}</span>
-          )}
-          <div className="flex items-center gap-1">
-            <WebhookBadge origem={lead.webhook_origem} />
-            <OrigemBadge lead={lead} />
+    <div className="relative">
+      <button
+        onClick={onClick}
+        className={`w-full rounded-xl border p-3 text-left transition-all ${
+          isSelected
+            ? "border-violet-300 bg-violet-50 shadow-sm"
+            : "border-neutral-200 bg-white hover:border-neutral-300 hover:shadow-sm"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-neutral-900">
+              {lead.lead_nome || "Sem nome"}
+            </p>
+            <p className="text-[11px] text-neutral-400">{lead.lead_whatsapp}</p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            {tempo && (
+              <span className="text-[10px] text-neutral-400">{tempo}</span>
+            )}
+            <div className="flex items-center gap-1">
+              <WebhookBadge origem={lead.webhook_origem} />
+              <OrigemBadge lead={lead} />
+            </div>
           </div>
         </div>
-      </div>
-      {preview && (
-        <p className="mt-1.5 truncate text-[11px] text-neutral-500">{preview}</p>
+        {preview && (
+          <p className="mt-1.5 flex items-center gap-1 truncate text-[11px] text-neutral-500">
+            {lead.nova_mensagem && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-600 ring-1 ring-rose-100">
+                ● Nova msg
+              </span>
+            )}
+            <span className="truncate">{preview}</span>
+          </p>
+        )}
+        {dataCriacao && (
+          <p className={`${preview ? "mt-0.5" : "mt-1.5"} truncate text-[11px] text-neutral-400`}>
+            Entrou em {dataCriacao}
+          </p>
+        )}
+      </button>
+
+      {lead.nova_mensagem && (
+        <button
+          type="button"
+          onClick={marcarVista}
+          disabled={marcandoVista}
+          title="Nova mensagem — clique pra marcar como vista"
+          className="absolute -right-1.5 -top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-white shadow ring-2 ring-white transition-colors hover:bg-rose-600 disabled:opacity-50"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-white" />
+        </button>
       )}
-      {dataCriacao && (
-        <p className={`${preview ? "mt-0.5" : "mt-1.5"} truncate text-[11px] text-neutral-400`}>
-          Entrou em {dataCriacao}
-        </p>
-      )}
-    </button>
+    </div>
   );
 }

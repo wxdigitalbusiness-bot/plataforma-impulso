@@ -175,39 +175,20 @@ export async function upsertCrmLead(input: LeadUpsertInput): Promise<LeadUpsertR
     : 0;
   const inativoHaMaisDe7Dias = lastAt !== null && daysSinceLast > 7;
 
-  // Re-entrada: lead trabalhado volta a contatar OU lead ficou >7 dias inativo
+  // Nova mensagem de lead já trabalhado (ou inativo há mais de 7 dias): não
+  // move mais a etapa pra "Não Classificado" — só sinaliza no card (ícone),
+  // preservando a etapa/progresso. A agência limpa o sinalizador manualmente.
   if (currentLead.length > 0 && naoClassStage && !isNewLead) {
-    const { fase, ad_id: leadAdId, ctwa_clid: leadCtwaClid, source_app: leadSourceApp } = currentLead[0];
-    const isUntouched   = fase === labelNovoLead || fase === naoClassStage.etapa_label;
-    const shouldReenter = !isUntouched || inativoHaMaisDe7Dias;
+    const { fase } = currentLead[0];
+    const isUntouched            = fase === labelNovoLead || fase === naoClassStage.etapa_label;
+    const shouldFlagNovaMensagem = !isUntouched || inativoHaMaisDe7Dias;
 
-    if (shouldReenter) {
-      await db.$executeRaw`
-        INSERT INTO crm_reentradas
-          (lead_id, client_key, fase_anterior, reentrada_em, ad_id, ctwa_clid, source_app)
-        VALUES
-          (${leadId}, ${clientKey}, ${fase}, NOW(), ${leadAdId}, ${leadCtwaClid}, ${leadSourceApp})
-      `;
+    if (shouldFlagNovaMensagem) {
       await db.$executeRaw`
         UPDATE fb_leads
-        SET fase = ${naoClassStage.etapa_label}, reentradas = reentradas + 1
+        SET nova_mensagem = true
         WHERE lead_id = ${leadId}
           AND lower(client_key) = lower(${clientKey})
-      `;
-      // Fecha etapa corrente no histórico e registra a re-entrada
-      await db.$executeRaw`
-        UPDATE crm_historico_etapas
-        SET saiu_em = NOW()
-        WHERE lead_id = ${leadId}
-          AND lower(client_key) = lower(${clientKey})
-          AND saiu_em IS NULL
-      `;
-      await db.$executeRaw`
-        INSERT INTO crm_historico_etapas
-          (lead_id, client_key, etapa, tipo, origem, ad_id, ctwa_clid, fase_anterior, entrou_em)
-        VALUES
-          (${leadId}, ${clientKey}, ${naoClassStage.etapa_label}, 'reentrada',
-           ${origStr}, ${adId}, ${ctwaClid}, ${fase}, NOW())
       `;
     }
   }
