@@ -27,6 +27,13 @@ function fmtDate(d: Date | null) {
   return new Date(d).toLocaleDateString("pt-BR");
 }
 
+// date_from/date_to vêm de uma coluna @db.Date (sem hora) — formata em UTC
+// pra não recuar um dia no fuso local (o valor guardado já é a data pretendida).
+function fmtDateOnly(d: Date | null) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("pt-BR", { timeZone: "UTC" });
+}
+
 export default async function PortalRelatoriosPage() {
   const session = await getPortalSession();
   if (!session) redirect("/portal/login");
@@ -64,7 +71,7 @@ export default async function PortalRelatoriosPage() {
                   </td>
                   <td className="px-4 py-2.5 text-neutral-500 whitespace-nowrap">
                     {r.date_from && r.date_to
-                      ? `${fmtDate(r.date_from)} – ${fmtDate(r.date_to)}`
+                      ? `${fmtDateOnly(r.date_from)} – ${fmtDateOnly(r.date_to)}`
                       : "—"}
                   </td>
                   <td className="px-4 py-2.5 text-neutral-400 whitespace-nowrap">
