@@ -31,6 +31,7 @@ import { LeadsAtribuicao } from "@/components/crm/leads-atribuicao";
 import { GoogleLeadsAtribuicao } from "@/components/crm/google-leads-atribuicao";
 import { GerarRelatorioButton } from "./_gerar-relatorio";
 import { listarMesesRecentes, mesAtualEmCurso } from "@/lib/relatorios";
+import { VisibilidadePortalToggle } from "../_visibilidade-toggle";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -257,6 +258,11 @@ export default async function PerformancePage({ params, searchParams }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <VisibilidadePortalToggle
+              clienteId={clienteId}
+              aba="dashboard"
+              visivelInicial={cliente.portalMostrarDashboard}
+            />
             <DateFilter from={from} to={to} basePath={`/clientes/${clienteId}/performance`} />
             <GerarRelatorioButton
               clienteId={clienteId}

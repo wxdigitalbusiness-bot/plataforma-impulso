@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { GerarRelatorioButton } from "../performance/_gerar-relatorio";
 import { listarMesesRecentes, mesAtualEmCurso } from "@/lib/relatorios";
+import { VisibilidadePortalToggle } from "../_visibilidade-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -28,30 +29,41 @@ export default async function RelatoriosClientePage({ params }: Props) {
   const clienteId = Number(id);
   if (Number.isNaN(clienteId)) notFound();
 
-  const relatorios = await db.relatorioPublico.findMany({
-    where: { clienteId },
-    orderBy: { criadoEm: "desc" },
-    select: {
-      id: true,
-      token: true,
-      tipo: true,
-      dateFrom: true,
-      dateTo: true,
-      criadoEm: true,
-      expiraEm: true,
-      revogado: true,
-    },
-  });
+  const [cliente, relatorios] = await Promise.all([
+    db.cliente.findUnique({ where: { id: clienteId }, select: { portalMostrarRelatorios: true } }),
+    db.relatorioPublico.findMany({
+      where: { clienteId },
+      orderBy: { criadoEm: "desc" },
+      select: {
+        id: true,
+        token: true,
+        tipo: true,
+        dateFrom: true,
+        dateTo: true,
+        criadoEm: true,
+        expiraEm: true,
+        revogado: true,
+      },
+    }),
+  ]);
+  if (!cliente) notFound();
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-neutral-900">Relatórios</h2>
-        <GerarRelatorioButton
-          clienteId={clienteId}
-          meses={listarMesesRecentes(12).filter((m) => m.value !== mesAtualEmCurso())}
-          defaultMesAno={listarMesesRecentes(2).filter((m) => m.value !== mesAtualEmCurso())[0]?.value ?? ""}
-        />
+        <div className="flex items-center gap-3">
+          <VisibilidadePortalToggle
+            clienteId={clienteId}
+            aba="relatorios"
+            visivelInicial={cliente.portalMostrarRelatorios}
+          />
+          <GerarRelatorioButton
+            clienteId={clienteId}
+            meses={listarMesesRecentes(12).filter((m) => m.value !== mesAtualEmCurso())}
+            defaultMesAno={listarMesesRecentes(2).filter((m) => m.value !== mesAtualEmCurso())[0]?.value ?? ""}
+          />
+        </div>
       </div>
 
       {relatorios.length === 0 ? (

@@ -1,8 +1,6 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
+import { getPortalSession } from "@/lib/portal-session";
 import { db } from "@/lib/db";
-import { NovaFatura } from "./_nova-fatura";
-import { FaturaRowActions } from "./_fatura-row-actions";
-import { VisibilidadePortalToggle } from "../_visibilidade-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -10,27 +8,18 @@ function fmtBRL(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-// vencimento é @db.Date (sem hora) — formata em UTC pra não recuar um dia
-// no fuso local (o valor guardado já é a data pretendida, sem componente de hora).
 function fmtDate(d: Date) {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
-type Props = { params: Promise<{ id: string }> };
+export default async function PortalFaturamentoPage() {
+  const session = await getPortalSession();
+  if (!session) redirect("/portal/login");
 
-export default async function FaturamentoClientePage({ params }: Props) {
-  const { id } = await params;
-  const clienteId = Number(id);
-  if (Number.isNaN(clienteId)) notFound();
-
-  const [cliente, faturas] = await Promise.all([
-    db.cliente.findUnique({ where: { id: clienteId }, select: { portalMostrarFaturamento: true } }),
-    db.clienteFatura.findMany({
-      where: { clienteId },
-      orderBy: { vencimento: "desc" },
-    }),
-  ]);
-  if (!cliente) notFound();
+  const faturas = await db.clienteFatura.findMany({
+    where: { clienteId: session.clienteId },
+    orderBy: { vencimento: "desc" },
+  });
 
   const hoje = new Date();
   const linhas = faturas.map((f) => {
@@ -41,37 +30,18 @@ export default async function FaturamentoClientePage({ params }: Props) {
   });
 
   const totalPendente = linhas.filter((f) => f.status !== "pago").reduce((s, f) => s + f.valor, 0);
-  const totalAtrasado = linhas.filter((f) => f.status === "atrasado").reduce((s, f) => s + f.valor, 0);
-  const totalPago = linhas.filter((f) => f.status === "pago").reduce((s, f) => s + f.valor, 0);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div>
         <h2 className="text-lg font-semibold text-neutral-900">Faturamento</h2>
-        <div className="flex items-center gap-3">
-          <VisibilidadePortalToggle
-            clienteId={clienteId}
-            aba="faturamento"
-            visivelInicial={cliente.portalMostrarFaturamento}
-          />
-          <NovaFatura clienteId={clienteId} />
-        </div>
+        <p className="mt-0.5 text-sm text-neutral-500">Cobranças da agência referentes ao seu contrato.</p>
       </div>
 
-      {faturas.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-amber-600">Em aberto</p>
-            <p className="mt-1 text-2xl font-bold text-amber-700">{fmtBRL(totalPendente)}</p>
-          </div>
-          <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-red-600">Atrasado</p>
-            <p className="mt-1 text-2xl font-bold text-red-700">{fmtBRL(totalAtrasado)}</p>
-          </div>
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-emerald-600">Pago</p>
-            <p className="mt-1 text-2xl font-bold text-emerald-700">{fmtBRL(totalPago)}</p>
-          </div>
+      {linhas.length > 0 && totalPendente > 0 && (
+        <div className="rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-amber-600">Total em aberto</p>
+          <p className="mt-1 text-2xl font-bold text-amber-700">{fmtBRL(totalPendente)}</p>
         </div>
       )}
 
@@ -88,7 +58,6 @@ export default async function FaturamentoClientePage({ params }: Props) {
                 <th className="px-4 py-3 font-medium">Vencimento</th>
                 <th className="px-4 py-3 text-right font-medium">Valor</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-50">
@@ -115,9 +84,6 @@ export default async function FaturamentoClientePage({ params }: Props) {
                         pendente
                       </span>
                     )}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <FaturaRowActions faturaId={Number(f.id)} pago={f.pago} />
                   </td>
                 </tr>
               ))}
