@@ -82,6 +82,7 @@ type Props = {
   onClose: () => void;
   onFaseChange: (leadId: string, novaFase: string, faseLabel: string) => void;
   onDelete: (leadId: string) => void;
+  onNovaMensagemVista: (leadId: string) => void;
 };
 
 // Trata string literal "null" (legado do n8n) como ausente
@@ -100,7 +101,7 @@ const COR_OPCOES = [
   "#3b82f6", "#6b7280",
 ];
 
-export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, onDelete }: Props) {
+export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, onDelete, onNovaMensagemVista }: Props) {
   const [aba, setAba] = useState<"conversa" | "detalhes" | "origem" | "historico" | "tarefas">("conversa");
 
   // Conversa
@@ -120,6 +121,9 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
 
   // Marcar como colaborador
   const [marcandoColaborador, setMarcandoColaborador] = useState(false);
+
+  // Marcar nova mensagem como vista
+  const [marcandoMensagemVista, setMarcandoMensagemVista] = useState(false);
 
   // Detalhes
   const [detalhes, setDetalhes] = useState<Detalhes>({ observacoes: null, valor_negociacao: null });
@@ -332,6 +336,17 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
     } finally { setMarcandoColaborador(false); }
   }
 
+  async function marcarMensagemVista() {
+    if (marcandoMensagemVista) return;
+    setMarcandoMensagemVista(true);
+    try {
+      await fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}/nova-mensagem`, { method: "PATCH" });
+      onNovaMensagemVista(lead.lead_id);
+    } finally {
+      setMarcandoMensagemVista(false);
+    }
+  }
+
   async function salvarDetalhes() {
     setSalvando(true);
     try {
@@ -466,6 +481,23 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
           </button>
         </div>
       </div>
+
+      {/* Aviso de nova mensagem desde a última classificação */}
+      {lead.nova_mensagem && (
+        <div className="flex items-center justify-between gap-2 border-b border-rose-100 bg-rose-50 px-4 py-2">
+          <span className="flex items-center gap-1.5 text-xs font-medium text-rose-700">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
+            Nova mensagem desde a última classificação
+          </span>
+          <button
+            onClick={marcarMensagemVista}
+            disabled={marcandoMensagemVista}
+            className="shrink-0 rounded-full bg-rose-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+          >
+            {marcandoMensagemVista ? "..." : "Marcar como lida"}
+          </button>
+        </div>
+      )}
 
       {/* Seletor de fase */}
       <div className="flex gap-1.5 overflow-x-auto border-b border-neutral-100 px-4 py-2">
