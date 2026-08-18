@@ -152,6 +152,9 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
 
   // Histórico de negociação + tarefas
   const [historicoNeg, setHistoricoNeg]         = useState<HistNeg[]>([]);
+  const [editandoHistId, setEditandoHistId]     = useState<number | null>(null);
+  const [editandoHistValor, setEditandoHistValor] = useState("");
+  const [salvandoHist, setSalvandoHist]         = useState(false);
   const [tarefasLead, setTarefasLead]           = useState<TarefaLead[] | null>(null);
   const [novaTarefaTitulo, setNovaTarefaTitulo] = useState("");
   const [criandoTarefa, setCriandoTarefa]       = useState(false);
@@ -344,6 +347,35 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
       onNovaMensagemVista(lead.lead_id);
     } finally {
       setMarcandoMensagemVista(false);
+    }
+  }
+
+  function iniciarEdicaoHistorico(h: HistNeg) {
+    setEditandoHistId(h.id);
+    setEditandoHistValor(String(h.valor).replace(".", ","));
+  }
+
+  function cancelarEdicaoHistorico() {
+    setEditandoHistId(null);
+    setEditandoHistValor("");
+  }
+
+  async function salvarEdicaoHistorico(id: number) {
+    const valor = parseFloat(editandoHistValor.replace(",", "."));
+    if (!valor || valor <= 0) return;
+    setSalvandoHist(true);
+    try {
+      const res = await fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}/historico-negociacao/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ valor }),
+      });
+      if (res.ok) {
+        setHistoricoNeg((prev) => prev.map((h) => h.id === id ? { ...h, valor } : h));
+        cancelarEdicaoHistorico();
+      }
+    } finally {
+      setSalvandoHist(false);
     }
   }
 
@@ -728,16 +760,53 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
               </div>
               <div className="space-y-1 pt-1 border-t border-emerald-100">
                 {historicoNeg.map((h) => (
-                  <div key={h.id} className="flex items-center justify-between text-xs">
+                  <div key={h.id} className="flex items-center justify-between gap-2 text-xs">
                     <span className="text-neutral-500">
                       {new Date(h.registrado_em).toLocaleString("pt-BR", {
                         day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
                         timeZone: "America/Sao_Paulo",
                       })}
                     </span>
-                    <span className="font-semibold text-neutral-800">
-                      {h.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                    </span>
+                    {editandoHistId === h.id ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          autoFocus
+                          value={editandoHistValor}
+                          onChange={(e) => setEditandoHistValor(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") salvarEdicaoHistorico(h.id);
+                            if (e.key === "Escape") cancelarEdicaoHistorico();
+                          }}
+                          inputMode="decimal"
+                          className="w-20 rounded-md border border-emerald-300 bg-white px-1.5 py-0.5 text-right text-xs outline-none focus:border-emerald-500"
+                        />
+                        <button
+                          onClick={() => salvarEdicaoHistorico(h.id)}
+                          disabled={salvandoHist}
+                          className="rounded-md bg-emerald-600 px-1.5 py-0.5 text-[10px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={cancelarEdicaoHistorico}
+                          className="rounded-md px-1.5 py-0.5 text-[10px] text-neutral-500 hover:bg-neutral-100"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => iniciarEdicaoHistorico(h)}
+                        title="Corrigir valor"
+                        className="group flex items-center gap-1 font-semibold text-neutral-800 hover:text-emerald-700"
+                      >
+                        {h.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                        <svg className="h-3 w-3 text-neutral-300 group-hover:text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
