@@ -43,3 +43,29 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true });
 }
+
+// DELETE — remove um lançamento do histórico de negociação (ex.: registrado por engano)
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<Params> }
+) {
+  const { clienteId, leadId, historicoId } = await params;
+  const clientKey = await resolveClientKey(clienteId);
+  if (!clientKey) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 });
+
+  const id = parseInt(historicoId, 10);
+  if (isNaN(id)) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+
+  const result = await db.$executeRaw`
+    DELETE FROM crm_historico_negociacao
+    WHERE id = ${id}
+      AND lead_id = ${leadId}
+      AND lower(client_key) = lower(${clientKey})
+  `;
+
+  if (result === 0) {
+    return NextResponse.json({ error: "Registro não encontrado" }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true });
+}
