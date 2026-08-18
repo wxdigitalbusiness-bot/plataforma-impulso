@@ -155,6 +155,7 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
   const [editandoHistId, setEditandoHistId]     = useState<number | null>(null);
   const [editandoHistValor, setEditandoHistValor] = useState("");
   const [salvandoHist, setSalvandoHist]         = useState(false);
+  const [apagandoHistId, setApagandoHistId]     = useState<number | null>(null);
   const [tarefasLead, setTarefasLead]           = useState<TarefaLead[] | null>(null);
   const [novaTarefaTitulo, setNovaTarefaTitulo] = useState("");
   const [criandoTarefa, setCriandoTarefa]       = useState(false);
@@ -376,6 +377,23 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
       }
     } finally {
       setSalvandoHist(false);
+    }
+  }
+
+  async function apagarValorNegociacao(h: HistNeg) {
+    const valorFmt = h.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    if (!confirm(`Apagar o lançamento de ${valorFmt}? Essa ação não pode ser desfeita.`)) return;
+    setApagandoHistId(h.id);
+    try {
+      const res = await fetch(`/api/crm/${clienteId}/leads/${lead.lead_id}/historico-negociacao/${h.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setHistoricoNeg((prev) => prev.filter((x) => x.id !== h.id));
+        if (editandoHistId === h.id) cancelarEdicaoHistorico();
+      }
+    } finally {
+      setApagandoHistId(null);
     }
   }
 
@@ -795,17 +813,29 @@ export function ConversaPanel({ clienteId, lead, etapas, onClose, onFaseChange, 
                         </button>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => iniciarEdicaoHistorico(h)}
-                        title="Corrigir valor"
-                        className="group flex items-center gap-1 font-semibold text-neutral-800 hover:text-emerald-700"
-                      >
-                        {h.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                        <svg className="h-3 w-3 text-neutral-300 group-hover:text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => iniciarEdicaoHistorico(h)}
+                          title="Corrigir valor"
+                          className="group flex items-center gap-1 font-semibold text-neutral-800 hover:text-emerald-700"
+                        >
+                          {h.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                          <svg className="h-3 w-3 text-neutral-300 group-hover:text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => apagarValorNegociacao(h)}
+                          disabled={apagandoHistId === h.id}
+                          title="Apagar lançamento"
+                          className="text-neutral-300 hover:text-red-500 disabled:opacity-50"
+                        >
+                          <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}
