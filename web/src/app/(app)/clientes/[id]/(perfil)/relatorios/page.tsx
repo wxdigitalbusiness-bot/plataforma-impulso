@@ -15,6 +15,12 @@ function fmtDate(d: Date) {
   return d.toLocaleDateString("pt-BR");
 }
 
+// dateFrom/dateTo são @db.Date (sem hora) — formata em UTC pra não recuar um
+// dia no fuso local (o valor guardado já é a data pretendida).
+function fmtDateOnly(d: Date) {
+  return d.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+}
+
 type Props = { params: Promise<{ id: string }> };
 
 export default async function RelatoriosClientePage({ params }: Props) {
@@ -73,7 +79,7 @@ export default async function RelatoriosClientePage({ params }: Props) {
                       {TIPO_LABEL[r.tipo] ?? r.tipo}
                     </td>
                     <td className="px-4 py-2.5 whitespace-nowrap text-neutral-500">
-                      {fmtDate(r.dateFrom)} – {fmtDate(r.dateTo)}
+                      {fmtDateOnly(r.dateFrom)} – {fmtDateOnly(r.dateTo)}
                     </td>
                     <td className="px-4 py-2.5 whitespace-nowrap text-neutral-400">
                       {fmtDate(r.criadoEm)}
