@@ -1,8 +1,6 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
+import { getPortalSession } from "@/lib/portal-session";
 import { db } from "@/lib/db";
-import { UploadDocumento } from "./_upload-documento";
-import { ExcluirDocumento } from "./_excluir-documento";
-import { VisibilidadePortalToggle } from "../_visibilidade-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -16,39 +14,25 @@ function fmtDate(d: Date) {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-type Props = { params: Promise<{ id: string }> };
+export default async function PortalDocumentosPage() {
+  const session = await getPortalSession();
+  if (!session) redirect("/portal/login");
 
-export default async function DocumentosClientePage({ params }: Props) {
-  const { id } = await params;
-  const clienteId = Number(id);
-  if (Number.isNaN(clienteId)) notFound();
-
-  const [cliente, documentos] = await Promise.all([
-    db.cliente.findUnique({ where: { id: clienteId }, select: { portalMostrarDocumentos: true } }),
-    db.clienteDocumento.findMany({
-      where: { clienteId },
-      orderBy: { criadoEm: "desc" },
-    }),
-  ]);
-  if (!cliente) notFound();
+  const documentos = await db.clienteDocumento.findMany({
+    where: { clienteId: session.clienteId },
+    orderBy: { criadoEm: "desc" },
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div>
         <h2 className="text-lg font-semibold text-neutral-900">Documentos</h2>
-        <div className="flex items-center gap-3">
-          <VisibilidadePortalToggle
-            clienteId={clienteId}
-            aba="documentos"
-            visivelInicial={cliente.portalMostrarDocumentos}
-          />
-          <UploadDocumento clienteId={clienteId} />
-        </div>
+        <p className="mt-0.5 text-sm text-neutral-500">Arquivos compartilhados pela agência.</p>
       </div>
 
       {documentos.length === 0 ? (
         <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-400">
-          Nenhum documento enviado ainda.
+          Nenhum documento disponível ainda.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
@@ -57,9 +41,7 @@ export default async function DocumentosClientePage({ params }: Props) {
               <tr>
                 <th className="px-4 py-3 font-medium">Nome</th>
                 <th className="px-4 py-3 font-medium">Tamanho</th>
-                <th className="px-4 py-3 font-medium">Enviado por</th>
                 <th className="px-4 py-3 font-medium">Data</th>
-                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-50">
@@ -76,12 +58,8 @@ export default async function DocumentosClientePage({ params }: Props) {
                     </a>
                   </td>
                   <td className="px-4 py-2.5 text-neutral-500">{formatBytes(doc.tamanho)}</td>
-                  <td className="px-4 py-2.5 text-neutral-500">{doc.enviadoPor ?? "—"}</td>
                   <td className="px-4 py-2.5 whitespace-nowrap text-neutral-400">
                     {fmtDate(doc.criadoEm)}
-                  </td>
-                  <td className="px-4 py-2.5 text-right">
-                    <ExcluirDocumento documentoId={Number(doc.id)} />
                   </td>
                 </tr>
               ))}

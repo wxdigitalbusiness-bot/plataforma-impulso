@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { KanbanBoard } from "@/components/crm/kanban-board";
+import { VisibilidadePortalToggle } from "../(perfil)/_visibilidade-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,7 @@ export default async function CrmPage({ params }: Props) {
       n8nClientKey: true,
       evolutionInstance: true,
       crmSomentePago: true,
+      portalMostrarCrm: true,
       crmWebhooks: {
         select: { etapa: true, etapaLabel: true, ehExtra: true },
         orderBy: { posicao: "asc" },
@@ -145,12 +147,19 @@ export default async function CrmPage({ params }: Props) {
             {leads.length} {leads.length === 1 ? "lead" : "leads"} no funil
           </p>
         </div>
-        <Link
-          href={`/clientes/${clienteId}/editar`}
-          className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
-        >
-          Configurar CRM
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <VisibilidadePortalToggle
+            clienteId={clienteId}
+            aba="crm"
+            visivelInicial={cliente.portalMostrarCrm}
+          />
+          <Link
+            href={`/clientes/${clienteId}/editar`}
+            className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+          >
+            Configurar CRM
+          </Link>
+        </div>
       </header>
 
       {/* Avisos + Kanban */}

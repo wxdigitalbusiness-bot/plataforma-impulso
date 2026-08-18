@@ -12,6 +12,7 @@ import {
 import { PanfletagemResumo } from "@/components/panfletagem/resumo";
 import { GerarRelatorioButton } from "../performance/_gerar-relatorio";
 import { listarMesesRecentes, mesAtualEmCurso } from "@/lib/relatorios";
+import { VisibilidadePortalToggle } from "../_visibilidade-toggle";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -48,6 +49,7 @@ export default async function PanfletagemPage({ params, searchParams }: Props) {
       empresa: true,
       tipoServico: true,
       n8nClientKey: true,
+      portalMostrarDashboard: true,
     },
   });
   if (!cliente) notFound();
@@ -85,6 +87,11 @@ export default async function PanfletagemPage({ params, searchParams }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <VisibilidadePortalToggle
+              clienteId={clienteId}
+              aba="dashboard"
+              visivelInicial={cliente.portalMostrarDashboard}
+            />
             <DateFilter from={from} to={to} basePath={`/clientes/${clienteId}/panfletagem`} />
             <GerarRelatorioButton
               clienteId={clienteId}

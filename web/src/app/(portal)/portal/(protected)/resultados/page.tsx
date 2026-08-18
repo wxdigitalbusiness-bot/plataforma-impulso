@@ -1,7 +1,6 @@
-import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
+import { redirect } from "next/navigation";
+import { getPortalSession } from "@/lib/portal-session";
 import { getResultadosFinanceiros } from "@/lib/db-insights";
-import { VisibilidadePortalToggle } from "../_visibilidade-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -11,29 +10,19 @@ function isValidIso(s: string | undefined): s is string {
   return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
-type Props = {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string; to?: string; origem?: string }>;
-};
+type Props = { searchParams: Promise<{ from?: string; to?: string; origem?: string }> };
 
-export default async function ResultadosClientePage({ params, searchParams }: Props) {
-  const { id } = await params;
-  const clienteId = Number(id);
-  if (Number.isNaN(clienteId)) notFound();
+export default async function PortalResultadosPage({ searchParams }: Props) {
+  const session = await getPortalSession();
+  if (!session) redirect("/portal/login");
 
   const sp = await searchParams;
-  const cliente = await db.cliente.findUnique({
-    where: { id: clienteId },
-    select: { n8nClientKey: true, portalMostrarResultados: true },
-  });
-  if (!cliente) notFound();
-
   const from = isValidIso(sp.from) ? sp.from : null;
   const to   = isValidIso(sp.to)   ? sp.to   : null;
   const origem: Origem = sp.origem === "pago" || sp.origem === "organico" ? sp.origem : "todos";
 
-  const resultados = cliente.n8nClientKey
-    ? await getResultadosFinanceiros(cliente.n8nClientKey, from, to, origem)
+  const resultados = session.clientKey
+    ? await getResultadosFinanceiros(session.clientKey, from, to, origem)
     : { leads: [], totalGeral: 0, totalPago: 0, totalOrganico: 0 };
 
   const { leads: rows, totalGeral, totalPago, totalOrganico } = resultados;
@@ -42,34 +31,18 @@ export default async function ResultadosClientePage({ params, searchParams }: Pr
   const fmtDate = (d: Date | null) =>
     d ? d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
-  const basePath = `/clientes/${clienteId}/resultados`;
   const filtroAtivo = from !== null || to !== null || origem !== "todos";
-
-  if (!cliente.n8nClientKey) {
-    return (
-      <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-400">
-        Este cliente não tem chave n8n configurada — sem dados de CRM pra calcular resultados.
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-neutral-900">Resultados</h2>
-          <p className="mt-0.5 text-sm text-neutral-500">
-            Total negociado por lead — apenas leads com valor registrado.
-          </p>
-        </div>
-        <VisibilidadePortalToggle
-          clienteId={clienteId}
-          aba="resultados"
-          visivelInicial={cliente.portalMostrarResultados}
-        />
+      <div>
+        <h2 className="text-lg font-semibold text-neutral-900">Resultados</h2>
+        <p className="mt-0.5 text-sm text-neutral-500">
+          Total negociado por lead — apenas leads com valor registrado.
+        </p>
       </div>
 
-      <form action={basePath} method="GET" className="flex flex-wrap items-end gap-2">
+      <form action="/portal/resultados" method="GET" className="flex flex-wrap items-end gap-2">
         <div>
           <label className="mb-1 block text-[11px] text-neutral-400">De</label>
           <input
@@ -110,7 +83,7 @@ export default async function ResultadosClientePage({ params, searchParams }: Pr
 
         {filtroAtivo && (
           <a
-            href={basePath}
+            href="/portal/resultados"
             className="mb-1.5 text-xs text-neutral-400 underline hover:text-neutral-700"
           >
             Limpar filtros
@@ -149,9 +122,7 @@ export default async function ResultadosClientePage({ params, searchParams }: Pr
             <thead>
               <tr className="border-b border-neutral-100 text-left text-xs font-semibold uppercase tracking-wide text-neutral-400">
                 <th className="px-4 py-3">Lead</th>
-                <th className="px-4 py-3">WhatsApp</th>
                 <th className="px-4 py-3">Etapa</th>
-                <th className="px-4 py-3">Origem</th>
                 <th className="px-4 py-3">Última negociação</th>
                 <th className="px-4 py-3 text-right">Total</th>
               </tr>
@@ -162,15 +133,7 @@ export default async function ResultadosClientePage({ params, searchParams }: Pr
                   <td className="px-4 py-3 font-medium text-neutral-800">
                     {r.leadNome || r.leadId}
                   </td>
-                  <td className="px-4 py-3 text-neutral-500">{r.leadWhatsapp || "—"}</td>
                   <td className="px-4 py-3 text-neutral-500">{r.fase || "—"}</td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                      r.ehPago ? "bg-blue-100 text-blue-700" : "bg-neutral-100 text-neutral-500"
-                    }`}>
-                      {r.ehPago ? "Tráfego pago" : "Orgânico"}
-                    </span>
-                  </td>
                   <td className="px-4 py-3 text-neutral-500">{fmtDate(r.ultimaNegociacao)}</td>
                   <td className="px-4 py-3 text-right font-semibold text-emerald-700">
                     {fmt(r.totalNegociado)}
