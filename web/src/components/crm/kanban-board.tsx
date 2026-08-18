@@ -765,11 +765,9 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
                     }`}
                   >
                     <LeadCard
-                      clienteId={clienteId}
                       lead={lead}
                       isSelected={lead.lead_id === selectedId}
                       onClick={() => abrirPainel(lead.lead_id)}
-                      onNovaMensagemVista={handleNovaMensagemVista}
                     />
                   </div>
                 ))}
@@ -797,6 +795,7 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
             onClose={fecharPainel}
             onFaseChange={handleFaseChange}
             onDelete={handleDelete}
+            onNovaMensagemVista={handleNovaMensagemVista}
           />
         </>
       )}
