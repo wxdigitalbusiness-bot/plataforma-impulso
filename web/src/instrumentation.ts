@@ -64,9 +64,10 @@ export async function register() {
   // (status open mas sem mensagem nova há muito tempo — o que aconteceu com
   // Sarah Carmo e Fest Pizza em 2026-08, 14 dias sem ninguém perceber).
   cron.schedule("0 9,17 * * *", async () => {
+    const { enviarWhatsapp } = await import("@/lib/cron-alert");
+
     try {
       const { verificarConexoesEvolution } = await import("@/lib/evolution-health");
-      const { enviarWhatsapp } = await import("@/lib/cron-alert");
       const problemas = await verificarConexoesEvolution();
       console.log("[CRON] evolution-health:", problemas);
       if (problemas.length > 0) {
@@ -82,6 +83,20 @@ export async function register() {
       }
     } catch (err) {
       console.error("[CRON] evolution-health erro:", err);
+    }
+
+    try {
+      const { verificarTokenMeta, precisaAvisar } = await import("@/lib/meta-token-health");
+      const status = await verificarTokenMeta();
+      console.log("[CRON] meta-token-health:", status);
+      if (precisaAvisar(status)) {
+        const texto = !status.valido
+          ? `🔑 *META_ACCESS_TOKEN inválido*\n\n${status.erro}\n\nGere um novo em Business Settings → Usuários do sistema → Gerar novo token.`
+          : `🔑 *Token do Meta Ads vence em ${status.diasRestantes} dia(s)* (${status.expiraEm?.toLocaleDateString("pt-BR")})\n\nGere um novo antes que expire: Business Settings → Usuários do sistema → Gerar novo token.`;
+        await enviarWhatsapp(texto);
+      }
+    } catch (err) {
+      console.error("[CRON] meta-token-health erro:", err);
     }
   }, tz);
 
