@@ -3,9 +3,10 @@
 
 import { EVOLUTION_API_URL, evoHeaders } from "@/lib/whatsapp-sessions";
 
-const ALERT_INSTANCE  = process.env.ALERT_EVOLUTION_INSTANCE ?? "IMPULSO";
+const ALERT_INSTANCE  = process.env.ALERT_EVOLUTION_INSTANCE ?? "Impulso";
 // ponytail: número fixo em vez de config por usuário — só uma agência usa essa plataforma
-const ALERT_WHATSAPP  = process.env.CRON_ALERT_WHATSAPP ?? "5563984386017";
+// Formato sem o "9" extra — jid real desse DDD na Evolution é 556384386017, não 5563984386017
+const ALERT_WHATSAPP  = process.env.CRON_ALERT_WHATSAPP ?? "556384386017";
 
 export async function enviarWhatsapp(texto: string) {
   if (!EVOLUTION_API_URL) return;

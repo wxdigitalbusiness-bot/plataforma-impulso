@@ -6,9 +6,10 @@ import { db } from "@/lib/db";
 import { consultarSaldoMeta } from "@/lib/meta-api";
 import { consultarSaldoGoogle } from "@/lib/google-ads-api";
 import { EVOLUTION_API_URL, evoHeaders } from "@/lib/whatsapp-sessions";
+import { enviarWhatsapp as enviarAlertaAgencia } from "@/lib/cron-alert";
 
 // Instância Evolution usada para enviar alertas de saldo (número da agência)
-const ALERT_INSTANCE = process.env.ALERT_EVOLUTION_INSTANCE ?? "IMPULSO";
+const ALERT_INSTANCE = process.env.ALERT_EVOLUTION_INSTANCE ?? "Impulso";
 
 // ─── Envio de alerta via WhatsApp ────────────────────────────────────────────
 
@@ -67,6 +68,12 @@ async function enviarAlerta(opts: {
     INSERT INTO alertas_saldo_log (cliente_id, saldo_no_momento, limite_no_momento, whatsapp_destino, status, erro)
     VALUES (${contaId}, ${saldo}, ${limite}, ${whatsapp}, ${status}, ${erro})
   `;
+
+  // Cópia do alerta pro número da agência, pra ter visibilidade de saldo baixo
+  // sem depender de checar o dashboard.
+  enviarAlertaAgencia(
+    `${texto}\n\n_(cópia do alerta enviado ao cliente${status === "falhou" ? " — obs: falhou ao entregar pro cliente" : ""})_`,
+  ).catch(() => {});
 }
 
 export type SyncResult = {
