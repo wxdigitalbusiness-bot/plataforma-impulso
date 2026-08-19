@@ -1,9 +1,9 @@
-// Consulta saldo de contas Google Ads via API REST v20
+// Consulta saldo de contas Google Ads via API REST
 // MCC (Manager Account) → sub-conta de cada cliente
 // Saldo real vem de AccountBudget: adjusted_spending_limit - amount_served × 1.10
 // (adjusted = approved + créditos promocionais; ×1.10 = tributos BR: ISS 5% + PIS/COFINS ~4%)
 
-const GADS_VERSION = "v21";
+const GADS_VERSION = "v24";
 const GADS_BASE = `https://googleads.googleapis.com/${GADS_VERSION}`;
 
 export type GoogleAdsResult = {
