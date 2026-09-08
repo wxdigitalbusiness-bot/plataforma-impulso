@@ -14,6 +14,9 @@ export function GerarRelatorioButton({ clienteId, meses, defaultMesAno }: Props)
   const [open, setOpen] = useState(false);
   const [tipo, setTipo] = useState<TipoRelatorio>("semanal");
   const [mesAno, setMesAno] = useState(defaultMesAno);
+  const hoje = new Date().toISOString().slice(0, 10);
+  const [customFrom, setCustomFrom] = useState(hoje);
+  const [customTo, setCustomTo] = useState(hoje);
   const [linkGerado, setLinkGerado] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -45,6 +48,8 @@ export function GerarRelatorioButton({ clienteId, meses, defaultMesAno }: Props)
         clienteId,
         tipo,
         mesAno: tipo === "mensal" ? mesAno : undefined,
+        from: tipo === "personalizado" ? customFrom : undefined,
+        to: tipo === "personalizado" ? customTo : undefined,
       });
       if (!res.ok) {
         setErro(res.erro);
@@ -104,7 +109,7 @@ export function GerarRelatorioButton({ clienteId, meses, defaultMesAno }: Props)
             <fieldset className="mt-5">
               <legend className="mb-2 text-xs font-medium text-neutral-700">Período</legend>
               <div className="grid grid-cols-3 gap-2">
-                {(["semanal", "quinzenal", "mensal"] as TipoRelatorio[]).map((opt) => (
+                {(["semanal", "quinzenal", "mensal", "personalizado", "total"] as TipoRelatorio[]).map((opt) => (
                   <button
                     key={opt}
                     type="button"
@@ -115,16 +120,44 @@ export function GerarRelatorioButton({ clienteId, meses, defaultMesAno }: Props)
                         : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
                     }`}
                   >
-                    {opt}
+                    {opt === "personalizado" ? "Por data" : opt === "total" ? "Todo período" : opt}
                   </button>
                 ))}
               </div>
               <p className="mt-2 text-[11px] text-neutral-400">
-                {tipo === "semanal"   && "Últimos 7 dias (terminando ontem)."}
-                {tipo === "quinzenal" && "Últimos 15 dias (terminando ontem)."}
-                {tipo === "mensal"    && "Mês calendário completo (do dia 1 ao último dia do mês)."}
+                {tipo === "semanal"       && "Últimos 7 dias (terminando ontem)."}
+                {tipo === "quinzenal"     && "Últimos 15 dias (terminando ontem)."}
+                {tipo === "mensal"        && "Mês calendário completo (do dia 1 ao último dia do mês)."}
+                {tipo === "personalizado" && "Escolha a data inicial e final do relatório."}
+                {tipo === "total"         && "Desde o início do cliente na agência até ontem."}
               </p>
             </fieldset>
+
+            {tipo === "personalizado" && (
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-neutral-700">De</label>
+                  <input
+                    type="date"
+                    value={customFrom}
+                    max={customTo}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-neutral-700">Até</label>
+                  <input
+                    type="date"
+                    value={customTo}
+                    min={customFrom}
+                    max={hoje}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
 
             {tipo === "mensal" && (
               <div className="mt-4">

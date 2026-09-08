@@ -6,21 +6,28 @@ import { auth } from "@/lib/auth";
 import { calcularPeriodo, gerarToken, type TipoRelatorio } from "@/lib/relatorios";
 import { gerarSnapshotMeta } from "@/lib/meta-snapshot";
 
+const dataIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
 const schema = z.object({
   clienteId: z.coerce.number().int().positive(),
-  tipo: z.enum(["semanal", "quinzenal", "mensal"]),
+  tipo: z.enum(["semanal", "quinzenal", "mensal", "personalizado", "total"]),
   mesAno: z.string().regex(/^\d{4}-\d{2}$/).optional(),
-});
+  from: dataIso.optional(),
+  to: dataIso.optional(),
+}).refine(
+  (v) => v.tipo !== "personalizado" || (v.from && v.to && v.from <= v.to),
+  { message: "Selecione um período válido (data inicial até a final)." },
+);
 
 export type CriarRelatorioResult =
   | { ok: true; token: string; tipo: TipoRelatorio; from: string; to: string }
   | { ok: false; erro: string };
 
 export async function criarRelatorioPublico(
-  input: { clienteId: number; tipo: TipoRelatorio; mesAno?: string },
+  input: { clienteId: number; tipo: TipoRelatorio; mesAno?: string; from?: string; to?: string },
 ): Promise<CriarRelatorioResult> {
   const parsed = schema.safeParse(input);
-  if (!parsed.success) return { ok: false, erro: "Parâmetros inválidos." };
+  if (!parsed.success) return { ok: false, erro: parsed.error.issues[0]?.message ?? "Parâmetros inválidos." };
 
   const session = await auth();
   if (!session?.user?.email) return { ok: false, erro: "Não autenticado." };
@@ -36,7 +43,12 @@ export async function criarRelatorioPublico(
   });
   if (!cliente) return { ok: false, erro: "Cliente não encontrado." };
 
-  const periodo = calcularPeriodo(parsed.data.tipo, parsed.data.mesAno);
+  const periodo = calcularPeriodo(parsed.data.tipo, {
+    mesAno: parsed.data.mesAno,
+    from: parsed.data.from,
+    to: parsed.data.to,
+    clienteDesde: cliente.criadoEm.toISOString().slice(0, 10),
+  });
   const token   = gerarToken();
 
   // Fetch ao vivo da Meta — usa as contas Meta vinculadas ao cliente.
