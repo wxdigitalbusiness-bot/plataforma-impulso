@@ -7,7 +7,7 @@
 
 import { randomBytes } from "node:crypto";
 
-export type TipoRelatorio = "semanal" | "quinzenal" | "mensal";
+export type TipoRelatorio = "semanal" | "quinzenal" | "mensal" | "personalizado" | "total";
 
 export type PeriodoRelatorio = {
   from: string; // YYYY-MM-DD
@@ -106,10 +106,29 @@ export function periodoMensal(mesAno?: string): PeriodoRelatorio {
   };
 }
 
-export function calcularPeriodo(tipo: TipoRelatorio, mesAno?: string): PeriodoRelatorio {
-  if (tipo === "semanal")   return periodoSemanal();
-  if (tipo === "quinzenal") return periodoQuinzenal();
-  return periodoMensal(mesAno);
+// ─── Período: personalizado (intervalo de datas escolhido) ───────────────────
+
+export function periodoPersonalizado(from: string, to: string): PeriodoRelatorio {
+  return { from, to, label: `${fmtDateBR(from)} a ${fmtDateBR(to)}` };
+}
+
+// ─── Período: total (desde o início do cliente na agência até ontem) ─────────
+
+export function periodoTotal(desde: string): PeriodoRelatorio {
+  const to = fmtISO(ontemBRT());
+  const from = desde < to ? desde : to;
+  return { from, to, label: `Todo o período — desde ${fmtDateBR(from)}` };
+}
+
+export function calcularPeriodo(
+  tipo: TipoRelatorio,
+  opts?: { mesAno?: string; from?: string; to?: string; clienteDesde?: string },
+): PeriodoRelatorio {
+  if (tipo === "semanal")       return periodoSemanal();
+  if (tipo === "quinzenal")     return periodoQuinzenal();
+  if (tipo === "personalizado") return periodoPersonalizado(opts!.from!, opts!.to!);
+  if (tipo === "total")         return periodoTotal(opts!.clienteDesde!);
+  return periodoMensal(opts?.mesAno);
 }
 
 // ─── Geração de token ─────────────────────────────────────────────────────────
@@ -126,6 +145,8 @@ export function formatarPeriodoLabel(tipo: TipoRelatorio, from: string, to: stri
     const [y, m] = from.split("-").map(Number);
     return `Mensal — ${fmtMesAnoBR(y, m - 1)}`;
   }
+  if (tipo === "personalizado") return `${fmtDateBR(from)} a ${fmtDateBR(to)}`;
+  if (tipo === "total")         return `Todo o período — desde ${fmtDateBR(from)}`;
   const titulo = tipo === "semanal" ? "Semanal" : "Quinzenal";
   return `${titulo} — ${fmtDateBR(from)} a ${fmtDateBR(to)}`;
 }

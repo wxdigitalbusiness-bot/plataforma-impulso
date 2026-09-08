@@ -46,6 +46,12 @@ function construirSaudacaoWhatsApp(tipo: TipoRelatorio, from: string, to: string
     return `Olá! 📊 Esse é o seu relatório de performance referente a *${meses[m - 1]} de ${y}*.`;
   }
   const fmt = (iso: string) => { const [, m, d] = iso.split("-"); return `${d}/${m}`; };
+  if (tipo === "total") {
+    return `Olá! 📊 Esse é o seu relatório de performance de *todo o período* (desde ${fmt(from)} até ${fmt(to)}).`;
+  }
+  if (tipo === "personalizado") {
+    return `Olá! 📊 Esse é o seu relatório de performance do período de *${fmt(from)} a ${fmt(to)}*.`;
+  }
   const periodo = tipo === "semanal" ? "última semana" : "últimos 15 dias";
   return `Olá! 📊 Esse é o seu relatório de performance da *${periodo}* (${fmt(from)} a ${fmt(to)}).`;
 }

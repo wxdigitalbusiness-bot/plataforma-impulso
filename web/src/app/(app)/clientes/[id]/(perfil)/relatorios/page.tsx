@@ -10,6 +10,8 @@ const TIPO_LABEL: Record<string, string> = {
   semanal: "Semanal",
   quinzenal: "Quinzenal",
   mensal: "Mensal",
+  personalizado: "Por data",
+  total: "Todo período",
 };
 
 function fmtDate(d: Date) {
