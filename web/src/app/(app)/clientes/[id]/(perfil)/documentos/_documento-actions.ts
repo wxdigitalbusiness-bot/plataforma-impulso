@@ -54,7 +54,7 @@ export async function excluirDocumento(
   const doc = await db.clienteDocumento.findUnique({ where: { id: documentoId } });
   if (!doc) return { ok: false, erro: "Documento não encontrado." };
 
-  const path = pathFromUrl(doc.url);
+  const path = doc.url ? pathFromUrl(doc.url) : null;
   if (path) {
     try {
       await deletarArquivo(path);
@@ -64,6 +64,48 @@ export async function excluirDocumento(
   }
 
   await db.clienteDocumento.delete({ where: { id: documentoId } });
+  revalidatePath(`/clientes/${doc.clienteId}/documentos`);
+  return { ok: true };
+}
+
+export async function criarNota(
+  clienteId: number,
+  nome: string,
+  conteudo: string,
+): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const session = await auth();
+  if (!session?.user?.email) return { ok: false, erro: "Não autenticado." };
+  if (!nome.trim() || !conteudo.trim()) return { ok: false, erro: "Preencha o título e o conteúdo." };
+
+  await db.clienteDocumento.create({
+    data: {
+      clienteId,
+      nome: nome.trim(),
+      conteudo: conteudo.trim(),
+      tipo: "nota",
+      enviadoPor: session.user.email,
+    },
+  });
+  revalidatePath(`/clientes/${clienteId}/documentos`);
+  return { ok: true };
+}
+
+export async function editarNota(
+  documentoId: number,
+  nome: string,
+  conteudo: string,
+): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const session = await auth();
+  if (!session?.user) return { ok: false, erro: "Não autenticado." };
+  if (!nome.trim() || !conteudo.trim()) return { ok: false, erro: "Preencha o título e o conteúdo." };
+
+  const doc = await db.clienteDocumento.findUnique({ where: { id: documentoId } });
+  if (!doc || doc.tipo !== "nota") return { ok: false, erro: "Nota não encontrada." };
+
+  await db.clienteDocumento.update({
+    where: { id: documentoId },
+    data: { nome: nome.trim(), conteudo: conteudo.trim() },
+  });
   revalidatePath(`/clientes/${doc.clienteId}/documentos`);
   return { ok: true };
 }
