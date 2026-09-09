@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-function formatBytes(bytes: number): string {
+function formatBytes(bytes: number | null): string {
+  if (bytes === null) return "—";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -48,14 +49,23 @@ export default async function PortalDocumentosPage() {
               {documentos.map((doc) => (
                 <tr key={doc.id.toString()} className="hover:bg-neutral-50">
                   <td className="px-4 py-2.5">
-                    <a
-                      href={doc.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-violet-600 hover:underline"
-                    >
-                      {doc.nome}
-                    </a>
+                    {doc.tipo === "nota" ? (
+                      <div>
+                        <span className="font-medium text-neutral-900">📝 {doc.nome}</span>
+                        <p className="mt-0.5 max-w-md whitespace-pre-wrap text-xs text-neutral-500">
+                          {doc.conteudo}
+                        </p>
+                      </div>
+                    ) : (
+                      <a
+                        href={doc.url ?? "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-violet-600 hover:underline"
+                      >
+                        {doc.nome}
+                      </a>
+                    )}
                   </td>
                   <td className="px-4 py-2.5 text-neutral-500">{formatBytes(doc.tamanho)}</td>
                   <td className="px-4 py-2.5 whitespace-nowrap text-neutral-400">
