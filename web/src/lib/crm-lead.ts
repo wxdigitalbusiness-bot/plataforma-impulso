@@ -22,6 +22,8 @@ export type LeadUpsertInput = {
   adBody: string | null;
   adMediaUrl: string | null;
   recebidaEm: Date;
+  // true = lead cadastrado manualmente pela agência (não veio de webhook/WhatsApp)
+  criadoManual?: boolean;
 };
 
 export type LeadUpsertResult = {
@@ -64,7 +66,7 @@ export async function upsertCrmLead(input: LeadUpsertInput): Promise<LeadUpsertR
   const {
     phone, clientKey, clientName, pushName,
     adId, ctwaClid, sourceApp, adTitle, adBody, adMediaUrl,
-    recebidaEm,
+    recebidaEm, criadoManual = false,
   } = input;
 
   // Normaliza telefone: aceita com e sem prefixo 55 para encontrar leads do n8n
@@ -94,7 +96,7 @@ export async function upsertCrmLead(input: LeadUpsertInput): Promise<LeadUpsertR
     INSERT INTO fb_leads (
       lead_id, client_key, client_name, lead_nome, lead_whatsapp,
       ad_id, ctwa_clid, source_app, ad_title, ad_body, ad_media_url,
-      data_criacao, fase, webhook_origem
+      data_criacao, fase, webhook_origem, criado_manual
     ) VALUES (
       ${leadId},
       ${clientKey},
@@ -109,7 +111,8 @@ export async function upsertCrmLead(input: LeadUpsertInput): Promise<LeadUpsertR
       ${adMediaUrl},
       ${new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(recebidaEm)},
       'Novo Lead',
-      'plataforma'
+      'plataforma',
+      ${criadoManual}
     )
     ON CONFLICT (lead_id) DO UPDATE SET
       lead_whatsapp  = COALESCE(NULLIF(fb_leads.lead_whatsapp, ''), ${phoneDigits}),

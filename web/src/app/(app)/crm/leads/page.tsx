@@ -127,7 +127,7 @@ export default async function CrmLeadsPage({ searchParams }: Props) {
         ) m ON TRUE
         WHERE lower(fl.client_key) = lower(${cliente.n8nClientKey})
           AND NOT fl.eh_colaborador
-          AND (NOT ${cliente.crmSomentePago} OR
+          AND (NOT ${cliente.crmSomentePago} OR fl.criado_manual OR
                fl.ad_id IS NOT NULL OR fl.ctwa_clid IS NOT NULL OR
                fl.gclid IS NOT NULL OR fl.wbraid IS NOT NULL OR fl.gbraid IS NOT NULL)
         ORDER BY COALESCE(m.recebida_em, fl.data_criacao::timestamptz) DESC

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LeadCard, type Lead } from "./lead-card";
 import { ConversaPanel } from "./conversa-panel";
 import { MotivoPerdaModal } from "./motivo-perda-modal";
+import { AdicionarLead } from "./adicionar-lead";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type Etapa = { etapa: string; etapaLabel: string };
@@ -630,6 +631,9 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
     <>
       {/* ── Barra de filtros ──────────────────────────────────────────── */}
       <div className="mb-3 flex shrink-0 items-center gap-2">
+
+        {/* Adicionar lead manualmente */}
+        <AdicionarLead clienteId={clienteId} onCriado={fetchLeads} />
 
         {/* Etapa */}
         <EtapaDropdown
