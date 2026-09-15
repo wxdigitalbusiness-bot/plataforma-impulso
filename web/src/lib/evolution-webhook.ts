@@ -2,6 +2,28 @@
 // Extrai os campos relevantes para o CRM: identidade do lead, conteúdo
 // da mensagem e dados de atribuição CTWA (Click-to-WhatsApp Advertising).
 
+// O WhatsApp reestruturou os dados de CTWA em algum momento de 2026: o
+// ctwaClid saiu de dentro de contextInfo.externalAdReply (que hoje só carrega
+// sourceId/title/body/mediaUrl da peça do anúncio) e passou a vir como um blob
+// de bytes em contextInfo.ctwaPayload (duplicado em conversionData) — cada
+// chave numérica do objeto é um byte, e decodificado como texto dá o próprio
+// token do ctwaClid. sourceApp também saiu do externalAdReply e virou
+// contextInfo.entryPointConversionApp. Sem esse decode, ~95% das conversas
+// vindas de anúncio ficavam sem atribuição (confirmado no cliente FEST PIZZA:
+// 123 mensagens com ctwaPayload vs. só 6 leads com ctwa_clid capturado).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function decodeCtwaPayload(payload: any): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const bytes = Array.isArray(payload) ? payload : Object.values(payload);
+  if (bytes.length === 0 || !bytes.every((b) => typeof b === "number")) return null;
+  try {
+    const decoded = Buffer.from(bytes as number[]).toString("utf8").trim();
+    return decoded || null;
+  } catch {
+    return null;
+  }
+}
+
 export type TipoMensagem = "text" | "image" | "audio" | "video" | "document" | "sticker";
 
 export type MensagemParsed = {
@@ -104,9 +126,15 @@ export function parseEvolutionWebhook(body: any): MensagemParsed | null {
   const dataContextInfo = data.contextInfo ?? null;
   const externalAdReply =
     contextInfo?.externalAdReply ?? dataContextInfo?.externalAdReply ?? null;
+  const ctwaPayloadClid = decodeCtwaPayload(
+    dataContextInfo?.ctwaPayload ?? contextInfo?.ctwaPayload
+      ?? dataContextInfo?.conversionData ?? contextInfo?.conversionData ?? null,
+  );
   const adId: string | null      = externalAdReply?.sourceId  ?? null;
-  const ctwaClid: string | null  = externalAdReply?.ctwaClid  ?? null;
-  const sourceApp: string | null = externalAdReply?.sourceApp ?? null;
+  // ctwaClid: formato antigo dentro de externalAdReply, ou novo formato via ctwaPayload
+  const ctwaClid: string | null  = externalAdReply?.ctwaClid  ?? ctwaPayloadClid;
+  const sourceApp: string | null = externalAdReply?.sourceApp
+    ?? dataContextInfo?.entryPointConversionApp ?? contextInfo?.entryPointConversionApp ?? null;
   const adTitle: string | null   = externalAdReply?.title     ?? null;
   const adBody: string | null    = externalAdReply?.body      ?? null;
   const adMediaUrl: string | null = externalAdReply?.mediaUrl ?? null;
