@@ -461,6 +461,92 @@ function MaisFiltrosDropdown({
   );
 }
 
+// ── Dropdown de Campanha / Conjunto / Anúncio ───────────────────────────────
+function AnuncioDropdown({
+  campanhas, conjuntos, anuncios,
+  selCampanhas, selConjuntos, selAnuncios,
+  onToggleCampanha, onToggleConjunto, onToggleAnuncio,
+  onClear, open, onOpenToggle,
+}: {
+  campanhas: string[];
+  conjuntos: string[];
+  anuncios: string[];
+  selCampanhas: Set<string>;
+  selConjuntos: Set<string>;
+  selAnuncios: Set<string>;
+  onToggleCampanha: (v: string) => void;
+  onToggleConjunto: (v: string) => void;
+  onToggleAnuncio: (v: string) => void;
+  onClear: () => void;
+  open: boolean;
+  onOpenToggle: () => void;
+}) {
+  const totalSel = selCampanhas.size + selConjuntos.size + selAnuncios.size;
+  const sublabel = totalSel === 0 ? "Campanha, conjunto, anúncio" : `${totalSel} selecionado${totalSel > 1 ? "s" : ""}`;
+
+  function Secao({ titulo, valores, selecionados, onToggle }: {
+    titulo: string; valores: string[]; selecionados: Set<string>; onToggle: (v: string) => void;
+  }) {
+    if (valores.length === 0) return null;
+    return (
+      <div>
+        <p className="mb-1 px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+          {titulo}
+        </p>
+        <div className="max-h-36 overflow-y-auto">
+          {valores.map((v) => {
+            const ativo = selecionados.has(v);
+            return (
+              <button
+                key={v}
+                onClick={() => onToggle(v)}
+                className="flex w-full items-start gap-2.5 rounded-lg px-3 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-50"
+              >
+                <span className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border text-[9px] transition-colors ${
+                  ativo ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300"
+                }`}>
+                  {ativo && "✓"}
+                </span>
+                <span className="line-clamp-2">{v}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <FilterDropdown
+      label="Anúncio"
+      sublabel={sublabel}
+      active={totalSel > 0}
+      open={open}
+      onToggle={onOpenToggle}
+    >
+      <div className="min-w-[240px] p-2">
+        {campanhas.length === 0 && conjuntos.length === 0 && anuncios.length === 0 && (
+          <p className="px-3 py-2 text-xs text-neutral-400">Nenhum lead com dados de anúncio ainda.</p>
+        )}
+        <Secao titulo="Campanha"        valores={campanhas} selecionados={selCampanhas} onToggle={onToggleCampanha} />
+        <Secao titulo="Conjunto de anúncio" valores={conjuntos}  selecionados={selConjuntos}  onToggle={onToggleConjunto} />
+        <Secao titulo="Anúncio"         valores={anuncios}   selecionados={selAnuncios}   onToggle={onToggleAnuncio} />
+        {totalSel > 0 && (
+          <>
+            <div className="my-1 border-t border-neutral-100" />
+            <button
+              onClick={onClear}
+              className="w-full rounded-lg px-3 py-1.5 text-left text-xs text-neutral-400 hover:text-neutral-700"
+            >
+              Limpar seleção
+            </button>
+          </>
+        )}
+      </div>
+    </FilterDropdown>
+  );
+}
+
 // ── KanbanBoard ────────────────────────────────────────────────────────────
 export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
@@ -528,13 +614,24 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
   const [filtroData, setFiltroData]          = useState<DateRange>(null);
   const [filtroOrigem, setFiltroOrigem]      = useState<FiltroOrigem>("todos");
   const [filtroWebhook, setFiltroWebhook]    = useState<FiltroWebhook>("todos");
+  const [filtroCampanhas, setFiltroCampanhas] = useState<Set<string>>(new Set());
+  const [filtroConjuntos, setFiltroConjuntos] = useState<Set<string>>(new Set());
+  const [filtroAnuncios, setFiltroAnuncios]   = useState<Set<string>>(new Set());
   const [busca, setBusca]                    = useState("");
 
   // Qual dropdown está aberto
-  const [dropdownAberto, setDropdownAberto] = useState<"etapa" | "data" | "mais" | null>(null);
+  const [dropdownAberto, setDropdownAberto] = useState<"etapa" | "data" | "mais" | "anuncio" | null>(null);
 
-  function toggleDropdown(d: "etapa" | "data" | "mais") {
+  function toggleDropdown(d: "etapa" | "data" | "mais" | "anuncio") {
     setDropdownAberto((prev) => (prev === d ? null : d));
+  }
+
+  function toggleNoSet(setState: React.Dispatch<React.SetStateAction<Set<string>>>) {
+    return (v: string) => setState((prev) => {
+      const next = new Set(prev);
+      next.has(v) ? next.delete(v) : next.add(v);
+      return next;
+    });
   }
 
   const selectedLead = leads.find((l) => l.lead_id === selectedId) ?? null;
@@ -562,8 +659,22 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
       if (!nome.includes(q) && !fone.includes(q)) return false;
     }
 
+    if (filtroCampanhas.size > 0 && !filtroCampanhas.has(l.campaign_name ?? "")) return false;
+    if (filtroConjuntos.size > 0 && !filtroConjuntos.has(l.adset_name ?? "")) return false;
+    if (filtroAnuncios.size  > 0 && !filtroAnuncios.has(l.ad_name ?? ""))     return false;
+
     return true;
   });
+
+  // Valores distintos (não-nulos) presentes nos leads, pro dropdown de anúncio
+  function valoresDistintos(campo: "campaign_name" | "adset_name" | "ad_name"): string[] {
+    const set = new Set<string>();
+    for (const l of leads) { if (l[campo]) set.add(l[campo] as string); }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }
+  const campanhasDisponiveis = valoresDistintos("campaign_name");
+  const conjuntosDisponiveis = valoresDistintos("adset_name");
+  const anunciosDisponiveis  = valoresDistintos("ad_name");
 
   const etapasFiltradas = filtroEtapas.size === 0
     ? etapas
@@ -573,13 +684,17 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
   const totalPlataforma = leads.filter((l) => l.webhook_origem === "plataforma").length;
   const totalN8n        = leads.filter((l) => l.webhook_origem !== "plataforma").length;
 
-  const temFiltro = filtroEtapas.size > 0 || !!filtroData || filtroOrigem !== "todos" || filtroWebhook !== "todos" || !!busca;
+  const temFiltro = filtroEtapas.size > 0 || !!filtroData || filtroOrigem !== "todos" || filtroWebhook !== "todos"
+    || filtroCampanhas.size > 0 || filtroConjuntos.size > 0 || filtroAnuncios.size > 0 || !!busca;
 
   function limparFiltros() {
     setFiltroEtapas(new Set());
     setFiltroData(null);
     setFiltroOrigem("todos");
     setFiltroWebhook("todos");
+    setFiltroCampanhas(new Set());
+    setFiltroConjuntos(new Set());
+    setFiltroAnuncios(new Set());
     setBusca("");
   }
 
@@ -667,6 +782,22 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
           onWebhookChange={setFiltroWebhook}
           open={dropdownAberto === "mais"}
           onOpenToggle={() => toggleDropdown("mais")}
+        />
+
+        {/* Campanha / Conjunto / Anúncio */}
+        <AnuncioDropdown
+          campanhas={campanhasDisponiveis}
+          conjuntos={conjuntosDisponiveis}
+          anuncios={anunciosDisponiveis}
+          selCampanhas={filtroCampanhas}
+          selConjuntos={filtroConjuntos}
+          selAnuncios={filtroAnuncios}
+          onToggleCampanha={toggleNoSet(setFiltroCampanhas)}
+          onToggleConjunto={toggleNoSet(setFiltroConjuntos)}
+          onToggleAnuncio={toggleNoSet(setFiltroAnuncios)}
+          onClear={() => { setFiltroCampanhas(new Set()); setFiltroConjuntos(new Set()); setFiltroAnuncios(new Set()); }}
+          open={dropdownAberto === "anuncio"}
+          onOpenToggle={() => toggleDropdown("anuncio")}
         />
 
         {/* Limpar filtros */}
