@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { formatarPeriodoLabel, type TipoRelatorio } from "@/lib/relatorios";
-import { getCrmFunilDetalhado, getCrmLeadsAtribuicaoCompleta, getPanfletagemInsights, getGoogleInsightsRelatorio, getCrmLeadsAtribuicaoGoogle, getResultadosFinanceiros, type GoogleCampanhaRelatorio, type GoogleLeadAtribuicao } from "@/lib/db-insights";
+import { getCrmFunilDetalhado, getCrmFunilPorOrigem, getCrmLeadsAtribuicaoCompleta, getPanfletagemInsights, getGoogleInsightsRelatorio, getCrmLeadsAtribuicaoGoogle, getResultadosFinanceiros, type GoogleCampanhaRelatorio, type GoogleLeadAtribuicao } from "@/lib/db-insights";
 import { PanfletagemResumo } from "@/components/panfletagem/resumo";
 import { EnviarRelatorioButton } from "./_enviar-relatorio-button";
 import { GoogleLeadsAtribuicao } from "@/components/crm/google-leads-atribuicao";
@@ -84,9 +84,10 @@ export default async function RelatorioPublicoPage({ params }: Props) {
   const clientKey     = relatorio.cliente.n8nClientKey;
   const ehPanfletagem = relatorio.cliente.tipoServico === "panfletagem_digital";
 
-  const [crmFunil, leadsAtribuicao, panfletagemData, googleData, googleLeads, resultadosFinanceiros] = clientKey
+  const [crmFunil, crmFunilOrigem, leadsAtribuicao, panfletagemData, googleData, googleLeads, resultadosFinanceiros] = clientKey
     ? await Promise.all([
         getCrmFunilDetalhado(clientKey, from, to),
+        getCrmFunilPorOrigem(clientKey, from, to),
         getCrmLeadsAtribuicaoCompleta(clientKey, from, to),
         ehPanfletagem
           ? getPanfletagemInsights(clientKey, from, to)
@@ -95,7 +96,7 @@ export default async function RelatorioPublicoPage({ params }: Props) {
         getCrmLeadsAtribuicaoGoogle(clientKey, from, to),
         getResultadosFinanceiros(clientKey, from, to),
       ])
-    : [null, [] as Awaited<ReturnType<typeof getCrmLeadsAtribuicaoCompleta>>, null, null, [] as GoogleLeadAtribuicao[], { leads: [], totalGeral: 0, totalPago: 0, totalOrganico: 0 }];
+    : [null, null, [] as Awaited<ReturnType<typeof getCrmLeadsAtribuicaoCompleta>>, null, null, [] as GoogleLeadAtribuicao[], { leads: [], totalGeral: 0, totalPago: 0, totalOrganico: 0 }];
 
   const totalLeadsCampanha = leadsAtribuicao.reduce((s, l) => s + l.leads, 0);
 
@@ -594,6 +595,19 @@ export default async function RelatorioPublicoPage({ params }: Props) {
               <p className="mt-3 text-xs text-neutral-400">
                 💡 Nenhum lead deste período possui atribuição de anúncio — podem ter vindo de tráfego orgânico ou formulários sem rastreamento ativo.
               </p>
+            )}
+
+            {crmFunilOrigem && crmFunilOrigem.total > 0 && (
+              <div className="mt-5">
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-neutral-400">
+                  Leads por origem
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <KpiCard label="Google Ads" value={fInt(crmFunilOrigem.google)}   tone={crmFunilOrigem.google   > 0 ? "ok" : "default"} />
+                  <KpiCard label="Meta Ads"   value={fInt(crmFunilOrigem.meta)}     tone={crmFunilOrigem.meta     > 0 ? "ok" : "default"} />
+                  <KpiCard label="Orgânico"   value={fInt(crmFunilOrigem.organico)} tone={crmFunilOrigem.organico > 0 ? "ok" : "default"} />
+                </div>
+              </div>
             )}
           </section>
         )}

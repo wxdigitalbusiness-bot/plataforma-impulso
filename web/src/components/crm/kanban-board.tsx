@@ -9,7 +9,7 @@ import { AdicionarLead } from "./adicionar-lead";
 // ── Types ──────────────────────────────────────────────────────────────────
 type Etapa = { etapa: string; etapaLabel: string };
 type Props = { clienteId: number; etapas: Etapa[]; initialLeads: Lead[] };
-type FiltroOrigem = "todos" | "pago" | "organico";
+type FiltroOrigem = "todos" | "pago" | "organico" | "google" | "meta";
 type FiltroWebhook = "todos" | "plataforma" | "n8n";
 type DateRange = { de: string; ate: string; label: string } | null;
 
@@ -403,10 +403,13 @@ function MaisFiltrosDropdown({
   onOpenToggle: () => void;
 }) {
   const active = origem !== "todos" || webhook !== "todos";
+  const LABEL_ORIGEM: Record<FiltroOrigem, string> = {
+    todos: "Todos", pago: "Tráfego pago", organico: "Orgânico", google: "Google Ads", meta: "Meta Ads",
+  };
   const sublabel = webhook !== "todos"
     ? (webhook === "plataforma" ? "Via Plataforma" : "Via n8n")
     : origem !== "todos"
-      ? (origem === "pago" ? "Tráfego pago" : "Orgânico")
+      ? LABEL_ORIGEM[origem]
       : "Mais filtros";
 
   return (
@@ -421,7 +424,9 @@ function MaisFiltrosDropdown({
         <p className="mb-1 px-3 pt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
           Mídia
         </p>
-        {([ ["todos","Todos"], ["pago","Tráfego pago"], ["organico","Orgânico"] ] as [FiltroOrigem, string][]).map(([v, label]) => (
+        {([
+          ["todos","Todos"], ["pago","Tráfego pago"], ["google","Google Ads"], ["meta","Meta Ads"], ["organico","Orgânico"],
+        ] as [FiltroOrigem, string][]).map(([v, label]) => (
           <button
             key={v}
             onClick={() => { onOrigemChange(v); }}
@@ -638,9 +643,13 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
 
   // ── Filtragem client-side ──────────────────────────────────────────────
   const leadsFiltrados = leads.filter((l) => {
-    const isPago = !!(l.gclid || l.ad_id || l.ctwa_clid);
-    if (filtroOrigem === "pago"     && !isPago) return false;
-    if (filtroOrigem === "organico" &&  isPago) return false;
+    const isGoogle = !!l.gclid;
+    const isMeta   = !!(l.ad_id || l.ctwa_clid);
+    const isPago   = isGoogle || isMeta;
+    if (filtroOrigem === "pago"     && !isPago)   return false;
+    if (filtroOrigem === "organico" &&  isPago)   return false;
+    if (filtroOrigem === "google"   && !isGoogle) return false;
+    if (filtroOrigem === "meta"     && !isMeta)   return false;
 
     if (filtroWebhook === "plataforma" && l.webhook_origem !== "plataforma") return false;
     if (filtroWebhook === "n8n"        && l.webhook_origem === "plataforma") return false;

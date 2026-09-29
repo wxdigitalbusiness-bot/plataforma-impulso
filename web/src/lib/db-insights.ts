@@ -308,6 +308,58 @@ export async function getCrmFunilDetalhado(
   }
 }
 
+/** Funil CRM por origem do tráfego — Google Ads / Meta Ads / Orgânico */
+export type CrmFunilPorOrigem = {
+  google: number;
+  meta: number;
+  organico: number;
+  total: number;
+};
+
+/**
+ * Classifica cada lead único (dedupe por telefone, igual getCrmFunilDetalhado)
+ * pela origem do tráfego: tem gclid/wbraid/gbraid → Google; tem ad_id/ctwa_clid
+ * → Meta; nenhum dos dois → Orgânico. Usa bool_or entre as linhas duplicadas
+ * do mesmo telefone (o upsert só preenche esses campos uma vez, nunca some).
+ */
+export async function getCrmFunilPorOrigem(
+  clientKey: string,
+  from: string,
+  to: string,
+): Promise<CrmFunilPorOrigem> {
+  type Row = { origem: "google" | "meta" | "organico"; qtd: bigint | number };
+  try {
+    const rows = await db.$queryRaw<Row[]>`
+      WITH leads_unicos AS (
+        SELECT
+          COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id) AS chave,
+          bool_or(gclid IS NOT NULL OR wbraid IS NOT NULL OR gbraid IS NOT NULL) AS tem_google,
+          bool_or(ad_id IS NOT NULL OR ctwa_clid IS NOT NULL) AS tem_meta
+        FROM fb_leads
+        WHERE lower(client_key) = lower(${clientKey})
+          AND data_criacao::date BETWEEN ${from}::date AND ${to}::date
+          AND NOT eh_colaborador
+        GROUP BY COALESCE(NULLIF(TRIM(lead_whatsapp), ''), lead_id)
+      )
+      SELECT
+        CASE WHEN tem_google THEN 'google' WHEN tem_meta THEN 'meta' ELSE 'organico' END AS origem,
+        COUNT(*) AS qtd
+      FROM leads_unicos
+      GROUP BY origem
+    `;
+    const out: CrmFunilPorOrigem = { google: 0, meta: 0, organico: 0, total: 0 };
+    for (const r of rows) {
+      const qtd = toInt(r.qtd);
+      out[r.origem] = qtd;
+      out.total += qtd;
+    }
+    return out;
+  } catch (err) {
+    console.error("[DB] getCrmFunilPorOrigem:", err);
+    return { google: 0, meta: 0, organico: 0, total: 0 };
+  }
+}
+
 /**
  * Versão batch (múltiplos clientes) do funil detalhado. Pra cada client_key,
  * retorna lista de { fase, qtd } com dedupe por telefone e unificação.
