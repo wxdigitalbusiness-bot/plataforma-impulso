@@ -9,7 +9,7 @@ type PortalUserRow = {
   id: number;
   nome: string;
   email: string;
-  senha_hash: string;
+  senha_hash: string | null;
   cliente_id: number;
   role: string;
   ativo: boolean;
@@ -34,7 +34,7 @@ export async function loginPortal(formData: FormData) {
   `;
   const user = rows[0];
 
-  if (!user || !user.ativo) redirect("/portal/login?e=1");
+  if (!user || !user.ativo || !user.senha_hash) redirect("/portal/login?e=1");
 
   const ok = await compare(senha, user.senha_hash);
   if (!ok) redirect("/portal/login?e=1");

@@ -9,9 +9,19 @@ const ALERT_INSTANCE  = process.env.ALERT_EVOLUTION_INSTANCE ?? "Impulso";
 const ALERT_WHATSAPP  = process.env.CRON_ALERT_WHATSAPP ?? "556384386017";
 
 export async function enviarWhatsapp(texto: string) {
-  if (!EVOLUTION_API_URL) return;
+  await enviarWhatsappPara(ALERT_WHATSAPP, texto);
+}
+
+/**
+ * Envia WhatsApp pra um número arbitrário (ex.: cliente), usando a mesma
+ * instância Evolution da agência. Diferente de enviarWhatsapp() — que só
+ * manda pro número fixo da agência — essa é genérica e devolve se deu certo,
+ * pra quem chama poder mostrar erro em vez de falhar silenciosamente.
+ */
+export async function enviarWhatsappPara(telefone: string, texto: string): Promise<boolean> {
+  if (!EVOLUTION_API_URL) return false;
   try {
-    const jid = `${ALERT_WHATSAPP}@s.whatsapp.net`;
+    const jid = telefone.includes("@") ? telefone : `${telefone}@s.whatsapp.net`;
     const res = await fetch(
       `${EVOLUTION_API_URL}/message/sendText/${encodeURIComponent(ALERT_INSTANCE)}`,
       {
@@ -20,9 +30,14 @@ export async function enviarWhatsapp(texto: string) {
         body: JSON.stringify({ number: jid, text: texto }),
       },
     );
-    if (!res.ok) console.error("[CRON-ALERTA] Evolution respondeu", res.status, await res.text());
+    if (!res.ok) {
+      console.error("[WHATSAPP] Evolution respondeu", res.status, await res.text());
+      return false;
+    }
+    return true;
   } catch (err) {
-    console.error("[CRON-ALERTA] falha ao enviar WhatsApp:", err);
+    console.error("[WHATSAPP] falha ao enviar:", err);
+    return false;
   }
 }
 
