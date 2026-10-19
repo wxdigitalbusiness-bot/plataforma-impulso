@@ -37,7 +37,7 @@ type Props = {
   onClick: () => void;
 };
 
-function tempoRelativo(isoStr: string | null): string {
+export function tempoRelativo(isoStr: string | null): string {
   if (!isoStr) return "";
   const diff = Date.now() - new Date(isoStr).getTime();
   const min = Math.floor(diff / 60000);
@@ -49,7 +49,7 @@ function tempoRelativo(isoStr: string | null): string {
   return `${d}d`;
 }
 
-function previewMsg(tipo: string | null, conteudo: string | null): string | null {
+export function previewMsg(tipo: string | null, conteudo: string | null): string | null {
   if (!tipo) return null;
   if (tipo === "audio") return "🎵 Áudio";
   if (tipo === "image") return conteudo ? `📷 ${conteudo}` : "📷 Foto";
@@ -59,7 +59,7 @@ function previewMsg(tipo: string | null, conteudo: string | null): string | null
   return conteudo ?? null;
 }
 
-function dataRelativa(isoStr: string | null): string {
+export function dataRelativa(isoStr: string | null): string {
   if (!isoStr) return "";
   // data_criacao é armazenada como UTC midnight — adiciona o offset local
   // para evitar que a data role um dia para trás em UTC-3
@@ -71,7 +71,7 @@ function dataRelativa(isoStr: string | null): string {
 // Trata string literal "null" (legado do n8n) como ausente
 const isReal = (v: string | null | undefined): v is string => !!v && v !== "null";
 
-function OrigemBadge({ lead }: { lead: Lead }) {
+export function OrigemBadge({ lead }: { lead: Lead }) {
   const temGoogle = !!lead.gclid;
   const temMeta   = isReal(lead.ad_id) || isReal(lead.ctwa_clid);
   const isSite    = lead.utm_source === "site" && !temGoogle && !temMeta;
@@ -106,7 +106,7 @@ function OrigemBadge({ lead }: { lead: Lead }) {
   );
 }
 
-function WebhookBadge({ origem }: { origem: string | null }) {
+export function WebhookBadge({ origem }: { origem: string | null }) {
   if (origem === "plataforma") {
     return (
       <span title="Recebido pela plataforma Impulso" className="inline-flex items-center rounded-full bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold text-teal-600 ring-1 ring-teal-100">
