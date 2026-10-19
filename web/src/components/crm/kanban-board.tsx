@@ -5,9 +5,10 @@ import { LeadCard, type Lead } from "./lead-card";
 import { ConversaPanel } from "./conversa-panel";
 import { MotivoPerdaModal } from "./motivo-perda-modal";
 import { AdicionarLead } from "./adicionar-lead";
+import { LeadList } from "./lead-list";
 
 // ── Types ──────────────────────────────────────────────────────────────────
-type Etapa = { etapa: string; etapaLabel: string };
+export type Etapa = { etapa: string; etapaLabel: string };
 type Props = { clienteId: number; etapas: Etapa[]; initialLeads: Lead[] };
 type FiltroOrigem = "todos" | "pago" | "organico" | "google" | "meta";
 type FiltroWebhook = "todos" | "plataforma" | "n8n";
@@ -21,7 +22,7 @@ const CORES_ETAPA: Record<string, { header: string; count: string }> = {
   perdido:          { header: "bg-red-50 text-red-600",          count: "bg-red-100 text-red-600" },
   concluido:        { header: "bg-violet-50 text-violet-700",    count: "bg-violet-100 text-violet-700" },
 };
-function etapaCores(e: string) {
+export function etapaCores(e: string) {
   return CORES_ETAPA[e] ?? { header: "bg-blue-50 text-blue-700", count: "bg-blue-100 text-blue-700" };
 }
 
@@ -627,6 +628,9 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
   // Qual dropdown está aberto
   const [dropdownAberto, setDropdownAberto] = useState<"etapa" | "data" | "mais" | "anuncio" | null>(null);
 
+  // Modo de visualização: kanban (colunas) ou lista (tabela)
+  const [visualizacao, setVisualizacao] = useState<"kanban" | "lista">("kanban");
+
   function toggleDropdown(d: "etapa" | "data" | "mais" | "anuncio") {
     setDropdownAberto((prev) => (prev === d ? null : d));
   }
@@ -759,6 +763,30 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
         {/* Adicionar lead manualmente */}
         <AdicionarLead clienteId={clienteId} onCriado={fetchLeads} />
 
+        {/* Alternar Kanban / Lista */}
+        <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-neutral-200 bg-white p-0.5">
+          <button
+            type="button"
+            onClick={() => setVisualizacao("kanban")}
+            title="Visualização em Kanban"
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              visualizacao === "kanban" ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-50"
+            }`}
+          >
+            Kanban
+          </button>
+          <button
+            type="button"
+            onClick={() => setVisualizacao("lista")}
+            title="Visualização em lista"
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              visualizacao === "lista" ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-50"
+            }`}
+          >
+            Lista
+          </button>
+        </div>
+
         {/* Etapa */}
         <EtapaDropdown
           etapas={etapas}
@@ -866,7 +894,20 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
         </div>
       </div>
 
+      {/* ── Lista ──────────────────────────────────────────────────────── */}
+      {visualizacao === "lista" && (
+        <div className="flex-1 overflow-hidden pb-4">
+          <LeadList
+            leads={leadsFiltrados}
+            etapas={etapas}
+            selectedId={selectedId}
+            onSelect={abrirPainel}
+          />
+        </div>
+      )}
+
       {/* ── Colunas do Kanban ──────────────────────────────────────────── */}
+      {visualizacao === "kanban" && (
       <div className="flex h-full gap-3 overflow-x-auto pb-4">
         {etapasFiltradas.map((etapa) => {
           const leadsEtapa = leadsFiltrados.filter((l) => l.fase === etapa.etapaLabel);
@@ -927,6 +968,7 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
           );
         })}
       </div>
+      )}
 
       {/* Overlay + painel de conversa */}
       {overlay && selectedLead && (
