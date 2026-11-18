@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LeadCard, type Lead } from "./lead-card";
+import { LeadCard, type Lead, type Tag } from "./lead-card";
 import { ConversaPanel } from "./conversa-panel";
 import { MotivoPerdaModal } from "./motivo-perda-modal";
 import { AdicionarLead } from "./adicionar-lead";
@@ -553,6 +553,68 @@ function AnuncioDropdown({
   );
 }
 
+// ── Dropdown de Tags ─────────────────────────────────────────────────────────
+function TagDropdown({
+  tags, selected, onToggle, onClear, open, onOpenToggle,
+}: {
+  tags: Tag[];
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+  onClear: () => void;
+  open: boolean;
+  onOpenToggle: () => void;
+}) {
+  const sublabel =
+    selected.size === 0 ? "Todas as tags"
+    : selected.size === 1 ? (tags.find((t) => selected.has(t.id))?.nome ?? "1 tag")
+    : `${selected.size} tags`;
+
+  return (
+    <FilterDropdown
+      label="Tag"
+      sublabel={sublabel}
+      active={selected.size > 0}
+      open={open}
+      onToggle={onOpenToggle}
+    >
+      <div className="min-w-[190px] p-2">
+        {tags.length === 0 && (
+          <p className="px-3 py-2 text-xs text-neutral-400">Nenhum lead com tag ainda.</p>
+        )}
+        {tags.map((tag) => {
+          const ativo = selected.has(tag.id);
+          return (
+            <button
+              key={tag.id}
+              onClick={() => onToggle(tag.id)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
+            >
+              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] transition-colors ${
+                ativo ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300"
+              }`}>
+                {ativo && "✓"}
+              </span>
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tag.cor }} />
+              <span className="truncate">{tag.nome}</span>
+            </button>
+          );
+        })}
+        {selected.size > 0 && (
+          <>
+            <div className="my-1 border-t border-neutral-100" />
+            <button
+              onClick={onClear}
+              className="w-full rounded-lg px-3 py-1.5 text-left text-xs text-neutral-400 hover:text-neutral-700"
+            >
+              Limpar seleção
+            </button>
+          </>
+        )}
+      </div>
+    </FilterDropdown>
+  );
+}
+
 // ── KanbanBoard ────────────────────────────────────────────────────────────
 export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
@@ -623,15 +685,16 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
   const [filtroCampanhas, setFiltroCampanhas] = useState<Set<string>>(new Set());
   const [filtroConjuntos, setFiltroConjuntos] = useState<Set<string>>(new Set());
   const [filtroAnuncios, setFiltroAnuncios]   = useState<Set<string>>(new Set());
+  const [filtroTags, setFiltroTags]           = useState<Set<string>>(new Set());
   const [busca, setBusca]                    = useState("");
 
   // Qual dropdown está aberto
-  const [dropdownAberto, setDropdownAberto] = useState<"etapa" | "data" | "mais" | "anuncio" | null>(null);
+  const [dropdownAberto, setDropdownAberto] = useState<"etapa" | "data" | "mais" | "anuncio" | "tag" | null>(null);
 
   // Modo de visualização: kanban (colunas) ou lista (tabela)
   const [visualizacao, setVisualizacao] = useState<"kanban" | "lista">("kanban");
 
-  function toggleDropdown(d: "etapa" | "data" | "mais" | "anuncio") {
+  function toggleDropdown(d: "etapa" | "data" | "mais" | "anuncio" | "tag") {
     setDropdownAberto((prev) => (prev === d ? null : d));
   }
 
@@ -676,6 +739,8 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
     if (filtroConjuntos.size > 0 && !filtroConjuntos.has(l.adset_name ?? "")) return false;
     if (filtroAnuncios.size  > 0 && !filtroAnuncios.has(l.ad_name ?? ""))     return false;
 
+    if (filtroTags.size > 0 && !l.tags.some((t) => filtroTags.has(t.id))) return false;
+
     return true;
   });
 
@@ -689,6 +754,13 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
   const conjuntosDisponiveis = valoresDistintos("adset_name");
   const anunciosDisponiveis  = valoresDistintos("ad_name");
 
+  // Tags distintas presentes nos leads, pro dropdown de tag
+  const tagsDisponiveis = (() => {
+    const map = new Map<string, Tag>();
+    for (const l of leads) { for (const t of l.tags) { if (!map.has(t.id)) map.set(t.id, t); } }
+    return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+  })();
+
   const etapasFiltradas = filtroEtapas.size === 0
     ? etapas
     : etapas.filter((e) => filtroEtapas.has(e.etapa));
@@ -698,7 +770,7 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
   const totalN8n        = leads.filter((l) => l.webhook_origem !== "plataforma").length;
 
   const temFiltro = filtroEtapas.size > 0 || !!filtroData || filtroOrigem !== "todos" || filtroWebhook !== "todos"
-    || filtroCampanhas.size > 0 || filtroConjuntos.size > 0 || filtroAnuncios.size > 0 || !!busca;
+    || filtroCampanhas.size > 0 || filtroConjuntos.size > 0 || filtroAnuncios.size > 0 || filtroTags.size > 0 || !!busca;
 
   function limparFiltros() {
     setFiltroEtapas(new Set());
@@ -708,6 +780,7 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
     setFiltroCampanhas(new Set());
     setFiltroConjuntos(new Set());
     setFiltroAnuncios(new Set());
+    setFiltroTags(new Set());
     setBusca("");
   }
 
@@ -835,6 +908,16 @@ export function KanbanBoard({ clienteId, etapas, initialLeads }: Props) {
           onClear={() => { setFiltroCampanhas(new Set()); setFiltroConjuntos(new Set()); setFiltroAnuncios(new Set()); }}
           open={dropdownAberto === "anuncio"}
           onOpenToggle={() => toggleDropdown("anuncio")}
+        />
+
+        {/* Tag */}
+        <TagDropdown
+          tags={tagsDisponiveis}
+          selected={filtroTags}
+          onToggle={toggleNoSet(setFiltroTags)}
+          onClear={() => setFiltroTags(new Set())}
+          open={dropdownAberto === "tag"}
+          onOpenToggle={() => toggleDropdown("tag")}
         />
 
         {/* Limpar filtros */}

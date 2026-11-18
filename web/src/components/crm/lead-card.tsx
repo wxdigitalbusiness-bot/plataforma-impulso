@@ -1,5 +1,7 @@
 "use client";
 
+export type Tag = { id: string; nome: string; cor: string };
+
 export type Lead = {
   lead_id: string;
   lead_nome: string;
@@ -29,6 +31,7 @@ export type Lead = {
   capi_enviado_em: string | null;
   gconv_status: string | null;
   gconv_enviado_em: string | null;
+  tags: Tag[];
 };
 
 type Props = {
@@ -155,6 +158,20 @@ export function LeadCard({ lead, isSelected, onClick }: Props) {
           </div>
         </div>
       </div>
+      {lead.tags.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {lead.tags.map((tag) => (
+            <span
+              key={tag.id}
+              title={tag.nome}
+              className="rounded-full px-1.5 py-0.5 text-[9px] font-medium"
+              style={{ backgroundColor: `${tag.cor}1a`, color: tag.cor }}
+            >
+              {tag.nome}
+            </span>
+          ))}
+        </div>
+      )}
       {preview && (
         <p className="mt-1.5 truncate text-[11px] text-neutral-500">{preview}</p>
       )}
