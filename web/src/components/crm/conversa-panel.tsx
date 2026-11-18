@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { MsgBubble } from "./msg-bubble";
 import { MotivoPerdaModal } from "./motivo-perda-modal";
 import { TarefaDetalhe, type Tarefa } from "@/components/tarefas/tarefa-detalhe";
-import type { Lead } from "./lead-card";
+import type { Lead, Tag } from "./lead-card";
 
 type MensagemCrm = {
   id: string;
@@ -14,8 +14,6 @@ type MensagemCrm = {
   media_url: string | null;
   recebida_em: string;
 };
-
-type Tag = { id: string; nome: string; cor: string };
 
 type Atribuicao = {
   utm_source: string | null;

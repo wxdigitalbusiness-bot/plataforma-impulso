@@ -36,6 +36,7 @@ type LeadRow = {
   capi_enviado_em: Date | null;
   gconv_status: string | null;
   gconv_enviado_em: Date | null;
+  tags: { id: string; nome: string; cor: string }[];
 };
 
 export default async function CrmLeadsPage({ searchParams }: Props) {
@@ -113,7 +114,8 @@ export default async function CrmLeadsPage({ searchParams }: Props) {
           fl.capi_status,
           fl.capi_enviado_em,
           fl.gconv_status,
-          fl.gconv_enviado_em
+          fl.gconv_enviado_em,
+          tg.tags
         FROM fb_leads fl
         LEFT JOIN LATERAL (
           SELECT recebida_em FROM crm_mensagens
@@ -125,6 +127,12 @@ export default async function CrmLeadsPage({ searchParams }: Props) {
           WHERE lead_id = fl.lead_id AND client_key = fl.client_key
           ORDER BY recebida_em DESC LIMIT 1
         ) m ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT COALESCE(json_agg(json_build_object('id', ct.id::text, 'nome', ct.nome, 'cor', ct.cor) ORDER BY ct.nome), '[]'::json) AS tags
+          FROM crm_lead_tags clt
+          JOIN crm_tags ct ON ct.id = clt.tag_id
+          WHERE clt.lead_id = fl.lead_id AND lower(clt.client_key) = lower(fl.client_key)
+        ) tg ON TRUE
         WHERE lower(fl.client_key) = lower(${cliente.n8nClientKey})
           AND NOT fl.eh_colaborador
           AND (NOT ${cliente.crmSomentePago} OR fl.criado_manual OR

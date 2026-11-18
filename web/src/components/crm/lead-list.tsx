@@ -29,6 +29,7 @@ export function LeadList({ leads, etapas, selectedId, onSelect }: Props) {
             <th className="px-4 py-2.5 font-medium">Lead</th>
             <th className="px-4 py-2.5 font-medium">Etapa</th>
             <th className="px-4 py-2.5 font-medium">Origem</th>
+            <th className="px-4 py-2.5 font-medium">Tags</th>
             <th className="px-4 py-2.5 font-medium">Última mensagem</th>
             <th className="px-4 py-2.5 font-medium">Entrou em</th>
           </tr>
@@ -69,6 +70,23 @@ export function LeadList({ leads, etapas, selectedId, onSelect }: Props) {
                     <WebhookBadge origem={lead.webhook_origem} />
                     <OrigemBadge lead={lead} />
                   </div>
+                </td>
+                <td className="px-4 py-2.5">
+                  {lead.tags.length > 0 ? (
+                    <div className="flex max-w-[160px] flex-wrap gap-1">
+                      {lead.tags.map((tag) => (
+                        <span
+                          key={tag.id}
+                          className="rounded-full px-1.5 py-0.5 text-[9px] font-medium"
+                          style={{ backgroundColor: `${tag.cor}1a`, color: tag.cor }}
+                        >
+                          {tag.nome}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-neutral-300">—</span>
+                  )}
                 </td>
                 <td className="max-w-[260px] px-4 py-2.5 text-neutral-500">
                   <div className="flex items-center gap-2">
