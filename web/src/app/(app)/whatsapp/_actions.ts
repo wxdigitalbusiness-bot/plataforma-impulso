@@ -57,6 +57,33 @@ export async function configurarWebhookInstancia(
   return { ok: true };
 }
 
+export async function apagarInstancia(
+  instanceName: string,
+  clienteId: number | null
+): Promise<{ ok: true } | { ok: false; erro: string }> {
+  if (!EVOLUTION_API_URL) return { ok: false, erro: "EVOLUTION_API_URL não configurada." };
+
+  const delRes = await fetch(
+    `${EVOLUTION_API_URL}/instance/delete/${encodeURIComponent(instanceName)}`,
+    { method: "DELETE", headers: evoHeaders() }
+  );
+  if (!delRes.ok) {
+    const err = await delRes.text().catch(() => String(delRes.status));
+    return { ok: false, erro: `Erro Evolution API (${delRes.status}): ${err}` };
+  }
+
+  // Desvincula do cliente pra ele voltar a aparecer como "sem instância"
+  // e poder criar uma nova (fluxo de reconectar continua disponível).
+  if (clienteId) {
+    await db.$executeRaw`
+      UPDATE clientes SET evolution_instance = NULL, atualizado_em = NOW() WHERE id = ${clienteId}
+    `;
+  }
+
+  revalidatePath("/whatsapp");
+  return { ok: true };
+}
+
 export async function criarNovaInstancia(
   instanceName: string,
   clienteId: number | null
