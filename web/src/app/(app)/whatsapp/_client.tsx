@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { configurarWebhookInstancia, criarNovaInstancia } from './_actions';
+import { configurarWebhookInstancia, criarNovaInstancia, apagarInstancia } from './_actions';
 
 export type ClienteInfo = {
   id: number;
@@ -54,6 +54,9 @@ function InstanceCard({ instance }: { instance: Instance }) {
   const [whLoading, setWhLoading] = useState(false);
   const [whResult, setWhResult]   = useState<{ ok: boolean; msg: string } | null>(null);
 
+  const [delLoading, setDelLoading] = useState(false);
+  const [delErro, setDelErro]       = useState<string | null>(null);
+
   const info           = statusInfo(instance.connectionStatus);
   const isDisconnected = instance.connectionStatus.toLowerCase() !== 'open';
   const onPlataforma   = isPlatformUrl(instance.webhookUrl);
@@ -80,6 +83,24 @@ function InstanceCard({ instance }: { instance: Instance }) {
     if (!qrLink) return;
     await navigator.clipboard.writeText(qrLink);
     setQrCopied(true); setTimeout(() => setQrCopied(false), 2000);
+  }
+
+  // ── Apagar instância ─────────────────────────────────────────────────────
+
+  async function handleApagar() {
+    const aviso = instance.cliente
+      ? `Apagar a instância "${instance.name}" (${instance.cliente.nome})? O WhatsApp desse cliente vai parar de capturar leads até conectar um número novo. Essa ação não pode ser desfeita.`
+      : `Apagar a instância "${instance.name}"? Essa ação não pode ser desfeita.`;
+    if (!window.confirm(aviso)) return;
+
+    setDelLoading(true); setDelErro(null);
+    const res = await apagarInstancia(instance.name, instance.cliente?.id ?? null);
+    setDelLoading(false);
+    if (res.ok) {
+      router.refresh();
+    } else {
+      setDelErro(res.erro);
+    }
   }
 
   // ── Webhook ───────────────────────────────────────────────────────────────
@@ -193,6 +214,18 @@ function InstanceCard({ instance }: { instance: Instance }) {
           <p className="text-center text-[10px] text-neutral-400">Link expira em 10 minutos</p>
         </div>
       )}
+
+      {/* Apagar instância */}
+      <div className="border-t border-neutral-100 pt-3">
+        <button
+          onClick={handleApagar}
+          disabled={delLoading}
+          className="w-full text-center text-xs text-red-500 hover:text-red-700 hover:underline disabled:opacity-50"
+        >
+          {delLoading ? 'Apagando…' : '🗑 Apagar instância'}
+        </button>
+        {delErro && <p className="mt-1 text-xs text-red-600">{delErro}</p>}
+      </div>
     </div>
   );
 }
