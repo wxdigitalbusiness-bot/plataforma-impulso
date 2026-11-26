@@ -63,6 +63,7 @@ model Cliente {
   crmWebhooks     ClienteCrmWebhook[]
   documentos      ClienteDocumento[]
   faturas         ClienteFatura[]
+  linkPages       LinkPage[]
 
   @@map("clientes")
 }
@@ -377,4 +378,29 @@ model CrmMensagem {
   @@index([leadId, recebidaEm(sort: Desc)])
   @@index([clientKey, recebidaEm(sort: Desc)])
   @@map("crm_mensagens")
+}
+
+/**
+ * Página estilo Linktree por trás de um QR Code / tag NFC (serviço de
+ * plaquinhas físicas). `nome` é só o rótulo interno pra achar na lista;
+ * `slug` é fixo depois de criado (é o que vai impresso na plaquinha) —
+ * só os links/título/bio dentro da página são editáveis depois.
+ */
+model LinkPage {
+  id           Int       @id @default(autoincrement())
+  slug         String    @unique
+  nome         String
+  clienteId    Int?      @map("cliente_id")
+  titulo       String?
+  bio          String?
+  fotoUrl      String?   @map("foto_url")
+  // Array de { label, url, ativo } — ordem de exibição = ordem no array
+  links        Json      @default("[]")
+  ativo        Boolean   @default(true)
+  criadoEm     DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm DateTime  @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  cliente      Cliente?  @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+
+  @@map("link_pages")
 }
