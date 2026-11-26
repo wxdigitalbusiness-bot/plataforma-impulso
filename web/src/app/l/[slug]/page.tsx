@@ -28,7 +28,10 @@ export default async function LinkPublicoPage({ params }: Props) {
   const links = ((page.links as unknown as LinkItem[]) ?? []).filter((l) => l.ativo);
 
   return (
-    <div className="flex min-h-screen justify-center bg-neutral-50 px-4 py-12">
+    <div
+      className="flex min-h-screen justify-center px-4 py-12"
+      style={{ backgroundColor: page.corFundo || "#fafafa" }}
+    >
       <div className="w-full max-w-sm text-center">
         {foto ? (
           // eslint-disable-next-line @next/next/no-img-element
