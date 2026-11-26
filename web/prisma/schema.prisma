@@ -394,6 +394,7 @@ model LinkPage {
   titulo       String?
   bio          String?
   fotoUrl      String?   @map("foto_url")
+  corFundo     String?   @map("cor_fundo")
   // Array de { label, url, ativo } — ordem de exibição = ordem no array
   links        Json      @default("[]")
   ativo        Boolean   @default(true)

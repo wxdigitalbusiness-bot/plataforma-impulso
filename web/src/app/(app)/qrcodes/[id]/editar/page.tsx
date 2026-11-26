@@ -67,6 +67,7 @@ export default async function EditarQrCodePage({ params }: Props) {
             titulo: page.titulo,
             bio: page.bio,
             fotoUrl: page.fotoUrl,
+            corFundo: page.corFundo,
             links: (page.links as unknown as LinkItem[]) ?? [],
             ativo: page.ativo,
           }}

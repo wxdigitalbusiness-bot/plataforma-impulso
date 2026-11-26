@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { criarLinkPage, atualizarLinkPage, type LinkItem } from "./_actions";
+import { criarLinkPage, atualizarLinkPage, uploadFotoLinkPage, type LinkItem } from "./_actions";
 
 type Cliente = { id: number; nome: string };
 
@@ -17,25 +17,46 @@ type Props = {
     titulo: string | null;
     bio: string | null;
     fotoUrl: string | null;
+    corFundo: string | null;
     links: LinkItem[];
     ativo: boolean;
   };
 };
 
+const COR_FUNDO_PADRAO = "#fafafa";
+
 export function LinkPageForm({ clientes, pageBaseUrl, existente }: Props) {
   const router = useRouter();
+  const fotoInputRef = useRef<HTMLInputElement>(null);
   const [nome, setNome] = useState(existente?.nome ?? "");
   const [clienteId, setClienteId] = useState<number | null>(existente?.clienteId ?? null);
   const [slugCustom, setSlugCustom] = useState("");
   const [titulo, setTitulo] = useState(existente?.titulo ?? "");
   const [bio, setBio] = useState(existente?.bio ?? "");
   const [fotoUrl, setFotoUrl] = useState(existente?.fotoUrl ?? "");
+  const [corFundo, setCorFundo] = useState(existente?.corFundo ?? COR_FUNDO_PADRAO);
+  const [enviandoFoto, setEnviandoFoto] = useState(false);
+  const [erroFoto, setErroFoto] = useState<string | null>(null);
   const [links, setLinks] = useState<LinkItem[]>(
     existente?.links.length ? existente.links : [{ label: "", url: "", ativo: true }],
   );
   const [ativo, setAtivo] = useState(existente?.ativo ?? true);
   const [erro, setErro] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  function onFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErroFoto(null);
+    setEnviandoFoto(true);
+    const fd = new FormData();
+    fd.set("foto", file);
+    uploadFotoLinkPage(fd).then((r) => {
+      setEnviandoFoto(false);
+      if (!r.ok) { setErroFoto(r.erro); return; }
+      setFotoUrl(r.url);
+    });
+  }
 
   function atualizarLink(i: number, campo: keyof LinkItem, valor: string | boolean) {
     setLinks((prev) => prev.map((l, idx) => (idx === i ? { ...l, [campo]: valor } : l)));
@@ -56,7 +77,7 @@ export function LinkPageForm({ clientes, pageBaseUrl, existente }: Props) {
   function salvar() {
     setErro(null);
     startTransition(async () => {
-      const payloadComum = { nome, clienteId, titulo, bio, fotoUrl, links };
+      const payloadComum = { nome, clienteId, titulo, bio, fotoUrl, corFundo, links };
       if (existente) {
         const r = await atualizarLinkPage(existente.id, { ...payloadComum, ativo });
         if (!r.ok) { setErro(r.erro); return; }
@@ -128,16 +149,47 @@ export function LinkPageForm({ clientes, pageBaseUrl, existente }: Props) {
             className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-violet-500"
           />
         </label>
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium text-neutral-700">Foto (URL)</span>
-          <input
-            value={fotoUrl}
-            onChange={(e) => setFotoUrl(e.target.value)}
-            placeholder="https://..."
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-violet-500"
-          />
-        </label>
+        <div>
+          <span className="mb-1 block text-xs font-medium text-neutral-700">Foto</span>
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-neutral-200 bg-neutral-50">
+              {fotoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={fotoUrl} alt="" className="h-full w-full object-cover" />
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => fotoInputRef.current?.click()}
+              disabled={enviandoFoto}
+              className="rounded-lg border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+            >
+              {enviandoFoto ? "Enviando..." : fotoUrl ? "Trocar imagem" : "Escolher imagem"}
+            </button>
+            <input
+              ref={fotoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={onFotoChange}
+              className="hidden"
+            />
+          </div>
+          {erroFoto && <p className="mt-1 text-xs text-red-600">{erroFoto}</p>}
+        </div>
       </div>
+
+      <label className="block w-fit">
+        <span className="mb-1 block text-xs font-medium text-neutral-700">Cor de fundo da página</span>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={corFundo}
+            onChange={(e) => setCorFundo(e.target.value)}
+            className="h-9 w-14 cursor-pointer rounded border border-neutral-300 p-0.5"
+          />
+          <span className="font-mono text-xs text-neutral-400">{corFundo}</span>
+        </div>
+      </label>
 
       <label className="block">
         <span className="mb-1 block text-xs font-medium text-neutral-700">Bio</span>
