@@ -12,6 +12,7 @@ const PUBLIC_PREFIXES = [
   "/_next/image",
   "/r/",
   "/qr/",
+  "/l/",
   "/portal",
 ];
 
